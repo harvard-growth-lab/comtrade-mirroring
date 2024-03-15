@@ -2,6 +2,9 @@ import sys
 from os import path
 import pandas as pd
 from sys import argv
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 from clean.objects.base import _AtlasCleaning
 
@@ -23,7 +26,7 @@ class DataLoader(_AtlasCleaning):
     rename_cols = {
         "Year": "year",
         "Aggregate Level": "product_level",
-        "Trade Flow Code": "flow_code",
+        "Trade Flow Code": "trade_flow",
         "Reporter": "reporter",
         "Partner": "partner",
         "Reporter ISO": "reporter_iso",
@@ -39,7 +42,6 @@ class DataLoader(_AtlasCleaning):
 
         self.df = pd.DataFrame()
         self.year = year
-
         self.df = self.get_comtrade(year)
 
     def get_comtrade(self, year):
@@ -67,7 +69,7 @@ class DataLoader(_AtlasCleaning):
         df = df.rename(columns=self.rename_cols)
 
         df = df[df["product_level"].isin([0, 2, 3, 4, 6])]
-        df = df[df["flow_code"].isin([1, 2])]
+        df = df[df["trade_flow"].isin([1, 2])]
 
         # TODO: confirm dtypes are string
         # cols_to_fix = ['reporter' , 'partner' ,  'reporter_iso' ,  'partner_iso', 'commoditycode']

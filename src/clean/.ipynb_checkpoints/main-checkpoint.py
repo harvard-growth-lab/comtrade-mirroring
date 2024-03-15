@@ -25,8 +25,11 @@ def run_atlas_cleaning(ingestion_attrs):
     product_classification = ingestion_attrs['product_classification']
     for year in range(start_year, end_year + 1):
         # load data set for one year
-        DataLoader(year, **ingestion_attrs).save_parquet("intermediate", 
+        DL = DataLoader(year, **ingestion_attrs).save_parquet("intermediate", 
                                                               f"{product_classification}_{year}")
+        #TODO: load in parquet file
+        TA = TradeAggregator(DL.df, year, **ingestion_attrs)
+        
 
     # Step 1, Do File
     # Aggregate and clean up country data
