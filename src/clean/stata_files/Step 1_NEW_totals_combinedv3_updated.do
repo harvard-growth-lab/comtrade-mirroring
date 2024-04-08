@@ -10,7 +10,7 @@ cd "$path/"
 *-------------------------------------------------------------------------------
  
 loc startyear = 2015 // 2012 // 1962
-loc finalyear = 201
+loc finalyear = 2015
 *-------------------------------------------------------------------------------
 
 
@@ -21,13 +21,13 @@ program define cleandata
 		noi di "   > ${yy} and classification =  $classification "
 		clear
 		*-------------------------------------------------------------------------------
-		cd "$path/${classification}_raw"
-		cap erase temp.csv
-		cap erase temp.dta
+		//cd "$path/${classification}_raw"
+		//cap erase temp.csv
+		//cap erase temp.dta
 		// opens compresses files and retrives the useful columns in Python
-		loc program  ${path}/DO_files/comtrade_reads_zip.py
-		loc rfile  ${path}/${classification}_raw/${classification}_${yy}.zip
-		!python3 `program' `rfile'
+		//loc program  ${path}/DO_files/comtrade_reads_zip.py
+		//loc rfile  ${path}/${classification}_raw/${classification}_${yy}.zip
+		//!python3 `program' `rfile'
 		//shell python `program' `rfile'  
 		//shell python36 `program' `rfile' 	 
 		//!python `program' `rfile' 
@@ -36,8 +36,8 @@ program define cleandata
 		*-------------------------------------------------------------------------------
 		//use update/temp.dta, clear
 		use temp.dta, clear
-		cap erase temp.csv
-		cap erase temp.dta
+		//cap erase temp.csv
+		//cap erase temp.dta
 		
 		if ("${classification}"=="H0") | ("${classification}"=="HS") {
 			keep if agglevel==0 | agglevel==4
@@ -307,8 +307,8 @@ forval y=`startyear'/`finalyear' {
 *-------------------------------------------------------------------------------
 
 
-loc startyear = 1962
-loc finalyear = 2019
+loc startyear = 2015 //1962
+loc finalyear = 2015 //2019
 cd "$path/"
 *-------------------------------------------------------------------------------
 clear
@@ -339,8 +339,8 @@ quietly {
 	//merge 1:1 exporter importer using "D:\Data\Trade_data\Support_Files\country_country_distance.dta",  keep(3 1) nogen
 	replace exporter="ROM" if exporter=="ROU"
 	replace importer="ROM" if importer=="ROU"
-	cap merge m:1 exporter importer using "Support_Files/dist_cepii.dta", keep(3 1) nogen 
-	cap merge m:1 exporter importer using "/Users/sbustos/Dropbox/datasets/Trade_data/update/dist_cepii.dta", keep(3 1) nogen  
+	cap merge m:1 exporter importer using "dist_cepii.dta", keep(3 1) nogen 
+//	cap merge m:1 exporter importer using "/Users/sbustos/Dropbox/datasets/Trade_data/update/dist_cepii.dta", keep(3 1) nogen  
 	replace exporter="ROU" if exporter=="ROM"
 	replace importer="ROU" if importer=="ROM"
 	
@@ -373,8 +373,9 @@ quietly {
 					qui sum importvalue_cif, d
 					loc imp_p1 = max(r(p1), 10^6)
 					
-					qui drop if exportvalue_fob<(`exp_p1') | importvalue_cif<(`imp_p1')		
+					drop if exportvalue_fob<(`exp_p1') | importvalue_cif<(`imp_p1')				
 					winsor2 lnoneplust, cut(10 90) replace 
+					noi di "Running Reghdfe"
 					reghdfe lnoneplust  lndist contig,  abs(year#idc_o year#idc_d) 
 					loc c = _coef[_cons]
 					loc c_se = _se[_cons]
@@ -407,7 +408,8 @@ quietly {
 	keep  year exporter importer exportvalue_fob importvalue_cif importvalue_fob 
 	sort year exporter importer 
 }	
-save ${path}/Totals_RAW_trade.dta, replace 	
+save ${path}/Totals_RAW_trade.dta, replace 
+end	
 *===============================================================================	
 
 */
@@ -710,7 +712,6 @@ format temp %18.0fc
 drop if temp<10^4
 drop if temp==.
 drop temp
-	stop
 save "${path}/Totals_trade.dta", replace 
 //============================================================================================================	
 //use  "${path}/Totals_trade.dta", clear

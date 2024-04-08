@@ -1,6 +1,8 @@
 "the parent object for Atlas Cleaning script"
 
+import os
 from os import path
+import pandas as pd
 import typing
 
 
@@ -23,20 +25,21 @@ class _AtlasCleaning(object):
         self,
         start_year,
         end_year,
-        product_classification,
         root_dir,
     ):
         # INPUTS
         self.root_dir = root_dir
-        self.data_path = path.join(self.root_dir, "data")
-        self.raw_data_path = path.join(self.data_path, "raw")
-        self.intermediate_data_path = path.join(self.data_path, "intermediate")
-        self.processed_data_path = path.join(self.data_path, "processed")
+        self.data_path = os.path.join(self.root_dir, "data")
+        self.raw_data_path = os.path.join(self.data_path, "raw")
+        self.intermediate_data_path = os.path.join(self.data_path, "intermediate")
+        self.processed_data_path = os.path.join(self.data_path, "processed")
+        
+        # data inputs
+        self.dist_cepii = pd.read_stata(os.path.join(self.raw_data_path, "dist_cepii.dta"))
 
         self.df = None
         self.start_year = start_year
         self.end_year = end_year
-        self.product_classification = product_classification
 
     def load_parquet(
         self,
@@ -57,8 +60,7 @@ class _AtlasCleaning(object):
 
         return df
 
-    def save_parquet(self, data_folder, table_name: str):
-        save_dir = path.join(self.data_path, data_folder)
-        save_path = path.join(save_dir, f"{table_name}.parquet")
-
-        self.df.to_parquet(save_path, index=False)
+    def save_parquet(self, df, data_folder, table_name: str):
+        save_dir = os.path.join(self.data_path, data_folder)
+        save_path = os.path.join(save_dir, f"{table_name}.parquet")
+        df.to_parquet(save_path, index=False)
