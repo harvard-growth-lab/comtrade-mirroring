@@ -40,6 +40,8 @@ class _AtlasCleaning(object):
         self.df = None
         self.start_year = start_year
         self.end_year = end_year
+        
+        self.wdi_path = os.path.join(self.raw_data_path, "wdi_extended.dta")
 
     def load_parquet(
         self,
