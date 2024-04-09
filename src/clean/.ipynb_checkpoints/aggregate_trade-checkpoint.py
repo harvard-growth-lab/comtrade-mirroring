@@ -64,14 +64,8 @@ class TradeAggregator(_AtlasCleaning):
         assert imp_to_world["importer"].is_unique
         df = df.merge(imp_to_world, on="importer", how="left")
         
-        import pdb
-        pdb.set_trace()
-
         df = self.remove_outliers(df)
         
-        import pdb
-        pdb.set_trace()
-
         df["year"] = self.year
         df = df[["year", "exporter", "importer", "exportvalue_fob", "importvalue_cif"]]
         df = df.sort_values(by=["exporter", "importer"])
@@ -289,8 +283,6 @@ class TradeAggregator(_AtlasCleaning):
         df[['ratio_exp', 'ratio_imp']] = df[['ratio_exp', 'ratio_imp']].astype(float).fillna(0.0)
         
         # exports with ratio greater than .25
-        import pdb
-        pdb.set_trace()
         df["exports_0"] = np.where(df["ratio_exp"] > 0.25, 
                                    df['exports_0'] - df['exp2ansnoclas_4'], df["exports_0"])
         df["exports_4"] = np.where(df["ratio_exp"] > 0.25, 
@@ -309,8 +301,6 @@ class TradeAggregator(_AtlasCleaning):
             axis=1
         )
         df["temp"] = df[["exportvalue_fob", f"importvalue_cif"]].max(axis=1)
-        import pdb
-        pdb.set_trace()
         df = df[df["temp"] != 1]
         df = df[df["temp"] >= 1_000]
         return df
