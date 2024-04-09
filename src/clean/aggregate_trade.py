@@ -64,9 +64,6 @@ class TradeAggregator(_AtlasCleaning):
         assert imp_to_world["importer"].is_unique
         df = df.merge(imp_to_world, on="importer", how="left")
         
-        import pdb
-        pdb.set_trace()
-
         df = self.remove_outliers(df)
         
         import pdb
@@ -137,7 +134,7 @@ class TradeAggregator(_AtlasCleaning):
             df['reporter_ansnoclas'] = df['reporter_ansnoclas'].fillna(0)
             
             
-        elif self.product_classification in ["S1", "S1", "ST"]:
+        elif self.product_classification in ["S1", "S2", "ST"]:
             # areas not specified
             logging.info("accounting for areas not specified")
             mask = (df['partner_iso'] == "ANS") & (df['product_level'] == 4) & (df['commodity_code'].str[:4] == "9310")
