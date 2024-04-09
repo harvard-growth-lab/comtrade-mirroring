@@ -137,7 +137,7 @@ class TradeAggregator(_AtlasCleaning):
             df['reporter_ansnoclas'] = df['reporter_ansnoclas'].fillna(0)
             
             
-        elif self.product_classification in ["S1", "S1", "ST"]:
+        elif self.product_classification in ["S1", "S2", "ST"]:
             # areas not specified
             logging.info("accounting for areas not specified")
             mask = (df['partner_iso'] == "ANS") & (df['product_level'] == 4) & (df['commodity_code'].str[:4] == "9310")
