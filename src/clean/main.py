@@ -24,7 +24,6 @@ def run_atlas_cleaning(ingestion_attrs):
             - root_dir (str): root directory path
             - data_dir (str): data is stored across three folders: raw, intermediate, processed
     """
-    # product_classification = ingestion_attrs['product_classification']
     start_year = ingestion_attrs["start_year"]
     end_year = ingestion_attrs["end_year"]
     for year in range(start_year, end_year + 1):
@@ -55,8 +54,6 @@ def run_atlas_cleaning(ingestion_attrs):
         print(
             f"generating aggregations for the following classifications: {classifications}"
         )
-        # load and clean each product classification
-        # place data output into an intermediate folder
 
         list(
             map(
@@ -142,7 +139,7 @@ def run_atlas_cleaning(ingestion_attrs):
     merged_df["importvalue_fob"] = merged_df["importvalue_cif"] * 0.925
     # add distance measure
     # compute_distance(merged_df, start_year, end_year)
-    df.to_csv(
+    merged_df.to_csv(
         os.path.join(
             ingestion_attrs["root_dir"], "data", "intermediate", "Totals_RAW_trade.csv"
         ),
