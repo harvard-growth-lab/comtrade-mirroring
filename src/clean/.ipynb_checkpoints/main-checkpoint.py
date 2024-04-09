@@ -6,6 +6,7 @@ from scipy.stats.mstats import winsorize
 
 from clean.objects.base import _AtlasCleaning
 from clean.aggregate_trade import TradeAggregator
+from clean.utils import get_classifications, merge_classifications
 
 logging.basicConfig(level=logging.INFO)
 
@@ -20,40 +21,13 @@ def run_atlas_cleaning(ingestion_attrs):
         Required keys:
             - start_year (int): The latest year of data.
             - end_year (int): Data coverage from the latest year.
-            - product_classification (str)
             - root_dir (str): root directory path
-            - data_dir (str): data is stored across three folders: raw, intermediate, processed
     """
     start_year = ingestion_attrs["start_year"]
     end_year = ingestion_attrs["end_year"]
     for year in range(start_year, end_year + 1):
-        # getting data from reporters, as reported
-        # Comtrade then receives as reported and by using concordance tables
-        # provides data by all the classifications
-        classifications = []
-        if year >= 1976 and year < 1995:
-            print("adding to classifications")
-            classifications.append("S2")
-        if year >= 1988 and year <= 2003:
-            print("adding to classifications")
-            classifications.append("S3")
-        if year >= 1994:
-            print("adding to classifications")
-            classifications.append("H0")
-            classifications.append("HS")
-        if year <= 2003:
-            print("adding to classifications")
-            classifications.append("ST")
-        if year <= 1985:
-            print("adding to classifications")
-            classifications.append("S1")
-
-        logging.info(
-            f"generating aggregations for the following classifications: {classifications}"
-        )
-        print(
-            f"generating aggregations for the following classifications: {classifications}"
-        )
+        # Comtrade uses concordance tables to provide data by all the classifications
+        classifications = get_classifications(year)
 
         list(
             map(
@@ -64,49 +38,9 @@ def run_atlas_cleaning(ingestion_attrs):
             )
         )
 
-        # generate median values by merging datasets based on year and time period of a given year
-        merge_conditions = [
-            (year >= 1976 and year < 1995, f"{year}_S2.parquet"),
-            (year >= 1995, f"{year}_H0.parquet"),
-            (year >= 1995, f"{year}_HS.parquet"),
-            (year >= 1985 and year <= 2003, f"{year}_S3.parquet"),
-            (year <= 2003, f"{year}_ST.parquet"),
-        ]
-
-        df = pd.DataFrame()
-        for condition, file in merge_conditions:
-            if df.empty:
-                print("df is empty")
-                print(f"condition: {condition} and file {file}")
-                try:
-                    logging.info("reading in file")
-                    df = pd.read_parquet(
-                        os.path.join(
-                            ingestion_attrs["root_dir"], "data", "intermediate", file
-                        )
-                    )
-                except FileNotFoundError:
-                    continue
-            else:
-                print("df is not empty")
-                print(f"condition: {condition} and file {file}")
-                try:
-                    df = df.merge(
-                        pd.read_parquet(
-                            os.path.join(
-                                ingestion_attrs["root_dir"],
-                                "data",
-                                "intermediate",
-                                file,
-                            )
-                        ),
-                        on=["year", "exporter", "importer"],
-                        how="left",
-                    )
-                except FileNotFoundError:
-                    continue
-
-        logging.info(f"columns of df {df.columns}")
+        df = merge_classifications(year)
+        
+        # logging.info(f"columns of df {df.columns}")
         df.astype({"importer": str, "exporter": str}).dtypes
         df["temp1"] = df.filter(like="exportvalue_fob").median(axis=1)
         df["temp2"] = df.filter(like="importvalue_cif").median(axis=1)
