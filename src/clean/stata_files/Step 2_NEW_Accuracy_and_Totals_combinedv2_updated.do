@@ -54,6 +54,8 @@ loc end = r(max)
  
 * inflation adjustment
 forval y=1963/`end' {
+
+dcpi = df[df.year == y]['dcpi']
 	qui replace index = (l1.index)*(1+dcpi/100) if year==`y'
 }
 keep if year>=1962 & year<=`end'
@@ -61,6 +63,7 @@ sum index if year==2010
 replace index  = 1* (index/r(mean))
 keep year index
 tsset year
+
 replace index = l1.index if index==.
 //drop index
 //gen index==100
