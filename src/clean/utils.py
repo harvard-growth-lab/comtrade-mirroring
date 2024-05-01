@@ -1,12 +1,12 @@
 import logging
 import pandas as pd
 import os
+
 logging.basicConfig(level=logging.INFO)
 
 
 def get_classifications(year):
-    """
-    """
+    """ """
     classifications = []
     if year >= 1976 and year < 1995:
         print("adding to classifications")
@@ -32,8 +32,7 @@ def get_classifications(year):
 
 
 def merge_classifications(year):
-    """
-    """
+    """ """
     merge_conditions = [
         (year >= 1976 and year < 1995, f"{year}_S2.parquet"),
         (year >= 1995, f"{year}_H0.parquet"),
@@ -71,4 +70,3 @@ def merge_classifications(year):
             except FileNotFoundError:
                 continue
     return df
-

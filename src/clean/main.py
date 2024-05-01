@@ -39,7 +39,7 @@ def run_atlas_cleaning(ingestion_attrs):
         )
 
         df = merge_classifications(year)
-        
+
         # logging.info(f"columns of df {df.columns}")
         df.astype({"importer": str, "exporter": str}).dtypes
         df["temp1"] = df.filter(like="exportvalue_fob").median(axis=1)
@@ -79,7 +79,6 @@ def run_atlas_cleaning(ingestion_attrs):
         ),
         index=False,
     )
-
 
 
 def compute_distance(df, start_year, end_year):
