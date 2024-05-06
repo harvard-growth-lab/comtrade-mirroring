@@ -2,7 +2,8 @@ import logging
 import os
 from glob import glob
 import pandas as pd
-from scipy.stats.mstats import winsorize
+
+# from scipy.stats.mstats import winsorize
 
 from clean.objects.base import _AtlasCleaning
 from clean.aggregate_trade import TradeAggregator
