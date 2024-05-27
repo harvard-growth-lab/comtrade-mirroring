@@ -2,7 +2,8 @@ import logging
 import os
 from glob import glob
 import pandas as pd
-from scipy.stats.mstats import winsorize
+
+# from scipy.stats.mstats import winsorize
 
 from clean.objects.base import _AtlasCleaning
 from clean.aggregate_trade import TradeAggregator
@@ -39,7 +40,7 @@ def run_atlas_cleaning(ingestion_attrs):
         )
 
         df = merge_classifications(year)
-        
+
         # logging.info(f"columns of df {df.columns}")
         df.astype({"importer": str, "exporter": str}).dtypes
         df["temp1"] = df.filter(like="exportvalue_fob").median(axis=1)
@@ -139,9 +140,9 @@ def compute_distance(df, start_year, end_year):
             c + (beta_dist * df["_lndist"]) + (beta_contig * df["_contig"])
         )
         df.loc[(df["year"] == y) & (df["tau"] < 0) & (df["tau"].notnull()), "tau"] = 0
-        df.loc[
-            (df["year"] == y) & (df["tau"] > 0.2) & (df["tau"].notnull()), "tau"
-        ] = 0.2
+        df.loc[(df["year"] == y) & (df["tau"] > 0.2) & (df["tau"].notnull()), "tau"] = (
+            0.2
+        )
         df.loc[df["year"] == y, "tau"] = df.loc[df["year"] == y, "tau"].mean()
 
         print(df.columns)
@@ -189,6 +190,8 @@ if __name__ == "__main__":
     ingestion_attrs = {
         "start_year": 2015,
         "end_year": 2015,
+        # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
+        # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
     }
     run_atlas_cleaning(ingestion_attrs)

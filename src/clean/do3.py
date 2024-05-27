@@ -30,7 +30,7 @@ class do3(_AtlasCleaning):
         )
 
         # TODO: temp to reduce data set size
-        self.df = self.df[self.df.product_level == 1]
+        self.df = self.df[self.df.product_level == 2]
         self.df = self.df[
             (self.df.reporter_iso.isin(["SAU", "IND", "CHL"]))
             & (self.df.partner_iso.isin(["SAU", "IND", "CHL"]))
@@ -55,41 +55,6 @@ class do3(_AtlasCleaning):
 
         # exports
         logging.info("exports table")
-        # exports = self.df[self.df.trade_flow == 2].drop(columns=["trade_flow"])
-        # exports = exports.rename(
-        #     columns={
-        #         "reporter_iso": "exporter",
-        #         "partner_iso": "importer",
-        #         "trade_value": "export_value",
-        #     }
-        # )
-
-        # logging.info("before group by")
-        # exports = (
-        #     exports.groupby(by=["exporter", "importer", "commodity_code"])
-        #     .agg({"export_value": "sum"})
-        #     .reset_index()
-        # )
-
-        # exports = exports[exports.export_value >= 1000]
-
-        # # imports
-        # logging.info("imports table")
-
-        # imports = self.df[self.df.trade_flow == 1].drop(columns=["trade_flow"])
-        # imports = imports.rename(
-        #     columns={
-        #         "reporter_iso": "importer",
-        #         "partner_iso": "exporter",
-        #         "trade_value": "import_value",
-        #     }
-        # )
-        # imports = (
-        #     imports.groupby(by=["exporter", "importer", "commodity_code"])
-        #     .agg({"import_value": "sum"})
-        #     .reset_index()
-        # )
-        # imports = imports[imports["import_value"] >= 1000]
 
         weights = dd.read_parquet(f"data/intermediate/weights_{self.year}.dta")
         weights = weights[
@@ -102,19 +67,23 @@ class do3(_AtlasCleaning):
         weights["cif_ratio"] = 0.8
 
         logging.info("set cif ratio")
+        
+        import pdb
+        pdb.set_trace()
 
-        # Step 1: Create a DataFrame with all country pairs and products
-        country_pairs = weights[["exporter", "importer"]].drop_duplicates()
+        # Create a DataFrame with all country pairs and products
+        country_pairs = weights.drop_duplicates(subset=['importer', 'exporter'])[['importer', 'exporter']]
         products = self.df["commodity_code"].unique()
-        rows = pd.MultiIndex.from_product(
-            [country_pairs.index, products], names=["pair_id", "commodity_code"]
-        )
+        
+        # static file? 
+        rows = pd.MultiIndex.from_product([range(len(country_pairs)), products],
+                                          names=['pair_id', 'commodity_code'])
         all_cp = pd.DataFrame(index=rows).reset_index()
         all_cp = all_cp.merge(
             country_pairs.compute(), left_on="pair_id", right_index=True
         )
 
-        # Step 2: Calculate the value of exports for each country pair and product
+        # Calculate the value of exports for each country pair and product
         exports = (
             self.df[self.df["trade_flow"] == 2]
             .groupby(["reporter_iso", "partner_iso", "commodity_code"])["trade_value"]
@@ -123,11 +92,11 @@ class do3(_AtlasCleaning):
         ).compute()
 
         exports.columns = ["exporter", "importer", "commodity_code", "export_value"]
-        all_cp = all_cp.merge(
+        exports_all_cp = all_cp.merge(
             exports, on=["exporter", "importer", "commodity_code"], how="left"
         )
 
-        # Step 3: Calculate the value of imports for each country pair and product
+        # Calculate the value of imports for each country pair and product
         imports = (
             self.df[self.df["trade_flow"] == 1]
             .groupby(["partner_iso", "reporter_iso", "commodity_code"])["trade_value"]
@@ -139,9 +108,12 @@ class do3(_AtlasCleaning):
 
         pdb.set_trace()
 
-        all_cp = all_cp.merge(
+        imports_all_cp = all_cp.merge(
             imports, on=["exporter", "importer", "commodity_code"], how="left"
         )
+        
+        import pdb
+        pdb.set_trace()
 
         # Step 4: Merge the w_e values from the weights DataFrame
         all_cp = all_cp.merge(

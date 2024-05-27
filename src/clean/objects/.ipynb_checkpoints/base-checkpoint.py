@@ -9,13 +9,21 @@ import typing
 class _AtlasCleaning(object):
     # Classification names & levels
     PRODUCT_CLASSIFICATIONS = ["H0", "HS", "S1", "S2", "ST"]
-
+    
     HIERARCHY_LEVELS = {
-        "hs92": (1, 2, 4, 6),
-        "hs12": (1, 2, 4, 6),
-        "sitc": (1, 2, 4),
-        "services": (1, 2, 4, 6),
+        "H0": (1, 2, 4, 6),
+        "HS": (1, 2, 4, 6),
+        "S1": (1, 2, 4),
+        "S2": (1, 2, 4),
+        "ST": (1, 2, 4),
     }
+
+    # HIERARCHY_LEVELS = {
+    #     "hs92": (1, 2, 4, 6),
+    #     "hs12": (1, 2, 4, 6),
+    #     "sitc": (1, 2, 4),
+    #     "services": (1, 2, 4, 6),
+    # }
 
     REGIONAL_GROUP_TYPES = ["world", "region", "subregion"]
 

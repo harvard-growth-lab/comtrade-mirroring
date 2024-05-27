@@ -131,7 +131,7 @@ class TradeAggregator(_AtlasCleaning):
         for level in self.HIERARCHY_LEVELS[self.product_classification]:
             df[df.product_level == level]["commodity_code"] = df[
                 df.product_level == level
-            ]["commodity_code"].zfill(level)
+            ]["commodity_code"].str.zfill(level)
 
         # labels unspecified products
         mask = (
@@ -175,7 +175,7 @@ class TradeAggregator(_AtlasCleaning):
 
         dfs = {0: pd.DataFrame(), 4: pd.DataFrame()}
         # product level 0 and 4
-        for level in dfs.keys:
+        for level in dfs.keys():
             df_pl = df[df.product_level == level]
             df_pl = df_pl[
                 [
@@ -195,6 +195,9 @@ class TradeAggregator(_AtlasCleaning):
                 values=["trade_value", "reporter_ansnoclas"],
                 fill_value=0,
             ).reset_index()
+            
+            import pdb
+            pdb.set_trace()
 
             df_pl.columns = [
                 "_".join(str(i) for i in col).rstrip("_") if col[1] else col[0]

@@ -30,12 +30,13 @@ class TradeAggregator(_AtlasCleaning):
 
         self.year = year
         self.product_classification = product_classification
-        self.unspecified_by_class = {"HS": '9999',
-                                     "H0": '9999',
-                                     "S1": "9310", 
-                                     "S2": "9310", 
-                                     "ST": "9310"
-                                    }
+        self.unspecified_by_class = {
+            "HS": "9999",
+            "H0": "9999",
+            "S1": "9310",
+            "S2": "9310",
+            "ST": "9310",
+        }
 
         df = self.load_data()
         if df.empty:
@@ -50,8 +51,12 @@ class TradeAggregator(_AtlasCleaning):
         df = self.aggregate_data(df)
 
         # generates exports to world and imports to world
-        exp_to_world = df[df.importer == "WLD"][["exporter", "exports_0"]].rename(columns={"exports_0": "exp2WLD"})
-        imp_to_world = df[df.exporter == "WLD"][["importer", "imports_0"]].rename(columns={"imports_0": "imp2WLD"})
+        exp_to_world = df[df.importer == "WLD"][["exporter", "exports_0"]].rename(
+            columns={"exports_0": "exp2WLD"}
+        )
+        imp_to_world = df[df.exporter == "WLD"][["importer", "imports_0"]].rename(
+            columns={"imports_0": "imp2WLD"}
+        )
 
         df = df[(df.importer != "WLD") & (df.exporter != "WLD")]
         assert exp_to_world["exporter"].is_unique
@@ -97,20 +102,23 @@ class TradeAggregator(_AtlasCleaning):
             return pd.DataFrame()
         return df.rename(columns=self.COLUMNS_DICT)
 
-    
     def clean_data(self, df):
         """ """
         logging.info(
             f"Cleaning.. > {self.year} and classification = {self.product_classification}"
         )
-        
-        df = df[df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_classification])]
+
+        df = df[
+            df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_classification])
+        ]
         df = df[df["trade_flow"].isin([1, 2])]
 
         # recodes Other Asia to Taiwan
         df.loc[df["reporter"] == "Other Asia, nes", "reporter_iso"] = "TWN"
         df.loc[df["partner"] == "Other Asia, nes", "partner_iso"] = "TWN"
-        df[["reporter_iso", "partner_iso"]] = df[["reporter_iso", "partner_iso"]].fillna(value="ANS")
+        df[["reporter_iso", "partner_iso"]] = df[
+            ["reporter_iso", "partner_iso"]
+        ].fillna(value="ANS")
         df = df.drop(["reporter", "partner"], axis=1)
 
         # make sure commodity_code is the correct product length
@@ -119,31 +127,35 @@ class TradeAggregator(_AtlasCleaning):
         #     df["commodity_code"] = df.apply(
         #         lambda row: row["commodity_code"].zfill(row["product_level"]), axis=0
         #     )
-        
+
         for level in self.HIERARCHY_LEVELS[self.product_classification]:
-            df[df.product_level == level]["commodity_code"] = df[df.product_level == level]["commodity_code"].zfill(level)
-        
-        # labels unspecified products 
+            df[df.product_level == level]["commodity_code"] = df[
+                df.product_level == level
+            ]["commodity_code"].str.zfill(level)
+
+        # labels unspecified products
         mask = (
             (df["partner_iso"] == "ANS")
             & (df["product_level"] == 4)
-            & (df["commodity_code"].str[:4] == self.unspecified_by_class[self.product_classification])
+            & (
+                df["commodity_code"].str[:4]
+                == self.unspecified_by_class[self.product_classification]
+            )
         )
         df.loc[mask, "reporter_ansnoclas"] = df.loc[mask, "trade_value"]
         df["reporter_ansnoclas"] = df["reporter_ansnoclas"].fillna(0)
-        
-        # handles Germany (reunification) and Russia, drop DEU/DDR trade because within country trade 
+
+        # handles Germany (reunification) and Russia, drop DEU/DDR trade because within country trade
         df = df[~((df["reporter_iso"] == "DEU") & (df["partner_iso"] == "DDR"))]
         df = df[~((df["reporter_iso"] == "DDR") & (df["partner_iso"] == "DEU"))]
         # DEU is current germany iso code
         df.loc[df["partner_iso"].isin(["DEU", "DDR"]), "partner_iso"] = "DEU"
         df.loc[df["reporter_iso"].isin(["DEU", "DDR"]), "reporter_iso"] = "DEU"
-        # set USSR to Russia 
+        # set USSR to Russia
         df.loc[df["partner_iso"].isin(["RUS", "SUN"]), "partner_iso"] = "RUS"
         df.loc[df["reporter_iso"].isin(["RUS", "SUN"]), "reporter_iso"] = "RUS"
         return df
 
-    
     def aggregate_data(self, df):
         """
         extract unique pair of importer and exporter by import and export trade values
@@ -157,11 +169,13 @@ class TradeAggregator(_AtlasCleaning):
             .reset_index()
         )
 
-        df[["trade_value", "reporter_ansnoclas"]] = df[["trade_value", "reporter_ansnoclas"]].astype("float")
-        
+        df[["trade_value", "reporter_ansnoclas"]] = df[
+            ["trade_value", "reporter_ansnoclas"]
+        ].astype("float")
+
         dfs = {0: pd.DataFrame(), 4: pd.DataFrame()}
         # product level 0 and 4
-        for level in dfs.keys:
+        for level in dfs.keys():
             df_pl = df[df.product_level == level]
             df_pl = df_pl[
                 [
@@ -181,6 +195,9 @@ class TradeAggregator(_AtlasCleaning):
                 values=["trade_value", "reporter_ansnoclas"],
                 fill_value=0,
             ).reset_index()
+            
+            import pdb
+            pdb.set_trace()
 
             df_pl.columns = [
                 "_".join(str(i) for i in col).rstrip("_") if col[1] else col[0]
@@ -252,22 +269,36 @@ class TradeAggregator(_AtlasCleaning):
             )
 
             # drops data where all rows are zero
-            merged_df = merged_df[~((merged_df[f"imports_{level}"] == 0) & (merged_df[f"imp2ansnoclas_{level}"] == 0) & (merged_df[f"exports_{level}"] == 0) & (merged_df[f"exp2ansnoclas_{level}"] == 0))]
-                                                                          
+            merged_df = merged_df[
+                ~(
+                    (merged_df[f"imports_{level}"] == 0)
+                    & (merged_df[f"imp2ansnoclas_{level}"] == 0)
+                    & (merged_df[f"exports_{level}"] == 0)
+                    & (merged_df[f"exp2ansnoclas_{level}"] == 0)
+                )
+            ]
+
             dfs[level] = merged_df
         return dfs[0].merge(dfs[4], on=["importer", "exporter"])
 
-    
     def remove_outliers(self, df):
         """ """
-        df["ratio_exp"] = (df[f"exp2ansnoclas_4"] / df["exp2WLD"]).astype(float).fillna(0.0)
-        df["ratio_imp"] = (df[f"imp2ansnoclas_4"] / df["imp2WLD"]).astype(float).fillna(0.0)
+        df["ratio_exp"] = (
+            (df[f"exp2ansnoclas_4"] / df["exp2WLD"]).astype(float).fillna(0.0)
+        )
+        df["ratio_imp"] = (
+            (df[f"imp2ansnoclas_4"] / df["imp2WLD"]).astype(float).fillna(0.0)
+        )
 
-        for direction in ['exports', 'imports']:
+        for direction in ["exports", "imports"]:
             for product_level in [0, 4]:
                 # drop any country claiming exports/imports greater than 25% of global trade
-                df[f"{direction}_{product_level}"] = np.where(df[f"ratio_{direction[:3]}"] > 0.25, df[f"exports_{product_level}"] - df["exp2ansnoclas_4"], df[f"{direction}_{product_level}"])
-        
+                df[f"{direction}_{product_level}"] = np.where(
+                    df[f"ratio_{direction[:3]}"] > 0.25,
+                    df[f"exports_{product_level}"] - df["exp2ansnoclas_4"],
+                    df[f"{direction}_{product_level}"],
+                )
+
         df["exportvalue_fob"] = df[["exports_0", f"exports_4"]].mean(axis=1)
         df["importvalue_cif"] = df[["imports_0", f"imports_4"]].mean(axis=1)
-        return df[df[['exportvalue_fob', 'importvalue_cif']].max(axis=1) >= 1_000]
+        return df[df[["exportvalue_fob", "importvalue_cif"]].max(axis=1) >= 1_000]
