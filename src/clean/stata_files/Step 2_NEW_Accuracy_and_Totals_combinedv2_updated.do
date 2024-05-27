@@ -267,6 +267,7 @@ forval y = `start'/`end' {
 									mata mata rename nflows_importer in_ij
 							restore 
 							
+							
 							foreach j in e i {
 								foreach i in `j's_ij  `j'n_ij  {
 									mata  `i' = colshape(`i', `N')
@@ -491,7 +492,7 @@ forval y = `start'/`end' {
 						
 					
 						*-----------------------------------------------------------------------------------------------
-						gen float estvalue = .
+						gen float est value = .
 							****
 							format exportvalue_fob importvalue_fob estvalue  %20.0fc
 							cap order year exporter importer exportvalue_fob importvalue_fob estvalue `ae' `ai' w_e discrep
