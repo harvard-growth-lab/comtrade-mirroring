@@ -8,6 +8,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 
+# generates a country country year table
 class do2(_AtlasCleaning):
     niter = 25  # Iterations A_e
     rnflows = 10  # 30
@@ -18,6 +19,7 @@ class do2(_AtlasCleaning):
     alog = 0  # Apply logs
     af = 0  # Combine A_e and A_i in single measure
     seed = 1  # Initial value for the A's
+    CPI_BASE_YEAR = 2010
 
     def __init__(self, year, product_classification, **kwargs):
         super().__init__(**kwargs)
@@ -86,7 +88,6 @@ class do2(_AtlasCleaning):
             )
             pop_year = pop[pop.year == year].drop(columns=["year"])
 
-            # population limit of 1M for atlas cleaning inclusion
             # merge importer population data
             year_totals = (
                 year_totals.merge(
@@ -114,6 +115,7 @@ class do2(_AtlasCleaning):
                 .drop(columns=["iso"])
             )
 
+            #  TODO: confirm generating population cutoffs
             # cutoff any importer/exporter below poplimit threshold
             year_totals = year_totals[
                 year_totals[["wdi_pop_exporter", "imf_pop_exporter"]].max(axis=1)
@@ -152,6 +154,8 @@ class do2(_AtlasCleaning):
             df = df.drop(columns="cpi_index_base").rename(
                 columns={"exportvalue_fob": "v_e", "importvalue_fob": "v_i"}
             )
+
+            # TODO: confirm if this is needed?
             # trade below threshold is zeroed
             df.loc[df.v_e < self.flow_limit, "v_e"] = 0.0
             df.loc[df.v_i < self.flow_limit, "v_i"] = 0.0
@@ -302,7 +306,7 @@ class do2(_AtlasCleaning):
 
             df.sort_values(by="A_f", ascending=False)
             # noi list year iso A_e A_i A_f  if _n<=10
-            df.to_stata("data/intermediate/attractiveness.dta")
+            df.to_parquet("data/intermediate/attractiveness.parquet")
 
             # TODO: need to add in sigmas
             # merge cpi index with exporters by year
@@ -447,12 +451,12 @@ class do2(_AtlasCleaning):
             # Save the DataFrame to a file
             weights.append(df)
             output_path = os.path.join(
-                self.intermediate_data_path, f"weights_{year}.dta"
+                self.intermediate_data_path, f"weights_{year}.parquet"
             )
             df.to_parquet(output_path)
         weights_years_total = pd.concat(weights)
         output_path = os.path.join(
-            self.processed_data_path, f"weights_{start_year}-{end_year}.dta"
+            self.processed_data_path, f"weights_{start_year}-{end_year}.parquet"
         )
         weights_years_total.to_parquet(output_path)
 
@@ -510,7 +514,9 @@ class do2(_AtlasCleaning):
                 )
 
         # sets base year at 2010
-        base_year_cpi_index = wdi_cpi.loc[wdi_cpi.year == 2010, "cpi_index"].iloc[0]
+        base_year_cpi_index = wdi_cpi.loc[
+            wdi_cpi.year == self.CPI_BASE_YEAR, "cpi_index"
+        ].iloc[0]
         wdi_cpi["cpi_index_base"] = wdi_cpi["cpi_index"] / base_year_cpi_index
 
         # temp_accuracy

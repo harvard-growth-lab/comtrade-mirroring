@@ -190,7 +190,8 @@ if __name__ == "__main__":
     ingestion_attrs = {
         "start_year": 2015,
         "end_year": 2015,
+        "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         # "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
+        # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
     }
     run_atlas_cleaning(ingestion_attrs)
