@@ -361,6 +361,7 @@ class do2(_AtlasCleaning):
             )
 
             # Weight Calculation
+            # attractiveness of the exporter
             merged["w_e"] = np.exp(merged["exporter_A_e"]) / (
                 np.exp(merged["exporter_A_e"]) + np.exp(merged["importer_A_i"])
             )
@@ -441,6 +442,7 @@ class do2(_AtlasCleaning):
                 "value_importer",
                 "value_final",
                 # "cif_ratio",
+                "w_e",
                 "w_e_0",
                 "w_i_0",
                 "importer_A_e",
