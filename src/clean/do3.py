@@ -39,7 +39,7 @@ class do3(_AtlasCleaning):
         )
 
         # TODO: temp to reduce data set size
-        self.df = self.df[self.df.product_level == 2]
+        self.df = self.df[self.df.product_level == 6]
         self.df = self.df[
             (self.df.reporter_iso.isin(["SAU", "IND", "CHL"]))
             & (self.df.partner_iso.isin(["SAU", "IND", "CHL"]))
@@ -93,37 +93,70 @@ class do3(_AtlasCleaning):
         )
         nprod = products.count().idprod
 
+        multi_index = pd.MultiIndex.from_product(
+            [
+                country_pairs["exporter"],
+                country_pairs["importer"],
+                products["commodity_code"],
+            ],
+            names=["importer", "exporter", "commodity_code"],
+        )
+
+        all_pairs_products = (
+            pd.DataFrame(index=multi_index).query("importer != exporter").reset_index()
+        )
+
+        all_pairs_products["idpair"] = pd.factorize(
+            all_pairs_products[["exporter", "importer"]].apply(tuple, axis=1)
+        )[0]
+
         # Step 2: Calculate the value of exports for each country pair and product
+        exports = self.df[self.df["trade_flow"] == 2][
+            ["reporter_iso", "partner_iso", "commodity_code", "trade_value"]
+        ]
+        exports.columns = ["exporter", "importer", "commodity_code", "export_value"]
+        exports = all_pairs_products.merge(
+            exports, on=["exporter", "importer", "commodity_code"], how="left"
+        )
+
         exports = (
-            self.df[self.df["trade_flow"] == 2]
-            .groupby(["reporter_iso", "partner_iso", "commodity_code"])["trade_value"]
+            exports.groupby(["exporter", "importer", "commodity_code"])["export_value"]
             .sum()
             .reset_index()
         )
 
-        exports.columns = ["exporter", "importer", "commodity_code", "export_value"]
-        exports = exports.merge(country_pairs, on=["exporter", "importer"], how="left")
-        exports = exports.merge(products, on="commodity_code", how="left")
+        # exports = exports.merge(products, on="commodity_code", how="right")
 
         # Step 3: Calculate the value of imports for each country pair and product
+        imports = self.df[self.df["trade_flow"] == 1][
+            ["reporter_iso", "partner_iso", "commodity_code", "trade_value"]
+        ]
+        imports.columns = ["exporter", "importer", "commodity_code", "import_value"]
+        imports = all_pairs_products.merge(
+            imports, on=["exporter", "importer", "commodity_code"], how="left"
+        )
+
         imports = (
-            self.df[self.df["trade_flow"] == 1]
-            .groupby(["partner_iso", "reporter_iso", "commodity_code"])["trade_value"]
+            imports.groupby(["exporter", "importer", "commodity_code"])["import_value"]
             .sum()
             .reset_index()
         )
         imports.columns = ["exporter", "importer", "commodity_code", "import_value"]
-        imports = imports.merge(country_pairs, on=["exporter", "importer"], how="left")
-        imports = imports.merge(products, on="commodity_code", how="left")
+        # imports = imports.merge(products, on="commodity_code", how="left")
 
         # trade reconciliation
         exports_matrix = exports.pivot(
-            index="idpair", columns="idprod", values="export_value"
+            index=["importer", "exporter"],
+            columns="commodity_code",
+            values="export_value",
         ).fillna(0.0)
 
         imports_matrix = imports.pivot(
-            index="idpair", columns="idprod", values="import_value"
+            index=["importer", "exporter"],
+            columns="commodity_code",
+            values="import_value",
         ).fillna(0.0)
+
         # multiply imports by (1 - cif_ratio)
         # TODO: confirm may need to be array of cif_ratio, why 1?
         imports_matrix = imports_matrix * (1 - cif_ratio)
@@ -156,7 +189,7 @@ class do3(_AtlasCleaning):
         # accurary_array = accuracy_matrix.reshape(-1, 1)
 
         w_e = np.array(ccy_attractiveness["w_e"].values.reshape(-1, 1))
-        w_e_matrix = np.ones((npairs, nprod - 1)) * w_e
+        w_e_matrix = np.ones((npairs, nprod)) * w_e
         # w_e_array = w_e_matrix.reshape(-1, 1)
         # size of array dictacted by number country pair ids, number product ids
         VF = (
@@ -185,37 +218,45 @@ class do3(_AtlasCleaning):
         # melt the dataframes
         melted_imports_matrix = pd.melt(
             imports_matrix.reset_index(),
-            id_vars="idpair",
-            var_name="idprod",
-            value_name="imports",
+            id_vars=["importer", "exporter"],
+            var_name="commodity_code",
+            value_name="import_value",
         )
         melted_exports_matrix = pd.melt(
             exports_matrix.reset_index(),
-            id_vars="idpair",
-            var_name="idprod",
-            value_name="exports",
+            id_vars=["importer", "exporter"],
+            var_name="commodity_code",
+            value_name="export_value",
         )
         melted_VR = pd.melt(
             VR.reset_index(),
-            id_vars="idpair",
-            var_name="idprod",
+            id_vars=["importer", "exporter"],
+            var_name="commodity_code",
             value_name="VR",
         )
 
         df = pd.merge(
-            melted_VR, melted_imports_matrix, on=["idpair", "idprod"], how="left"
+            melted_VR,
+            melted_imports_matrix,
+            on=["exporter", "importer", "commodity_code"],
+            how="left",
         )
-        df = pd.merge(df, melted_exports_matrix, on=["idpair", "idprod"], how="left")
+        df = pd.merge(
+            df,
+            melted_exports_matrix,
+            on=["exporter", "importer", "commodity_code"],
+            how="left",
+        )
 
         # drop rows that don't have data
         df = df.loc[
-            (df[["VR", "imports", "exports"]] != 0.0).any(axis=1)
+            (df[["VR", "import_value", "export_value"]] != 0.0).any(axis=1)
             & df.notnull().any(axis=1)
         ]
 
-        # add back in country pair names and product ids
-        df = df.merge(products, on=["idprod"], how="left").drop(columns=["idprod"])
-        df = df.merge(country_pairs, on=["idpair"], how="left").drop(columns=["idpair"])
+        import pdb
+
+        pdb.set_trace()
 
         df["commodity_code"] = df["commodity_code"].fillna(
             self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[self.product_classification][
@@ -256,25 +297,15 @@ class do3(_AtlasCleaning):
             .tolist()
         )
 
-        import pdb
+        df = df[~df.exporter.isin(countries_with_too_many_ns)]
 
-        pdb.set_trace()
+        df["year"] = self.year
 
-        df = df.drop(
-            df[
-                (df["exporter"] == "IND")
-                & (df.isin(countries_with_too_many_ns) == not_specified_val)
-            ].index
+        df.to_parquet(
+            os.path.join(
+                self.intermediate_data_path, "country_country_product_year.parquet"
+            )
         )
-
-        # handle 9999 commodity_codes
-        df_9999 = df.copy()
-
-        import pdb
-
-        pdb.set_trace()
-
-        results = pd.DataFrame()
 
     def reweight(self, VF, value_final, Nprod):
         """ """
@@ -294,7 +325,10 @@ class do3(_AtlasCleaning):
         value_reweight = value_final - value_xxxx
 
         VR = VF - VF * (VF < 1000)
-        VR = VR / np.sum(VR, axis=1)
+        sumVF.index.names = VR.index.names
+        VR = VR.div(sumVF, axis=0, level=["importer", "exporter"])
+        # VR = VR / sumVF
+        value_reweight = value_reweight.reindex(index=VR.columns)
         VR = VR * value_reweight
 
         VR = VR.fillna(0)
