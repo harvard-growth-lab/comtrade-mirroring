@@ -254,10 +254,6 @@ class do3(_AtlasCleaning):
             & df.notnull().any(axis=1)
         ]
 
-        import pdb
-
-        pdb.set_trace()
-
         df["commodity_code"] = df["commodity_code"].fillna(
             self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[self.product_classification][
                 self.TRADE_DATA_DISCREPANCIES
@@ -313,24 +309,30 @@ class do3(_AtlasCleaning):
         sumVF = np.sum(VF, axis=1)
 
         case_1 = (
-            ((value_final / sumVF) > 1.20)
-            + ((value_final - sumVF) > 2.5 * 10**7)
-            + (value_final > 10**8)
+            np.where((value_final / sumVF) > 1.20, 1, 0)
+            + np.where((value_final - sumVF) > 2.5 * 10**7, 1, 0)
+            + np.where(value_final > 10**8, 1, 0)
         ) == 3
-        case_2 = ((value_final > 10**8) + (sumVF < 10**5)) == 2
+        case_2 = (
+            np.where(value_final > 10**8, 1, 0) + np.where(sumVF < 10**5, 1, 0) == 2
+        )
         xxxx = (case_1 + case_2) > 0
 
         # if cases are true, the difference of valuefinal and sumVF
         value_xxxx = (value_final - sumVF) * (xxxx == 1)
         value_reweight = value_final - value_xxxx
 
+        # clear out VF less than 1_000
         VR = VF - VF * (VF < 1000)
-        sumVF.index.names = VR.index.names
-        VR = VR.div(sumVF, axis=0, level=["importer", "exporter"])
-        # VR = VR / sumVF
-        value_reweight = value_reweight.reindex(index=VR.columns)
-        VR = VR * value_reweight
 
-        VR = VR.fillna(0)
+        VR = VR.div(np.sum(VR, axis=1), axis=0, level=["importer", "exporter"])
+
+        # align indices
+        VR_aligned, value_reweight_aligned = VR.align(
+            value_reweight, axis=0, level=[0, 1]
+        )
+        VR = VR_aligned.mul(value_reweight_aligned, axis=0)
+
         VR.loc[:, "value_xxxx"] = value_xxxx
+        VR = VR.fillna(0.0)
         return VR
