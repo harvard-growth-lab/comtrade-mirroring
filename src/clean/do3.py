@@ -91,6 +91,9 @@ class do3(_AtlasCleaning):
         products = self.df[["idprod", "commodity_code"]].drop_duplicates(
             subset=["idprod", "commodity_code"]
         )
+        # TODO: REMOVE FILTER
+        products = products[:5]
+
         nprod = products.count().idprod
 
         multi_index = pd.MultiIndex.from_product(
@@ -171,15 +174,21 @@ class do3(_AtlasCleaning):
             + 2 * ((imports_matrix > 0))
         )
 
+        ccy_attractiveness = (
+            ccy_attractiveness.set_index(["importer", "exporter"])
+            .reindex(imports_matrix.index)
+            .reset_index()
+        )
+
         final_value = np.array(ccy_attractiveness["value_final"])
         # country pair attractiveness
         w_e = np.array(ccy_attractiveness["w_e"])  # .values.reshape(-1, 1))
         w_e_0 = np.array(ccy_attractiveness["w_e_0"])  # .values.reshape(-1, 1))
-        w_i_0 = np.array(ccy_attractiveness["w_e_0"])  # .values.reshape(-1, 1))
+        w_i_0 = np.array(ccy_attractiveness["w_i_0"])  # .values.reshape(-1, 1))
 
         accuracy = (
             # attractiveness exports and attractiveness imports => 1
-            1 * ((1 * (w_e_0 > 0) + 1 * (w_i_0 > 0)) > 1)
+            1 * (((w_e_0 > 0) + (w_i_0 > 0)) > 1)
             + 1 * ((w_e_0 > 0))
             + 2 * ((w_i_0 > 0))
         )
@@ -192,8 +201,14 @@ class do3(_AtlasCleaning):
         w_e_matrix = np.ones((npairs, nprod)) * w_e
         # w_e_array = w_e_matrix.reshape(-1, 1)
         # size of array dictacted by number country pair ids, number product ids
+
+        import pdb
+
+        pdb.set_trace()
+
         VF = (
-            ((w_e_matrix * exports_matrix) + ((1 - w_e_matrix) * imports_matrix))
+            (w_e_matrix * exports_matrix)
+            + ((1 - w_e_matrix) * imports_matrix)
             * ((trdata == 4) * (accuracy_matrix == 4))
             + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 2)))
             + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 4)))
@@ -213,6 +228,7 @@ class do3(_AtlasCleaning):
         )
 
         # reweight VF
+        # VR = VF
         VR = self.reweight(VF, final_value, nprod)
 
         # melt the dataframes
