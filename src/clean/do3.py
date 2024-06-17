@@ -34,7 +34,9 @@ class do3(_AtlasCleaning):
         # Set parameters
         self.df = pd.read_parquet(
             os.path.join(
-                self.raw_data_path, f"{self.product_classification}_{self.year}.parquet"
+                # raw data set with Country Country Product Year
+                self.raw_data_path,
+                f"{self.product_classification}_{self.year}.parquet",
             )
         )
 
@@ -65,34 +67,34 @@ class do3(_AtlasCleaning):
         # exports
         logging.info("exports table")
 
-        ccy_attractiveness = pd.read_parquet(
-            f"data/intermediate/weights_{self.year}.parquet"
-        )
+        ccy_attractiveness = pd.read_stata(  # pd.read_parquet(
+            # TODO using weights file generated from seba's file, not python output
+            f"data/intermediate/weights_{self.year}_stata_output.dta"
+        )  # .parquet"
         ccy_attractiveness = ccy_attractiveness[
             (ccy_attractiveness.exporter.isin(["SAU", "IND", "CHL"]))
             & (ccy_attractiveness.importer.isin(["SAU", "IND", "CHL"]))
         ]
 
-        ccy_attractiveness = ccy_attractiveness[
-            ccy_attractiveness.value_final >= 100_000
-        ]
+        # ccy_attractiveness = ccy_attractiveness[
+        #     ccy_attractiveness.value_final >= 100_000
+        # ]
         # generate idpairs
         cif_ratio = 0.8
-
         logging.info("set cif ratio")
 
-        # Step 1: Index on country pair groups and product groups
+        # generate index on unique country pairs
         ccy_attractiveness["idpair"] = ccy_attractiveness.groupby(
             ["exporter", "importer"]
         ).ngroup()
         country_pairs = ccy_attractiveness[["idpair", "exporter", "importer"]]
         npairs = country_pairs.count().idpair
+
+        # generate index for each product
         self.df["idprod"] = self.df.groupby(["commodity_code"]).ngroup()
         products = self.df[["idprod", "commodity_code"]].drop_duplicates(
             subset=["idprod", "commodity_code"]
         )
-        # TODO: REMOVE FILTER
-        products = products[:5]
 
         nprod = products.count().idprod
 
@@ -107,26 +109,29 @@ class do3(_AtlasCleaning):
 
         all_pairs_products = (
             pd.DataFrame(index=multi_index).query("importer != exporter").reset_index()
-        )
+        ).drop_duplicates()
 
-        all_pairs_products["idpair"] = pd.factorize(
-            all_pairs_products[["exporter", "importer"]].apply(tuple, axis=1)
-        )[0]
+        # all_pairs_products["idpair"] = pd.factorize(
+        #     all_pairs_products[["exporter", "importer"]].apply(tuple, axis=1)
+        # )[0]
 
         # Step 2: Calculate the value of exports for each country pair and product
         exports = self.df[self.df["trade_flow"] == 2][
             ["reporter_iso", "partner_iso", "commodity_code", "trade_value"]
         ]
+        # the reporter is the exporter
         exports.columns = ["exporter", "importer", "commodity_code", "export_value"]
+
+        # export matrix has all products and all country pairs
         exports = all_pairs_products.merge(
             exports, on=["exporter", "importer", "commodity_code"], how="left"
         )
 
-        exports = (
-            exports.groupby(["exporter", "importer", "commodity_code"])["export_value"]
-            .sum()
-            .reset_index()
-        )
+        # exports = (
+        #     exports.groupby(["exporter", "importer", "commodity_code"])["export_value"]
+        #     .sum()
+        #     .reset_index()
+        # )
 
         # exports = exports.merge(products, on="commodity_code", how="right")
 
@@ -139,13 +144,16 @@ class do3(_AtlasCleaning):
             imports, on=["exporter", "importer", "commodity_code"], how="left"
         )
 
-        imports = (
-            imports.groupby(["exporter", "importer", "commodity_code"])["import_value"]
-            .sum()
-            .reset_index()
-        )
-        imports.columns = ["exporter", "importer", "commodity_code", "import_value"]
+        # imports = (
+        #     imports.groupby(["exporter", "importer", "commodity_code"])["import_value"]
+        #     .sum()
+        #     .reset_index()
+        # )
         # imports = imports.merge(products, on="commodity_code", how="left")
+
+        import pdb
+
+        pdb.set_trace()
 
         # trade reconciliation
         exports_matrix = exports.pivot(
@@ -159,6 +167,10 @@ class do3(_AtlasCleaning):
             columns="commodity_code",
             values="import_value",
         ).fillna(0.0)
+
+        import pdb
+
+        pdb.set_trace()
 
         # multiply imports by (1 - cif_ratio)
         # TODO: confirm may need to be array of cif_ratio, why 1?
