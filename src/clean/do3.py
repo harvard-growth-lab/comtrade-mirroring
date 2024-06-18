@@ -42,10 +42,10 @@ class do3(_AtlasCleaning):
 
         # TODO: temp to reduce data set size
         self.df = self.df[self.df.product_level == 6]
-        self.df = self.df[
-            (self.df.reporter_iso.isin(["SAU", "IND", "CHL"]))
-            & (self.df.partner_iso.isin(["SAU", "IND", "CHL"]))
-        ]
+        # self.df = self.df[
+        #     (self.df.reporter_iso.isin(["SAU", "IND", "CHL"]))
+        #     & (self.df.partner_iso.isin(["SAU", "IND", "CHL"]))
+        # ]
 
         # creating country pairs and id of products
 
@@ -71,16 +71,16 @@ class do3(_AtlasCleaning):
             # TODO using weights file generated from seba's file, not python output
             f"data/intermediate/weights_{self.year}_stata_output.dta"
         )  # .parquet"
-        ccy_attractiveness = ccy_attractiveness[
-            (ccy_attractiveness.exporter.isin(["SAU", "IND", "CHL"]))
-            & (ccy_attractiveness.importer.isin(["SAU", "IND", "CHL"]))
-        ]
+        # ccy_attractiveness = ccy_attractiveness[
+        #     (ccy_attractiveness.exporter.isin(["SAU", "IND", "CHL"]))
+        #     & (ccy_attractiveness.importer.isin(["SAU", "IND", "CHL"]))
+        # ]
 
         # ccy_attractiveness = ccy_attractiveness[
         #     ccy_attractiveness.value_final >= 100_000
         # ]
         # generate idpairs
-        cif_ratio = 0.8
+        cif_ratio = 0.2
         logging.info("set cif ratio")
 
         # generate index on unique country pairs
@@ -111,10 +111,6 @@ class do3(_AtlasCleaning):
             pd.DataFrame(index=multi_index).query("importer != exporter").reset_index()
         ).drop_duplicates()
 
-        # all_pairs_products["idpair"] = pd.factorize(
-        #     all_pairs_products[["exporter", "importer"]].apply(tuple, axis=1)
-        # )[0]
-
         # Step 2: Calculate the value of exports for each country pair and product
         exports = self.df[self.df["trade_flow"] == 2][
             ["reporter_iso", "partner_iso", "commodity_code", "trade_value"]
@@ -127,15 +123,7 @@ class do3(_AtlasCleaning):
             exports, on=["exporter", "importer", "commodity_code"], how="left"
         )
 
-        # exports = (
-        #     exports.groupby(["exporter", "importer", "commodity_code"])["export_value"]
-        #     .sum()
-        #     .reset_index()
-        # )
-
-        # exports = exports.merge(products, on="commodity_code", how="right")
-
-        # Step 3: Calculate the value of imports for each country pair and product
+        # calculate the value of imports for each country pair and product
         imports = self.df[self.df["trade_flow"] == 1][
             ["reporter_iso", "partner_iso", "commodity_code", "trade_value"]
         ]
@@ -144,33 +132,21 @@ class do3(_AtlasCleaning):
             imports, on=["exporter", "importer", "commodity_code"], how="left"
         )
 
-        # imports = (
-        #     imports.groupby(["exporter", "importer", "commodity_code"])["import_value"]
-        #     .sum()
-        #     .reset_index()
-        # )
-        # imports = imports.merge(products, on="commodity_code", how="left")
-
-        import pdb
-
-        pdb.set_trace()
-
         # trade reconciliation
-        exports_matrix = exports.pivot(
+        exports_matrix = exports.fillna(0.0)
+        imports_matrix = imports.fillna(0.0)
+
+        exports_matrix = exports_matrix.pivot(
             index=["importer", "exporter"],
             columns="commodity_code",
             values="export_value",
-        ).fillna(0.0)
+        )
 
-        imports_matrix = imports.pivot(
+        imports_matrix = imports_matrix.pivot(
             index=["importer", "exporter"],
             columns="commodity_code",
             values="import_value",
-        ).fillna(0.0)
-
-        import pdb
-
-        pdb.set_trace()
+        )
 
         # multiply imports by (1 - cif_ratio)
         # TODO: confirm may need to be array of cif_ratio, why 1?
@@ -188,55 +164,47 @@ class do3(_AtlasCleaning):
 
         ccy_attractiveness = (
             ccy_attractiveness.set_index(["importer", "exporter"])
-            .reindex(imports_matrix.index)
+            .reindex(trdata.index)
             .reset_index()
         )
 
         final_value = np.array(ccy_attractiveness["value_final"])
         # country pair attractiveness
-        w_e = np.array(ccy_attractiveness["w_e"])  # .values.reshape(-1, 1))
-        w_e_0 = np.array(ccy_attractiveness["w_e_0"])  # .values.reshape(-1, 1))
-        w_i_0 = np.array(ccy_attractiveness["w_i_0"])  # .values.reshape(-1, 1))
+        w_e_0 = np.array(ccy_attractiveness["w_e_0"].values.reshape(-1, 1))
+        w_i_0 = np.array(ccy_attractiveness["w_i_0"].values.reshape(-1, 1))
 
+        # attractiveness exports and attractiveness imports => 1
         accuracy = (
-            # attractiveness exports and attractiveness imports => 1
-            1 * (((w_e_0 > 0) + (w_i_0 > 0)) > 1)
+            1 * ((1 * (w_e_0 > 0) + 1 * (w_i_0 > 0)) > 1)
             + 1 * ((w_e_0 > 0))
             + 2 * ((w_i_0 > 0))
         )
 
-        accuracy_array = accuracy.reshape(-1, 1)
-        accuracy_matrix = np.ones((npairs, nprod)) * accuracy_array
+        # accuracy_array = accuracy.reshape(-1, 1)
+        accuracy_matrix = np.ones((npairs, nprod)) * accuracy
         # accurary_array = accuracy_matrix.reshape(-1, 1)
 
         w_e = np.array(ccy_attractiveness["w_e"].values.reshape(-1, 1))
         w_e_matrix = np.ones((npairs, nprod)) * w_e
-        # w_e_array = w_e_matrix.reshape(-1, 1)
-        # size of array dictacted by number country pair ids, number product ids
-
-        import pdb
-
-        pdb.set_trace()
 
         VF = (
-            (w_e_matrix * exports_matrix)
-            + ((1 - w_e_matrix) * imports_matrix)
-            * ((trdata == 4) * (accuracy_matrix == 4))
-            + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 2)))
-            + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 4)))
-            + (exports_matrix * ((trdata == 1) * (accuracy_matrix == 1)))
-            + (exports_matrix * ((trdata == 1) * (accuracy_matrix == 4)))
-            + (imports_matrix * ((trdata == 4) * (accuracy_matrix == 2)))
-            + (exports_matrix * ((trdata == 4) * (accuracy_matrix == 1)))
+            ((w_e_matrix * exports_matrix) + ((1 - w_e_matrix) * imports_matrix))
+            * (1 * (trdata == 4) * 1 * (accuracy_matrix == 4))
+            + (imports_matrix * (1 * (trdata == 2) * 1 * (accuracy_matrix == 2)))
+            + (imports_matrix * (1 * (trdata == 2) * 1 * (accuracy_matrix == 4)))
+            + (exports_matrix * (1 * (trdata == 1) * 1 * (accuracy_matrix == 1)))
+            + (exports_matrix * (1 * (trdata == 1) * 1 * (accuracy_matrix == 4)))
+            + (imports_matrix * (1 * (trdata == 4) * 1 * (accuracy_matrix == 2)))
+            + (exports_matrix * (1 * (trdata == 4) * 1 * (accuracy_matrix == 1)))
             + (
                 0.5
                 * (exports_matrix + imports_matrix)
-                * ((trdata == 4) * (accuracy_matrix == 0))
+                * (1 * (trdata == 4) * 1 * (accuracy_matrix == 0))
             )
-            + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 0)))
-            + (exports_matrix * ((trdata == 1) * (accuracy_matrix == 0)))
-            + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 1)))
-            + (exports_matrix * ((trdata == 1) * (accuracy_matrix == 2)))
+            + (imports_matrix * (1 * (trdata == 2) * 1 * (accuracy_matrix == 0)))
+            + (exports_matrix * (1 * (trdata == 1) * (1 * accuracy_matrix == 0)))
+            + (imports_matrix * (1 * (trdata == 2) * (1 * accuracy_matrix == 1)))
+            + (exports_matrix * (1 * (trdata == 1) * (1 * accuracy_matrix == 2)))
         )
 
         # reweight VF
@@ -263,14 +231,12 @@ class do3(_AtlasCleaning):
             value_name="VR",
         )
 
-        df = pd.merge(
+        df = melted_imports_matrix.merge(
             melted_VR,
-            melted_imports_matrix,
             on=["exporter", "importer", "commodity_code"],
             how="left",
         )
-        df = pd.merge(
-            df,
+        df = df.merge(
             melted_exports_matrix,
             on=["exporter", "importer", "commodity_code"],
             how="left",
@@ -334,33 +300,33 @@ class do3(_AtlasCleaning):
     def reweight(self, VF, value_final, Nprod):
         """ """
         logging.info("REWEIGHTING...")
-        sumVF = np.sum(VF, axis=1)
+        cc_totals = np.sum(VF, axis=1)
 
-        case_1 = (
-            np.where((value_final / sumVF) > 1.20, 1, 0)
-            + np.where((value_final - sumVF) > 2.5 * 10**7, 1, 0)
-            + np.where(value_final > 10**8, 1, 0)
-        ) == 3
-        case_2 = (
-            np.where(value_final > 10**8, 1, 0) + np.where(sumVF < 10**5, 1, 0) == 2
+        # determine if data trade discrepancies
+        case_1 = 1 * (
+            (
+                np.where((value_final / cc_totals) > 1.20, 1, 0)
+                + np.where((value_final - cc_totals) > 2.5 * 10**7, 1, 0)
+                + np.where(value_final > 10**8, 1, 0)
+            )
+            == 3
         )
-        xxxx = (case_1 + case_2) > 0
+        case_2 = 1 * (
+            (
+                np.where(value_final > 10**8, 1, 0) + np.where(cc_totals < 10**5, 1, 0)
+                == 2
+            )
+        )
 
-        # if cases are true, the difference of valuefinal and sumVF
-        value_xxxx = (value_final - sumVF) * (xxxx == 1)
+        xxxx = 1 * ((case_1 + case_2) > 0)
+        value_xxxx = (value_final - cc_totals) * (xxxx == 1)
         value_reweight = value_final - value_xxxx
 
-        # clear out VF less than 1_000
-        VR = VF - VF * (VF < 1000)
+        # proportionally reweight products for each country country pair
+        VR = VF - (VF * 1 * (VF < 1000))
+        VR = VR / np.sum(VR, axis=1).to_numpy().reshape(-1, 1)
+        VR = VR * value_reweight.to_numpy().reshape(-1, 1)
 
-        VR = VR.div(np.sum(VR, axis=1), axis=0, level=["importer", "exporter"])
-
-        # align indices
-        VR_aligned, value_reweight_aligned = VR.align(
-            value_reweight, axis=0, level=[0, 1]
-        )
-        VR = VR_aligned.mul(value_reweight_aligned, axis=0)
-
-        VR.loc[:, "value_xxxx"] = value_xxxx
         VR = VR.fillna(0.0)
+        VR.loc[:, "value_xxxx"] = value_xxxx
         return VR
