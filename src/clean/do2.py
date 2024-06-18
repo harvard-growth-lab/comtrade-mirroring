@@ -343,7 +343,7 @@ class do2(_AtlasCleaning):
                 inplace=True,
             )
 
-            merged[merged.importer != merged.exporter]
+            merged = merged[merged.importer != merged.exporter]
 
             merged["tag_e"] = merged.duplicated("exporter", keep="first").astype(int)
             merged["tag_i"] = merged.duplicated("importer", keep="first").astype(int)
@@ -362,6 +362,9 @@ class do2(_AtlasCleaning):
 
             # Weight Calculation
             # attractiveness of the exporter
+            import pdb
+
+            pdb.set_trace()
             merged["w_e"] = np.exp(merged["exporter_A_e"]) / (
                 np.exp(merged["exporter_A_e"]) + np.exp(merged["importer_A_i"])
             )
