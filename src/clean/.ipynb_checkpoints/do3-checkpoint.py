@@ -42,10 +42,10 @@ class do3(_AtlasCleaning):
 
         # TODO: temp to reduce data set size
         self.df = self.df[self.df.product_level == 6]
-        # self.df = self.df[
-        #     (self.df.reporter_iso.isin(["SAU", "IND", "CHL"]))
-        #     & (self.df.partner_iso.isin(["SAU", "IND", "CHL"]))
-        # ]
+        self.df = self.df[
+            (self.df.reporter_iso.isin(["SAU", "IND", "CHL"]))
+            & (self.df.partner_iso.isin(["SAU", "IND", "CHL"]))
+        ]
 
         # creating country pairs and id of products
 
@@ -71,10 +71,10 @@ class do3(_AtlasCleaning):
             # TODO using weights file generated from seba's file, not python output
             f"data/intermediate/weights_{self.year}_stata_output.dta"
         )  # .parquet"
-        # ccy_attractiveness = ccy_attractiveness[
-        #     (ccy_attractiveness.exporter.isin(["SAU", "IND", "CHL"]))
-        #     & (ccy_attractiveness.importer.isin(["SAU", "IND", "CHL"]))
-        # ]
+        ccy_attractiveness = ccy_attractiveness[
+            (ccy_attractiveness.exporter.isin(["SAU", "IND", "CHL"]))
+            & (ccy_attractiveness.importer.isin(["SAU", "IND", "CHL"]))
+        ]
 
         # ccy_attractiveness = ccy_attractiveness[
         #     ccy_attractiveness.value_final >= 100_000
@@ -83,8 +83,6 @@ class do3(_AtlasCleaning):
         cif_ratio = 0.2
         logging.info("set cif ratio")
         
-        import pdb
-        pdb.set_trace()
 
         # generate index on unique country pairs
         ccy_attractiveness["idpair"] = ccy_attractiveness.groupby(
@@ -190,29 +188,34 @@ class do3(_AtlasCleaning):
         w_e = np.array(ccy_attractiveness["w_e"].values.reshape(-1, 1))
         w_e_matrix = np.ones((npairs, nprod)) * w_e
 
-        VF = (
-            ((w_e_matrix * exports_matrix) + ((1 - w_e_matrix) * imports_matrix))
-            * (1 * (trdata == 4) * 1 * (accuracy_matrix == 4))
-            + (imports_matrix * (1 * (trdata == 2) * 1 * (accuracy_matrix == 2)))
-            + (imports_matrix * (1 * (trdata == 2) * 1 * (accuracy_matrix == 4)))
-            + (exports_matrix * (1 * (trdata == 1) * 1 * (accuracy_matrix == 1)))
-            + (exports_matrix * (1 * (trdata == 1) * 1 * (accuracy_matrix == 4)))
-            + (imports_matrix * (1 * (trdata == 4) * 1 * (accuracy_matrix == 2)))
-            + (exports_matrix * (1 * (trdata == 4) * 1 * (accuracy_matrix == 1)))
-            + (
-                0.5
-                * (exports_matrix + imports_matrix)
-                * (1 * (trdata == 4) * 1 * (accuracy_matrix == 0))
-            )
-            + (imports_matrix * (1 * (trdata == 2) * 1 * (accuracy_matrix == 0)))
-            + (exports_matrix * (1 * (trdata == 1) * (1 * accuracy_matrix == 0)))
-            + (imports_matrix * (1 * (trdata == 2) * (1 * accuracy_matrix == 1)))
-            + (exports_matrix * (1 * (trdata == 1) * (1 * accuracy_matrix == 2)))
-        )
+        VF = (.5 * exports_matrix) + (.5 * imports_matrix)
+                
+        # VF = (
+        #     ((w_e_matrix * exports_matrix) + ((1 - w_e_matrix) * imports_matrix))
+        #     * ((trdata == 4) * (accuracy_matrix == 4))
+        #     + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 2)))
+        #     + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 4)))
+        #     + (exports_matrix * ((trdata == 1) * (accuracy_matrix == 1)))
+        #     + (exports_matrix * ((trdata == 1) * (accuracy_matrix == 4)))
+        #     + (imports_matrix * ((trdata == 4) * (accuracy_matrix == 2)))
+        #     + (exports_matrix * ((trdata == 4) * (accuracy_matrix == 1)))
+        #     + (0.5 * (exports_matrix + imports_matrix) * ((trdata == 4) * (accuracy_matrix == 0)))
+        #     + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 0)))
+        #     + (exports_matrix * ((trdata == 1) * (accuracy_matrix == 0)))
+        #     + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 1)))
+        #     + (exports_matrix * ((trdata == 1) * (accuracy_matrix == 2)))
+        # )
+
+        
+        import pdb
+        pdb.set_trace()
 
         # reweight VF
         # VR = VF
         VR = self.reweight(VF, final_value, nprod)
+        
+        import pdb
+        pdb.set_trace()
 
         # melt the dataframes
         melted_imports_matrix = pd.melt(
