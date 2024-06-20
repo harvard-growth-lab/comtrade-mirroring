@@ -48,9 +48,12 @@ class do2(_AtlasCleaning):
         ).drop(columns=["code"])
         # if empty fill in with imf population data
 
-        # totals from dofile1, concats all years
-        totals = pd.read_csv(
-            os.path.join(self.intermediate_data_path, f"Totals_RAW_trade.csv")
+        # country country year from dofile1, all years
+        # all_ccy = pd.read_csv(
+        all_ccy = pd.read_stata(
+            # os.path.join(self.intermediate_data_path, f"Totals_RAW_trade.csv")
+            os.path.join(self.intermediate_data_path, f"totals_raw_trade_stata_output.dta")
+
         )
 
         wdi_cpi = self.inflation_adjustment(wdi_cpi)
@@ -58,40 +61,42 @@ class do2(_AtlasCleaning):
         start_year = 2015
         end_year = 2015
         for year in range(start_year, end_year + 1):
-            year_totals = totals[totals.year == year]
-            year_totals = year_totals.dropna(subset=["exporter", "importer"])
-            year_totals = year_totals[
+            ccy = all_ccy[all_ccy.year == year]
+            ccy = ccy.dropna(subset=["exporter", "importer"])
+            ccy = ccy[
                 ~(
-                    (year_totals.exporter.isin(["WLD", "ANS"]))
-                    | (year_totals.importer.isin(["WLD", "ANS"]))
+                    (ccy.exporter.isin(["WLD", "ANS"]))
+                    | (ccy.importer.isin(["WLD", "ANS"]))
                 )
             ]
-            year_totals = year_totals[year_totals.exporter != year_totals.importer]
-            year_totals = year_totals[
-                year_totals[["importvalue_fob", "exportvalue_fob"]].max(axis=1) >= 10**4
+            ccy = ccy[ccy.exporter != ccy.importer]
+            ccy = ccy[
+                ccy[["importvalue_fob", "exportvalue_fob"]].max(axis=1) >= 10**4
             ]
 
             # TODO: if calculate cif_ratio by distance and existing values then implement
             # checking for max value from dofile2
-
+            ccy['cif_ratio'] = (ccy['importvalue_cif'] / ccy['importvalue_fob']) - 1
+            ccy['cif_ratio'] = ccy['cif_ratio'].apply(lambda val: min(val, 0.2) if pd.notnull(val) else val)
+            # save as temp_accuracy.dta
+            
+                            
             # complete dataframe to have all combinations for year, exporter, importer
-            years = year_totals["year"].unique()
-            exporters = year_totals["exporter"].unique()
-            importers = year_totals["importer"].unique()
-            all_combinations = pd.MultiIndex.from_product(
-                [years, exporters, importers], names=["year", "exporter", "importer"]
+            every_ccy_index = pd.MultiIndex.from_product(
+                [ccy["year"].unique(), ccy["exporter"].unique(), ccy["importer"].unique()], 
+                names=["year", "exporter", "importer"]
             )
-            filled_df = pd.DataFrame(index=all_combinations).reset_index()
+            every_ccy = pd.DataFrame(index=every_ccy_index).reset_index()
 
-            year_totals = filled_df.merge(
-                year_totals, on=["year", "exporter", "importer"], how="left"
+            ccy = every_ccy.merge(
+                ccy, on=["year", "exporter", "importer"], how="left"
             )
-            pop_year = pop[pop.year == year].drop(columns=["year"])
-
+            
             # merge importer population data
-            year_totals = (
-                year_totals.merge(
-                    pop_year, left_on="importer", right_on="iso", how="left"
+            ccy = (
+                ccy.merge(
+                    pop[pop.year == year].drop(columns=["year"]),
+                    left_on="importer", right_on="iso", how="left"
                 )
                 .rename(
                     columns={
@@ -102,9 +107,10 @@ class do2(_AtlasCleaning):
                 .drop(columns=["iso"])
             )
             # merge exporter population data
-            year_totals = (
-                year_totals.merge(
-                    pop_year, left_on="exporter", right_on="iso", how="left"
+            ccy = (
+                ccy.merge(
+                    pop[pop.year == year].drop(columns=["year"]),
+                    left_on="exporter", right_on="iso", how="left"
                 )
                 .rename(
                     columns={
@@ -114,19 +120,12 @@ class do2(_AtlasCleaning):
                 )
                 .drop(columns=["iso"])
             )
-
-            #  TODO: confirm generating population cutoffs
-            # cutoff any importer/exporter below poplimit threshold
-            year_totals = year_totals[
-                year_totals[["wdi_pop_exporter", "imf_pop_exporter"]].max(axis=1)
-                > self.poplimit
-            ]
-            year_totals = year_totals[
-                year_totals[["wdi_pop_importer", "imf_pop_importer"]].max(axis=1)
-                > self.poplimit
-            ]
+            # cutoff any importer/exporter below poplimit
+            ccy = ccy[ccy.wdi_pop_exporter > self.poplimit]
+            ccy = ccy[ccy.wdi_pop_importer > self.poplimit]
+            
             # after cutoffs implemented, then drop population data
-            year_totals = year_totals.drop(
+            ccy = ccy.drop(
                 columns=[
                     "wdi_pop_exporter",
                     "imf_pop_exporter",
@@ -134,62 +133,73 @@ class do2(_AtlasCleaning):
                     "imf_pop_importer",
                 ]
             )
+            
+            # fillin year exporter importer 
+            # TODO: generate a fill in / rectangularize method for table object
 
-            # matrices
+
+            # cpi index base is set from 2010 for the US
             inflation = pd.read_parquet(
                 os.path.join(self.intermediate_data_path, "inflation_index.parquet")
             )
-            df = year_totals.merge(
-                inflation[["year", "cpi", "cpi_index", "cpi_index_base"]],
+            
+            ccy = ccy.merge(
+                inflation[["year", "cpi_index_base"]],
                 on="year",
                 how="inner",
             )
-            df = df.assign(
+            
+            # converts exports, import values to constant dollar values
+            ccy = ccy.assign(
                 **{
-                    col: df[col] / df.cpi_index_base
-                    for col in ["exportvalue_fob", "importvalue_cif", "importvalue_fob"]
+                    col: ccy[col] / ccy.cpi_index_base
+                    for col in ["exportvalue_fob", "importvalue_fob"]
                 }
             )
-            # ensure export and import values are floats
-            df = df.drop(columns="cpi_index_base").rename(
-                columns={"exportvalue_fob": "v_e", "importvalue_fob": "v_i"}
+            ccy = ccy.fillna(0.0)
+            ccy = ccy.drop(columns=["cpi_index_base", "importvalue_cif", "cif_ratio"]).rename(
+                # in stata v_e and v_i
+                columns={"exportvalue_fob": "exports_const_usd", "importvalue_fob": "imports_const_usd"}
             )
 
-            # TODO: confirm if this is needed?
             # trade below threshold is zeroed
-            df.loc[df.v_e < self.flow_limit, "v_e"] = 0.0
-            df.loc[df.v_i < self.flow_limit, "v_i"] = 0.0
-            df = df.groupby("exporter").filter(lambda x: (x["v_e"] > 0).sum() > 0)
-            df = df.groupby("importer").filter(lambda x: (x["v_i"] > 0).sum() > 0)
+            ccy.loc[ccy.exports_const_usd < self.flow_limit, "exports_const_usd"] = 0.0
+            ccy.loc[ccy.imports_const_usd < self.flow_limit, "imports_const_usd"] = 0.0
+            
+            ccy = ccy.groupby("exporter").filter(lambda row: (row["exports_const_usd"] > 0).sum() > 0)
+            ccy = ccy.groupby("importer").filter(lambda x: (x["imports_const_usd"] > 0).sum() > 0)
 
-            # deviation scores
-            # trade imbalance normalized by total trade
-            df["s_ij"] = (
-                (abs(df["v_e"] - df["v_i"])) / (df["v_e"] + df["v_i"])
+            # difference in trade reporting
+            # in stata s_ij
+            ccy["trade_discrepancy"] = (
+                (abs(ccy["exports_const_usd"] - ccy["imports_const_usd"])) / (ccy["exports_const_usd"] + ccy["imports_const_usd"])
             ).fillna(0.0)
-
-            df.v_e = df.v_e.fillna(0.0)
-            df.v_i = df.v_i.fillna(0.0)
-
+                        
             for trade_flow in ["importer", "exporter"]:
                 for t in range(1, 6):
                     # Calculate nflows
-                    df["nflows"] = (
-                        ((df["v_e"] != 0.0) | (df["v_i"] != 0.0))
-                        .groupby(df[trade_flow])
-                        .transform("sum")
+                    ccy["nflows"] = (
+                        ((ccy["exports_const_usd"] != 0.0) | (ccy["imports_const_usd"] != 0.0))
+                        .groupby(ccy[trade_flow])
+                        .transform("count")
                     )
-
+                    
                     # Get the list of countries with nflows < rnflows
                     listctry = (
-                        df.loc[df["nflows"] < self.rnflows, trade_flow]
+                        ccy.loc[ccy["nflows"] < self.rnflows, trade_flow]
                         .unique()
                         .tolist()
                     )
 
-                    # Drop rows where exporter or importer has trade flow below threshold
+                    # Drop exporter or importer that has trade flows below threshold
                     for i in listctry:
-                        df = df[~((df["exporter"] == i) | (df["importer"] == i))]
+                        ccy = ccy[~((ccy["exporter"] == i) | (ccy["importer"] == i))]
+                        
+                        
+                    import pdb
+                    pdb.set_trace()
+                        
+            
 
             # check and ensure match for each importer and exporter
             missing_trade_flow = np.setdiff1d(
@@ -523,8 +533,7 @@ class do2(_AtlasCleaning):
             wdi_cpi.year == self.CPI_BASE_YEAR, "cpi_index"
         ].iloc[0]
         wdi_cpi["cpi_index_base"] = wdi_cpi["cpi_index"] / base_year_cpi_index
-
-        # temp_accuracy
+        
         wdi_cpi.to_parquet(
             os.path.join(self.intermediate_data_path, "inflation_index.parquet")
         )
