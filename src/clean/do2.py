@@ -143,65 +143,60 @@ class do2(_AtlasCleaning):
                 os.path.join(self.intermediate_data_path, "inflation_index.parquet")
             )
             
-            ccy = ccy.merge(
+            df = ccy.merge(
                 inflation[["year", "cpi_index_base"]],
                 on="year",
                 how="inner",
             )
             
             # converts exports, import values to constant dollar values
-            ccy = ccy.assign(
+            df = df.assign(
                 **{
-                    col: ccy[col] / ccy.cpi_index_base
+                    col: df[col] / df.cpi_index_base
                     for col in ["exportvalue_fob", "importvalue_fob"]
                 }
             )
-            ccy = ccy.fillna(0.0)
-            ccy = ccy.drop(columns=["cpi_index_base", "importvalue_cif", "cif_ratio"]).rename(
+            df = df.fillna(0.0)
+            df = df.drop(columns=["cpi_index_base", "importvalue_cif", "cif_ratio"]).rename(
                 # in stata v_e and v_i
                 columns={"exportvalue_fob": "exports_const_usd", "importvalue_fob": "imports_const_usd"}
             )
 
             # trade below threshold is zeroed
-            ccy.loc[ccy.exports_const_usd < self.flow_limit, "exports_const_usd"] = 0.0
-            ccy.loc[ccy.imports_const_usd < self.flow_limit, "imports_const_usd"] = 0.0
+            df.loc[df.exports_const_usd < self.flow_limit, "exports_const_usd"] = 0.0
+            df.loc[df.imports_const_usd < self.flow_limit, "imports_const_usd"] = 0.0
             
-            ccy = ccy.groupby("exporter").filter(lambda row: (row["exports_const_usd"] > 0).sum() > 0)
-            ccy = ccy.groupby("importer").filter(lambda x: (x["imports_const_usd"] > 0).sum() > 0)
+            df = df.groupby("exporter").filter(lambda row: (row["exports_const_usd"] > 0).sum() > 0)
+            df = df.groupby("importer").filter(lambda x: (x["imports_const_usd"] > 0).sum() > 0)
 
             # difference in trade reporting
             # in stata s_ij
-            ccy["trade_discrepancy"] = (
-                (abs(ccy["exports_const_usd"] - ccy["imports_const_usd"])) / (ccy["exports_const_usd"] + ccy["imports_const_usd"])
+            df["trade_discrepancy"] = (
+                (abs(df["exports_const_usd"] - df["imports_const_usd"])) / (df["exports_const_usd"] + df["imports_const_usd"])
             ).fillna(0.0)
-                        
+                           
+            
+            # trade flow count method
             for trade_flow in ["importer", "exporter"]:
                 for t in range(1, 6):
-                    # Calculate nflows
-                    ccy["nflows"] = (
-                        ((ccy["exports_const_usd"] != 0.0) | (ccy["imports_const_usd"] != 0.0))
-                        .groupby(ccy[trade_flow])
-                        .transform("count")
+                    df["nflows"] = (
+                        # if neither exports or imports are zero than count as a flow 
+                        ((df["exports_const_usd"] != 0.0) | (df["imports_const_usd"] != 0.0))
+                        .groupby(df[trade_flow])
+                        .transform("sum")
                     )
-                    
-                    # Get the list of countries with nflows < rnflows
-                    listctry = (
-                        ccy.loc[ccy["nflows"] < self.rnflows, trade_flow]
-                        .unique()
+                                        
+                    small_nflows = set(
+                        df.loc[df["nflows"] < self.rnflows, trade_flow]
                         .tolist()
                     )
-
                     # Drop exporter or importer that has trade flows below threshold
-                    for i in listctry:
-                        ccy = ccy[~((ccy["exporter"] == i) | (ccy["importer"] == i))]
-                        
-                        
-                    import pdb
-                    pdb.set_trace()
-                        
-            
+                    if small_nflows:
+                        for iso in small_nflows:
+                            df = df[~((df["exporter"] == iso) | (df["importer"] == iso))]
+                  
 
-            # check and ensure match for each importer and exporter
+            # confirms all countries included have data as importer and exporter if not, then drop the country
             missing_trade_flow = np.setdiff1d(
                 df.importer.unique().tolist(), df.exporter.unique().tolist()
             )
@@ -212,68 +207,78 @@ class do2(_AtlasCleaning):
                         | df["importer"].isin(missing_trade_flow)
                     )
                 ]
+            df = df.drop(columns=['nflows'])
 
-            df = df.assign(
-                temp_flow_avg=df[["v_e", "v_i"]].replace(0, np.nan).mean(axis=1)
-            )
-            df["temp_exporter_sums"] = df.groupby("exporter")[
-                "temp_flow_avg"
-            ].transform("sum")
-            df["temp_importer_sums"] = df.groupby("importer")[
-                "temp_flow_avg"
-            ].transform("sum")
+            
+            # calculate the mean of each row, exclude import or export value when equal to zero
+            df['temp_flow_avg'] = pd.DataFrame({
+                'exports': np.where(df['exports_const_usd'] != 0, df['exports_const_usd'], np.nan),
+                'imports': np.where(df['imports_const_usd'] != 0, df['imports_const_usd'], np.nan)
+            }).mean(axis=1)
 
             # percentage of countries total exports
-            df["perc_e"] = (df["temp_flow_avg"] / df["temp_exporter_sums"]).clip(
-                lower=0
-            )
+            df["perc_e"] = np.maximum(df["temp_flow_avg"] / df.groupby('exporter')['temp_flow_avg'].transform('sum'), 0.0)
             # percentage of countries total imports
-            df["perc_i"] = (df["temp_flow_avg"] / df["temp_importer_sums"]).clip(
-                lower=0
-            )
-            df = df.filter(regex="^(?!temp).*")
+            df["perc_i"] = np.maximum(df["temp_flow_avg"] / df.groupby('importer')['temp_flow_avg'].transform('sum'), 0.0)
+            df = df.drop(columns=['temp_flow_avg'])
 
-            max_exporter_flows = df.groupby(["exporter"])["exporter"].count().max()
-            max_importer_flows = df.groupby(["importer"])["importer"].count().max()
-
-            # generate metrics
             for trade_flow in ["importer", "exporter"]:
                 df[f"nflows_{trade_flow}"] = (
-                    ((df["v_e"] != 0) | (df["v_i"] != 0))
+                    ((df["exports_const_usd"] != 0.0) | (df["imports_const_usd"] != 0.0))
                     .groupby(df[trade_flow])
                     .transform("sum")
                 )
                 # average normalized trade imbalance by trade flow
-                df[f"s_ij_{trade_flow}"] = df.groupby(trade_flow)["s_ij"].transform(
+                df[f"trade_discrepancy_{trade_flow}_avg"] = df.groupby(trade_flow)["trade_discrepancy"].transform(
                     "mean"
                 )
-                # sum average by
-                df[f"avs_ij_{trade_flow}"] = df.groupby(trade_flow)[
-                    f"s_ij_{trade_flow}"
-                ].transform("sum")
+                            
+                # divide the total trade discrepancy by importer and exporter by the number of respective trade flows
+                df[f"trade_discrepancy_{trade_flow}_total"] = df.groupby(trade_flow)[
+                    f"trade_discrepancy_{trade_flow}_avg" 
+                ].transform("sum") / df[f"nflows_{trade_flow}"]
 
-                # avg normalized trade imbalance for each flow
-                df[f"avs_ij_{trade_flow}"] = (
-                    df[f"avs_ij_{trade_flow}"] / df[f"nflows_{trade_flow}"]
-                )
-
-            df["is_ij"] = df["s_ij"].copy()
-            df = df.rename(
-                columns={
-                    "s_ij": "es_ij",
-                    "nflows_exporter": "en_ij",
-                    "nflows_importer": "in_ij",
-                }
-            )
+            # number of unique exporters, importers
+            nexporters = df['exporter'].nunique()
+            nimporters = df['importer'].nunique()
+            
 
             # TODO: ask about Muhammed's code section (MAY)
+            
+            import pdb
+            pdb.set_trace()
 
-            # iterations refine Attractiveness of importer and exporter
+            
+            # by number of exporters
+            trdiscrep_exp = df['trade_discrepancy'].values.reshape(df['trade_discrepancy'].size // nexporters, nexporters,
+                                                                   order='F') 
+            trdiscrep_imp = df['trade_discrepancy'].values.reshape(df['trade_discrepancy'].size // nimporters, nimporters,
+                                                                   order='F') 
+
+
+            trade_discprepancy_exp = df['trade_discrepancy'].values.reshape(nexporters, 1)
+            # by number of importers
+            trade_discprepancy_imp = df['trade_discrepancy'].values.reshape(nexporters, 1)
+            
             # based on normalized trade imbalance and number of trade partners
-            df["A_e"] = 1
-            df["A_i"] = 1
+            # initialize accuracy metric to one
+            accuracy_exp = np.ones((nexporters, 1))
+            accuracy_imp = np.ones((nimporters, 1))
+            
+            import pdb
+            pdb.set_trace()
+            
+							# forval i=1/`niter' {
+							# 	mata prA_e  =  1 :/ ( ( es_ij * A_i ) :/ en_ij)
+							# 	mata prA_i  =  1 :/ ( ( is_ij * A_e ) :/ in_ij)
+							# 	mata A_e = prA_e
+							# 	mata A_i = prA_i
+							# }	
+
+            
             for i in range(0, 25):
-                df["prA_e"] = df["es_ij"] * df["A_e"] / df["en_ij"]
+                # prob_accuracy_exp = 1 / 
+                df["prA_e"] = 1 / df["es_ij"] * df["A_e"] / df["en_ij"]
                 df["prA_i"] = df["is_ij"] * df["A_i"] / df["in_ij"]
                 df["A_e"] = df["prA_e"]
                 df["A_i"] = df["prA_i"]
@@ -316,12 +321,13 @@ class do2(_AtlasCleaning):
 
             df.sort_values(by="A_f", ascending=False)
             # noi list year iso A_e A_i A_f  if _n<=10
-            df.to_parquet("data/intermediate/attractiveness.parquet")
+            
+            df.to_parquet("data/intermediate/accuracy.parquet")
 
             # TODO: need to add in sigmas
             # merge cpi index with exporters by year
             # TODO: requires many to one, there are many A_e,A_i values for year/exporter
-            merged = year_totals.merge(
+            merged = ccy.merge(
                 df[["year", "iso", "A_e", "A_i"]],  # "sigmas"]],
                 left_on=["year", "exporter"],
                 right_on=["year", "iso"],
@@ -372,9 +378,6 @@ class do2(_AtlasCleaning):
 
             # Weight Calculation
             # attractiveness of the exporter
-            import pdb
-
-            pdb.set_trace()
             merged["w_e"] = np.exp(merged["exporter_A_e"]) / (
                 np.exp(merged["exporter_A_e"]) + np.exp(merged["importer_A_i"])
             )
@@ -474,6 +477,7 @@ class do2(_AtlasCleaning):
             self.processed_data_path, f"weights_{start_year}-{end_year}.parquet"
         )
         weights_years_total.to_parquet(output_path)
+        
 
     def calculate_estimated_value(self, df, perc_e, perc_i):
         """
@@ -518,6 +522,7 @@ class do2(_AtlasCleaning):
             df.loc[df["est_value"].isna() & condition, "est_value"] = choice
         return df
 
+ 
     def inflation_adjustment(self, wdi_cpi):
         """ """
         for i, row in wdi_cpi.iterrows():
