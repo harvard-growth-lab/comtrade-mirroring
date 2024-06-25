@@ -286,6 +286,9 @@ class do2(_AtlasCleaning):
 
 
             # TODO: ask about Muhammed's code section (MAY)
+            
+            # keep iso to keep country id
+            iso = df['exporter'].drop_duplicates().values.reshape(-1,1)
 
             # by number of exporters
             # stata name: es_ij
@@ -326,7 +329,6 @@ class do2(_AtlasCleaning):
                 
             import pdb
             pdb.set_trace()
-
             # df = df.drop(columns=["prob_accuracy_exp", "prob_accuracy_imp"])
 
             trdiscrep_exp = np.sum(trdiscrep_exp, axis=1) / ncountries
@@ -348,12 +350,23 @@ class do2(_AtlasCleaning):
                 accuracy_final = PCA().fit_transform(accuracy_exp, accuracy_imp)
 
             if self.anorm == 1:
-                df["A_f"] = df["A_f"] - df["A_f"].mean() / df["A_f"].std()
+                accuracy_final = (accuracy_final - accuracy_final.mean()) / accuracy_final.std()
+                # df["A_f"] = df["A_f"] - df["A_f"].mean() / df["A_f"].std()
 
-            df.sort_values(by="A_f", ascending=False)
+            # df.sort_values(by="A_f", ascending=False)
             # noi list year iso A_e A_i A_f  if _n<=10
+                        
+            # combine np arrays into pandas 
+            year_array = np.full(ncountries, year).reshape(-1,1)
+            
+            accuracy_df = pd.DataFrame(np.hstack([year_array, iso, accuracy_exp, accuracy_imp, accuracy_final]),
+                                       columns=['year', 'iso', 'accuracy_exp', 'accuracy_imp', 'accuracy_final'])
 
-            df.to_parquet("data/intermediate/accuracy.parquet")
+            accuracy_df.to_parquet("data/intermediate/accuracy.parquet")
+            
+            import pdb
+            pdb.set_trace()
+
 
             # TODO: need to add in sigmas
             # merge cpi index with exporters by year
