@@ -82,6 +82,7 @@ class do2(_AtlasCleaning):
                 lambda val: min(val, 0.2) if pd.notnull(val) else val
             )
             # save as temp_accuracy.dta
+            ccy.to_parquet(f"data/intermediate/ccy_{year}.parquet")
 
             # complete dataframe to have all combinations for year, exporter, importer
             every_ccy_index = pd.MultiIndex.from_product(
@@ -287,8 +288,6 @@ class do2(_AtlasCleaning):
 
 
             # TODO: ask about Muhammed's code section (MAY)
-            # import pdb
-            # pdb.set_trace()
             
             # keep iso to keep country id
             # iso = df['exporter'].drop_duplicates().values #.reshape(-1,1)
@@ -346,66 +345,53 @@ class do2(_AtlasCleaning):
             # combine np arrays into pandas 
             year_array = np.full(ncountries, year).reshape(-1,1)
             
-            accuracy_df = pd.DataFrame(np.hstack([year_array, exporters.reshape(-1,1), nflows_exp, nflows_imp, trdiscrep_exp, trdiscrep_imp, accuracy_exp, accuracy_imp, accuracy_final]),
+            cy_accuracy = pd.DataFrame(np.hstack([year_array, exporters.reshape(-1,1), nflows_exp, nflows_imp, trdiscrep_exp, trdiscrep_imp, accuracy_exp, accuracy_imp, accuracy_final]),
                                        columns=['year', 'iso', 'nflows_exp', 'nflows_imp', 'trdiscrep_exp', 'trdiscrep_imp', 'acc_exp', 'acc_imp', 'acc_final'])
 
-            accuracy_df.to_parquet("data/intermediate/accuracy.parquet")
+            cy_accuracy.to_parquet("data/intermediate/accuracy.parquet")
             
-            import pdb
-            pdb.set_trace()
-
-
             # TODO: need to add in sigmas
             # merge cpi index with exporters by year
             # TODO: requires many to one, there are many A_e,A_i values for year/exporter
-            merged = ccy.merge(
-                df[["year", "iso", "A_e", "A_i"]],  # "sigmas"]],
+            ccy_acc = ccy.merge(
+                cy_accuracy[["year", "iso", "acc_exp", "acc_imp"]].rename(columns={
+                    "acc_exp": "acc_exp_for_exporter",
+                    "acc_imp": "acc_imp_for_exporter"
+                }),  # "sigmas"]],
                 left_on=["year", "exporter"],
                 right_on=["year", "iso"],
                 how="left",
             ).drop(columns=["iso"])
 
-            merged.rename(
-                columns={
-                    "A_e": "exporter_A_e",
-                    "A_i": "exporter_A_i",
-                    # "sigmas": "exporter_sigmas",
-                },
-                inplace=True,
-            )
-
-            merged = merged.merge(
-                df[["year", "iso", "A_e", "A_i"]],  # "sigmas"]],
+            ccy_acc = ccy_acc.merge(
+                cy_accuracy[["year", "iso", "acc_exp", "acc_imp"]].rename(columns={
+                    "acc_exp": "acc_exp_for_importer",
+                    "acc_imp": "acc_imp_for_importer"
+                }),  # "sigmas"]],
                 left_on=["year", "importer"],
                 right_on=["year", "iso"],
                 how="left",
+                suffixes=('', '_for_importer'),
             ).drop(columns=["iso"])
+            
+            ccy_acc = ccy_acc[ccy_acc.importer != ccy_acc.exporter]
+            
+            for entity in ['exporter', 'importer']:
+                ccy_acc[f'tag_{entity[0]}'] = (~ccy_acc[entity].duplicated()).astype(int)
 
-            merged.rename(
-                columns={
-                    "A_e": "importer_A_e",
-                    "A_i": "importer_A_i",
-                    # "sigmas": "importer_sigmas",
-                },
-                inplace=True,
-            )
+            # merged["tag_e"] = merged.duplicated("exporter", keep="first").astype(int)
+            # merged["tag_i"] = merged.duplicated("importer", keep="first").astype(int)
 
-            merged = merged[merged.importer != merged.exporter]
+            # remove trade values less than 1000
+            ccy_acc.loc[ccy_acc["importvalue_fob"] < 1000, "importvalue_fob"] = 0.0
+            ccy_acc.loc[ccy_acc["exportvalue_fob"] < 1000, "exportvalue_fob"] = 0.0
 
-            merged["tag_e"] = merged.duplicated("exporter", keep="first").astype(int)
-            merged["tag_i"] = merged.duplicated("importer", keep="first").astype(int)
-
-            # Data Cleaning
-            merged.loc[merged["importvalue_fob"] < 1000, "importvalue_fob"] = np.nan
-            merged.loc[merged["exportvalue_fob"] < 1000, "exportvalue_fob"] = np.nan
-
-            # Calculating Percentiles
-            percentiles_e = merged[merged["tag_e"] == 1]["exporter_A_e"].describe(
-                percentiles=[0.10, 0.25, 0.50, 0.75, 0.90]
-            )
-            percentiles_i = merged[merged["tag_i"] == 1]["importer_A_i"].describe(
-                percentiles=[0.10, 0.25, 0.50, 0.75, 0.90]
-            )
+            # calculating percentiles grouped by unique exporter and then importer
+            percentiles_e = ccy_acc[ccy_acc.tag_e == 1]["acc_exp_for_exporter"].quantile([0.10, 0.25, 0.50, 0.75, 0.90]).round(3)
+            percentiles_i = ccy_acc[ccy_acc.tag_i == 1]["acc_imp_for_importer"].quantile([0.10, 0.25, 0.50, 0.75, 0.90]).round(3)
+            
+            import pdb
+            pdb.set_trace()
 
             # Weight Calculation
             # attractiveness of the exporter
