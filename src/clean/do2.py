@@ -229,6 +229,7 @@ class do2(_AtlasCleaning):
                 ]
             df = df.drop(columns=["nflows"])
             
+            # leave for testing
             assert (
                 df["exporter"].nunique()  == df["importer"].nunique() 
             ), f"Number of exporters does not equal number of importers"
@@ -286,30 +287,27 @@ class do2(_AtlasCleaning):
 
 
             # TODO: ask about Muhammed's code section (MAY)
+            # import pdb
+            # pdb.set_trace()
             
             # keep iso to keep country id
-            iso = df['exporter'].drop_duplicates().values.reshape(-1,1)
+            # iso = df['exporter'].drop_duplicates().values #.reshape(-1,1)
+            # iso_to_index = {code: index for index, code in enumerate(iso)}
 
-            # by number of exporters
-            # stata name: es_ij
-            trdiscrep_exp = df["trade_discrepancy"].values.reshape(
-                df["trade_discrepancy"].size // ncountries, ncountries, order="F"
-            )
-            # stata name: is_ij
-            trdiscrep_imp = df["trade_discrepancy"].values.reshape(
-                df["trade_discrepancy"].size // ncountries, ncountries, order="F"
-            )
-            # stata name: en_ij, in_ij
-            nflows_exp = (
-                df[["exporter", "nflows_exporter"]]
-                .drop_duplicates()["nflows_exporter"]
-                .values.reshape(-1, 1)
-            )
-            nflows_imp = (
-                df[["importer", "nflows_importer"]]
-                .drop_duplicates()["nflows_importer"]
-                .values.reshape(-1, 1)
-            )
+            exporters = df['exporter'].unique()
+            exporter_to_idx = {exp: idx for idx, exp in enumerate(exporters)}
+            
+            # prepare matrices to maintain indices
+            # stata name: es_ij: exporters, is_ij: importers
+            trade_discrepancy = df.pivot(index='exporter', columns='importer', values='trade_discrepancy').fillna(0)
+            trade_discrepancy = trade_discrepancy.reindex(index=exporters, columns=exporters, fill_value=0)
+            
+            # Convert to numpy arrays
+            trdiscrep_exp = trade_discrepancy.values
+            trdiscrep_imp = trdiscrep_exp.T
+            
+            nflows_exp = df.groupby('exporter')['nflows_exporter'].first().values.reshape(-1,1)
+            nflows_imp = df.groupby('importer')['nflows_importer'].first().reindex(exporters).values.reshape(-1,1)
 
             # based on normalized trade imbalance and number of trade partners
             # initialize accuracy metric to one
@@ -317,22 +315,15 @@ class do2(_AtlasCleaning):
             accuracy_exp = np.ones((ncountries, 1))
             accuracy_imp = np.ones((ncountries, 1))
 
-            for i in range(0, 25):
+            for _ in range(0, 25):
                 # @ is element-wise multiplication
-                # import pdb
-                # pdb.set_trace()
                 prob_accuracy_exp = 1 / np.divide((trdiscrep_exp @ accuracy_imp), nflows_exp)
                 prob_accuracy_imp = 1 / np.divide((trdiscrep_imp @ accuracy_exp), nflows_imp)
-                # prob_accuracy_imp = 1 / ((trdiscrep_imp @ accuracy_exp) / nflows_exp)
                 accuracy_imp = prob_accuracy_imp
                 accuracy_exp = prob_accuracy_exp
                 
-            import pdb
-            pdb.set_trace()
-            # df = df.drop(columns=["prob_accuracy_exp", "prob_accuracy_imp"])
-
-            trdiscrep_exp = np.sum(trdiscrep_exp, axis=1) / ncountries
-            trdiscrep_imp = np.sum(trdiscrep_imp, axis=1) / ncountries
+            trdiscrep_exp = (np.sum(trdiscrep_exp, axis=1) / ncountries).reshape(-1,1)
+            trdiscrep_imp = (np.sum(trdiscrep_imp, axis=1) / ncountries).reshape(-1,1)
 
             # fix some df has single exporter for year 2015
             if self.alog == 1:
@@ -351,16 +342,12 @@ class do2(_AtlasCleaning):
 
             if self.anorm == 1:
                 accuracy_final = (accuracy_final - accuracy_final.mean()) / accuracy_final.std()
-                # df["A_f"] = df["A_f"] - df["A_f"].mean() / df["A_f"].std()
-
-            # df.sort_values(by="A_f", ascending=False)
-            # noi list year iso A_e A_i A_f  if _n<=10
                         
             # combine np arrays into pandas 
             year_array = np.full(ncountries, year).reshape(-1,1)
             
-            accuracy_df = pd.DataFrame(np.hstack([year_array, iso, accuracy_exp, accuracy_imp, accuracy_final]),
-                                       columns=['year', 'iso', 'accuracy_exp', 'accuracy_imp', 'accuracy_final'])
+            accuracy_df = pd.DataFrame(np.hstack([year_array, exporters.reshape(-1,1), nflows_exp, nflows_imp, trdiscrep_exp, trdiscrep_imp, accuracy_exp, accuracy_imp, accuracy_final]),
+                                       columns=['year', 'iso', 'nflows_exp', 'nflows_imp', 'trdiscrep_exp', 'trdiscrep_imp', 'acc_exp', 'acc_imp', 'acc_final'])
 
             accuracy_df.to_parquet("data/intermediate/accuracy.parquet")
             
