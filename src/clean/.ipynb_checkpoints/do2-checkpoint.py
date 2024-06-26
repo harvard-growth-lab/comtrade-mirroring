@@ -390,79 +390,67 @@ class do2(_AtlasCleaning):
             percentiles_e = ccy_acc[ccy_acc.tag_e == 1]["acc_exp_for_exporter"].quantile([0.10, 0.25, 0.50, 0.75, 0.90]).round(3)
             percentiles_i = ccy_acc[ccy_acc.tag_i == 1]["acc_imp_for_importer"].quantile([0.10, 0.25, 0.50, 0.75, 0.90]).round(3)
             
-            import pdb
-            pdb.set_trace()
+            columns_to_cast = ['acc_exp_for_exporter', 
+                                  'acc_imp_for_exporter', 
+                                  'acc_exp_for_importer', 
+                                  'acc_imp_for_importer']
+
+            for col in columns_to_cast:
+                ccy_acc[col] = pd.to_numeric(ccy_acc[col], errors='coerce')
+
 
             # Weight Calculation
             # attractiveness of the exporter
-            merged["w_e"] = np.exp(merged["exporter_A_e"]) / (
-                np.exp(merged["exporter_A_e"]) + np.exp(merged["importer_A_i"])
+            ccy_acc["weight"] = np.exp(ccy_acc["acc_exp_for_exporter"]) / (
+                np.exp(ccy_acc["acc_exp_for_exporter"]) + np.exp(ccy_acc["acc_imp_for_importer"])
             )
-
+            
             # Output the percentiles
-            logging.info(
-                f":: exporter A_e :: 10, 25, 50, 75, 95 = {percentiles_e['10%']} & {percentiles_e['25%']} & {percentiles_e['50%']} & {percentiles_e['75%']} & {percentiles_e['90%']}"
-            )
-            logging.info(
-                f":: importer A_i :: 10, 25, 50, 75, 95 = {percentiles_i['10%']} & {percentiles_i['25%']} & {percentiles_i['50%']} & {percentiles_i['75%']} & {percentiles_i['90%']}"
-            )
+            # logging.info(
+            #     f":: exporter A_e :: 10, 25, 50, 75, 95 = {percentiles_e['10%']} & {percentiles_e['25%']} & {percentiles_e['50%']} & {percentiles_e['75%']} & {percentiles_e['90%']}"
+            # )
+            # logging.info(
+            #     f":: importer A_i :: 10, 25, 50, 75, 95 = {percentiles_i['10%']} & {percentiles_i['25%']} & {percentiles_i['50%']} & {percentiles_i['75%']} & {percentiles_i['90%']}"
+            # )
 
             # include set of countries
-            merged = merged.assign(
-                w_e_0=np.where(
-                    (merged.exporter_A_e.notna())
-                    & (merged.exporter_A_e > percentiles_e["10%"]),
+            ccy_acc = ccy_acc.assign(
+                weight_exporter =np.where(
+                    (ccy_acc.acc_exp_for_exporter.notna())
+                    & (ccy_acc.acc_exp_for_exporter > percentiles_e[.10]),
                     1,
                     0,
                 ),
-                w_i_0=np.where(
-                    (merged.exporter_A_i.notna())
-                    & (merged.exporter_A_i > percentiles_i["10%"]),
+                weight_importer=np.where(
+                    (ccy_acc.acc_imp_for_importer.notna())
+                    & (ccy_acc.acc_imp_for_importer > percentiles_i[.10]),
                     1,
                     0,
                 ),
             )
-
-            merged["discrep"] = np.exp(
-                np.abs(np.log(merged["exportvalue_fob"] / merged["importvalue_fob"]))
+            
+            ccy_acc["discrep"] = np.exp(
+                np.abs(np.log(ccy_acc["exportvalue_fob"] / ccy_acc["importvalue_fob"]))
             )
-            merged["discrep"] = merged["discrep"].replace(np.nan, 99)
+            
+            ccy_acc["discrep"] = ccy_acc["discrep"].replace(np.nan, 99)
 
-            df = self.calculate_estimated_value(merged, percentiles_e, percentiles_i)
+            
+            df = self.calculate_estimated_value(ccy_acc, percentiles_e, percentiles_i)
             df = df.drop(columns=["discrep"])
 
-            # Calculate total_value and share_exporter
-            df["total_value"] = df.groupby(["year", "exporter"])["est_value"].transform(
-                "sum"
-            )
-            df["share_exporter"] = df["est_value"] / df["total_value"]
-            # drop flows
-            df = df.drop(
-                df.loc[
-                    (df["share_exporter"] > 0.75)
-                    & (df["share_exporter"].notna())
-                    & (df["total_value"] > 10 ^ 7)
-                    & (df["importer_A_i"] < percentiles_i["50%"])
-                    & (df["importer_A_e"].notna())
-                    & ((df["exporter"] != "BRN") & (df["importer"] != "MYS"))
-                    & ((df["exporter"] != "DJI") & (df["importer"] != "SAU")),
-                    "est_value",
-                ].index
-            )
-            # df = df[~df.est_value.isna()]
-
             # Calculate mintrade and update estvalue
-            df["mintrade"] = df[["exportvalue_fob", "importvalue_fob"]].min(axis=1)
+            df["min_trade"] = df[["exportvalue_fob", "importvalue_fob"]].min(axis=1)
             df.loc[
-                (df["mintrade"].notna()) & (df["est_value"].isna()), "est_value"
-            ] = df["mintrade"]
+                (df["min_trade"].notna()) & (df["est_value"].isna()), "est_value"
+            ] = df["min_trade"]
 
             # Rename columns
             df = df.rename(
                 columns={
-                    "exportvalue_fob": "value_exporter",
-                    "importvalue_fob": "value_importer",
-                    "est_value": "value_final",
+                    "exportvalue_fob": "export_value",
+                    "importvalue_fob": "import_value",
+                    "est_value": "final_value",
                 }
             )
 
@@ -471,71 +459,60 @@ class do2(_AtlasCleaning):
                 "year",
                 "exporter",
                 "importer",
-                "value_exporter",
-                "value_importer",
-                "value_final",
+                "export_value",
+                "import_value",
+                "final_value",
                 # "cif_ratio",
-                "w_e",
-                "w_e_0",
-                "w_i_0",
-                "importer_A_e",
-                "importer_A_i",
+                "weight",
+                "weight_exporter",
+                "weight_importer",
+                "acc_exp_for_exporter",
+                "acc_imp_for_importer",
             ]
             df = df[columns_to_keep]
 
             # Save the DataFrame to a file
-            weights.append(df)
             output_path = os.path.join(
                 self.intermediate_data_path, f"weights_{year}.parquet"
             )
             df.to_parquet(output_path)
+            weights.append(df)
+
+            
         weights_years_total = pd.concat(weights)
         output_path = os.path.join(
             self.processed_data_path, f"weights_{start_year}-{end_year}.parquet"
         )
         weights_years_total.to_parquet(output_path)
 
+        
     def calculate_estimated_value(self, df, perc_e, perc_i):
         """
         Series of conditions to determine estimated trade value
         """
         logging.info("Estimating total trade flows between countries")
+        
         df["est_value"] = np.where(
-            (df["exporter_A_e"].notna())
-            & (df["importer_A_i"].notna())
-            & (df["exportvalue_fob"].notna()),
-            df["exportvalue_fob"] * df["w_e"] + df["importvalue_fob"] * (1 - df["w_e"]),
+            (df.acc_exp_for_exporter.notna())
+            & (df.acc_imp_for_importer.notna())
+            & (df.importvalue_fob.notna())
+            & (df.exportvalue_fob.notna()),
+            df.exportvalue_fob * df.weight + df.importvalue_fob * (1 - df.weight),
             np.nan,
         )
-
-        conditions = [
-            (df["exporter_A_e"] < perc_e["50%"])
-            & (df["importer_A_i"] >= perc_i["90%"]),
-            (df["exporter_A_e"] >= perc_e["90%"])
-            & (df["importer_A_i"] < perc_i["50%"]),
-            (df["exporter_A_e"] < perc_e["25%"])
-            & (df["importer_A_i"] >= perc_i["75%"]),
-            (df["exporter_A_e"] >= perc_e["75%"])
-            & (df["importer_A_i"] < perc_i["25%"]),
-            (df["w_e_0"] == 1) & (df["w_i_0"] == 1),
-            (df["w_i_0"] == 1),
-            (df["w_e_0"] == 1),
-            df["est_value"].isna(),
-        ]
-
-        choices = [
-            df["importvalue_fob"],
-            df["exportvalue_fob"],
-            df["importvalue_fob"],
-            df["exportvalue_fob"],
-            df[["importvalue_fob", "exportvalue_fob"]].max(axis=1),
-            df["importvalue_fob"],
-            df["exportvalue_fob"],
-            df["importvalue_fob"],
-        ]
-
-        for condition, choice in zip(conditions, choices):
-            df.loc[df["est_value"].isna() & condition, "est_value"] = choice
+        
+        # conditions to determine est_value
+        df.loc[(df['acc_exp_for_exporter'] < perc_e[.50]) & (df['acc_imp_for_importer'] >= perc_i[.90]) & (df['acc_imp_for_importer'].notna()) & (df['acc_exp_for_exporter'].notna()) & df['est_value'].isna(), 'est_value'] = df['importvalue_fob']
+        df.loc[(df['acc_exp_for_exporter'] >= perc_e[.90]) & (df['acc_imp_for_importer'] < perc_i[.50]) & (df['acc_imp_for_importer'].notna()) & (df['acc_exp_for_exporter'].notna()) & df['est_value'].isna(), 'est_value'] = df['exportvalue_fob']
+        df.loc[(df['acc_exp_for_exporter'] < perc_e[.25]) & (df['acc_imp_for_importer'] >= perc_i[.75]) & (df['acc_imp_for_importer'].notna()) & (df['acc_exp_for_exporter'].notna()) & df['est_value'].isna(), 'est_value'] = df['importvalue_fob']
+        df.loc[(df['acc_exp_for_exporter'] >= perc_e[.75]) & (df['acc_imp_for_importer'] < perc_i[.25]) & (df['acc_imp_for_importer'].notna()) & (df['acc_exp_for_exporter'].notna()) & df['est_value'].isna(), 'est_value'] = df['exportvalue_fob']
+        df.loc[(df['acc_imp_for_importer'].notna()) & (df['acc_exp_for_exporter'].notna()) & (df['weight_exporter'] == 1) & (df['weight_importer'] == 1) & df['est_value'].isna(), 'est_value'] = df[['importvalue_fob', 'exportvalue_fob']].max(axis=1)
+        df.loc[(df['weight_importer'] == 1) & df['est_value'].isna(), 'est_value'] = df['importvalue_fob']
+        df.loc[(df['weight_exporter'] == 1) & df['est_value'].isna(), 'est_value'] = df['exportvalue_fob']
+        df.loc[df['est_value'].isna(), 'est_value'] = df['importvalue_fob']
+        df.loc[df['est_value'] == 0, 'est_value'] = np.nan        
+       
+        
         return df
 
     def inflation_adjustment(self, wdi_cpi):
