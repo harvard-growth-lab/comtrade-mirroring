@@ -138,7 +138,7 @@ class do3(_AtlasCleaning):
         imports_matrix = imports.fillna(0.0)
 
         exports_matrix = exports_matrix.pivot(
-            index=["importer", "exporter"],
+            index=["exporter", "importer"],
             columns="commodity_code",
             values="export_value",
         )
@@ -187,16 +187,45 @@ class do3(_AtlasCleaning):
 
         w_e = np.array(ccy_attractiveness["w_e"].values.reshape(-1, 1))
         w_e_matrix = np.ones((npairs, nprod)) * w_e
-
-        VF = (.5 * exports_matrix) + (.5 * imports_matrix)
         
         import pdb
         pdb.set_trace()
         
+        # melt the dataframes
+        melted_imports_matrix = pd.melt(
+            imports_matrix.reset_index(),
+            id_vars=["importer", "exporter"],
+            var_name="commodity_code",
+            value_name="import_value",
+        )
+        melted_exports_matrix = pd.melt(
+            exports_matrix.reset_index(),
+            id_vars=["importer", "exporter"],
+            var_name="commodity_code",
+            value_name="export_value",
+        )
+        # melted_VR = pd.melt(
+        #     VR.reset_index(),
+        #     id_vars=["importer", "exporter"],
+        #     var_name="commodity_code",
+        #     value_name="VR",
+        # )
+
+        df = melted_imports_matrix.merge(
+            melted_exports_matrix,
+            on=["exporter", "importer", "commodity_code"],
+            how="left",
+        )
+        
+        import pdb
+        pdb.set_trace()
+
+        df['final_value'] = (.5 * df['export_value']) + (.5 * df['import_value'])
+        
         # import pdb
         # pdb.set_trace()
                 
-        # VF = (
+        # df['final_value']  = (
         #     ((w_e_matrix * exports_matrix.values) + ((1 - w_e_matrix) * imports_matrix.values))
         #     * ((trdata == 4) * (accuracy_matrix == 4))
         #     + (imports_matrix * ((trdata.values == 2) *(accuracy_matrix == 2)))
@@ -213,50 +242,53 @@ class do3(_AtlasCleaning):
         # )
 
         
-        # import pdb
-        # pdb.set_trace()
+        import pdb
+        pdb.set_trace()
 
         # reweight VF
         # VR = VF
-        VR = self.reweight(VF, final_value, nprod)
+        # VR = self.reweight(VF, final_value, nprod)
         
         # import pdb
         # pdb.set_trace()
 
-        # melt the dataframes
-        melted_imports_matrix = pd.melt(
-            imports_matrix.reset_index(),
-            id_vars=["importer", "exporter"],
-            var_name="commodity_code",
-            value_name="import_value",
-        )
-        melted_exports_matrix = pd.melt(
-            exports_matrix.reset_index(),
-            id_vars=["importer", "exporter"],
-            var_name="commodity_code",
-            value_name="export_value",
-        )
-        melted_VR = pd.melt(
-            VR.reset_index(),
-            id_vars=["importer", "exporter"],
-            var_name="commodity_code",
-            value_name="VR",
-        )
+#         # melt the dataframes
+#         melted_imports_matrix = pd.melt(
+#             imports_matrix.reset_index(),
+#             id_vars=["importer", "exporter"],
+#             var_name="commodity_code",
+#             value_name="import_value",
+#         )
+#         melted_exports_matrix = pd.melt(
+#             exports_matrix.reset_index(),
+#             id_vars=["importer", "exporter"],
+#             var_name="commodity_code",
+#             value_name="export_value",
+#         )
+#         melted_VR = pd.melt(
+#             VR.reset_index(),
+#             id_vars=["importer", "exporter"],
+#             var_name="commodity_code",
+#             value_name="VR",
+#         )
 
-        df = melted_imports_matrix.merge(
-            melted_VR,
-            on=["exporter", "importer", "commodity_code"],
-            how="left",
-        )
-        df = df.merge(
-            melted_exports_matrix,
-            on=["exporter", "importer", "commodity_code"],
-            how="left",
-        )
+#         df = melted_imports_matrix.merge(
+#             melted_VR,
+#             on=["exporter", "importer", "commodity_code"],
+#             how="left",
+#         )
+#         df = df.merge(
+#             melted_exports_matrix,
+#             on=["exporter", "importer", "commodity_code"],
+#             how="left",
+#         )
+        
+        import pdb
+        pdb.set_trace()
 
         # drop rows that don't have data
         df = df.loc[
-            (df[["VR", "import_value", "export_value"]] != 0.0).any(axis=1)
+            (df[["final_value", "import_value", "export_value"]] != 0.0).any(axis=1)
             & df.notnull().any(axis=1)
         ]
 
@@ -273,7 +305,7 @@ class do3(_AtlasCleaning):
         df_ns_handle = df.copy(deep=True)
         df_ns_handle["not_specified"] = df.apply(
             lambda x: (
-                x["VR"]
+                x["final_value"]
                 if x["commodity_code"] == not_specified_val and x["importer"] == "ANS"
                 else 0
             ),
@@ -285,10 +317,10 @@ class do3(_AtlasCleaning):
         ] = None
 
         df_ns_handle = df_ns_handle.groupby("exporter", as_index=False).agg(
-            {"not_specified": "sum", "VR": "sum"}
+            {"not_specified": "sum", "final_value": "sum"}
         )
         df_ns_handle["not_specified_trade_ratio"] = (
-            df_ns_handle["not_specified"] / df_ns_handle["VR"]
+            df_ns_handle["not_specified"] / df_ns_handle["final_value"]
         )
 
         countries_with_too_many_ns = (
