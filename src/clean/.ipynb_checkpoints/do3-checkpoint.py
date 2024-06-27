@@ -128,9 +128,9 @@ class do3(_AtlasCleaning):
         imports = self.df[self.df["trade_flow"] == 1][
             ["reporter_iso", "partner_iso", "commodity_code", "trade_value"]
         ]
-        imports.columns = ["exporter", "importer", "commodity_code", "import_value"]
+        imports.columns = ["importer", "exporter", "commodity_code", "import_value"]
         imports = all_pairs_products.merge(
-            imports, on=["exporter", "importer", "commodity_code"], how="left"
+            imports, on=["importer", "exporter", "commodity_code"], how="left"
         )
 
         # trade reconciliation
@@ -189,33 +189,39 @@ class do3(_AtlasCleaning):
         w_e_matrix = np.ones((npairs, nprod)) * w_e
 
         VF = (.5 * exports_matrix) + (.5 * imports_matrix)
-                
-        # VF = (
-        #     ((w_e_matrix * exports_matrix) + ((1 - w_e_matrix) * imports_matrix))
-        #     * ((trdata == 4) * (accuracy_matrix == 4))
-        #     + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 2)))
-        #     + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 4)))
-        #     + (exports_matrix * ((trdata == 1) * (accuracy_matrix == 1)))
-        #     + (exports_matrix * ((trdata == 1) * (accuracy_matrix == 4)))
-        #     + (imports_matrix * ((trdata == 4) * (accuracy_matrix == 2)))
-        #     + (exports_matrix * ((trdata == 4) * (accuracy_matrix == 1)))
-        #     + (0.5 * (exports_matrix + imports_matrix) * ((trdata == 4) * (accuracy_matrix == 0)))
-        #     + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 0)))
-        #     + (exports_matrix * ((trdata == 1) * (accuracy_matrix == 0)))
-        #     + (imports_matrix * ((trdata == 2) * (accuracy_matrix == 1)))
-        #     + (exports_matrix * ((trdata == 1) * (accuracy_matrix == 2)))
-        # )
-
         
         import pdb
         pdb.set_trace()
+        
+        # import pdb
+        # pdb.set_trace()
+                
+        # VF = (
+        #     ((w_e_matrix * exports_matrix.values) + ((1 - w_e_matrix) * imports_matrix.values))
+        #     * ((trdata == 4) * (accuracy_matrix == 4))
+        #     + (imports_matrix * ((trdata.values == 2) *(accuracy_matrix == 2)))
+        #     + (imports_matrix * ((trdata.values == 2) * (accuracy_matrix == 4)))
+        #     + (exports_matrix * ((trdata.values == 1) * (accuracy_matrix == 1)))
+        #     + (exports_matrix * ((trdata.values == 1) * (accuracy_matrix == 4)))
+        #     + (imports_matrix * ((trdata.values == 4) * (accuracy_matrix == 2)))
+        #     + (exports_matrix * ((trdata.values == 4) * (accuracy_matrix == 1)))
+        #     + (0.5 * (exports_matrix + imports_matrix) * ((trdata.values == 4) * (accuracy_matrix == 0)))
+        #     + (imports_matrix * ((trdata.values == 2) * (accuracy_matrix == 0)))
+        #     + (exports_matrix * ((trdata.values == 1) * (accuracy_matrix == 0)))
+        #     + (imports_matrix * ((trdata.values == 2) * (accuracy_matrix == 1)))
+        #     + (exports_matrix * ((trdata.values == 1) * (accuracy_matrix == 2)))
+        # )
+
+        
+        # import pdb
+        # pdb.set_trace()
 
         # reweight VF
         # VR = VF
         VR = self.reweight(VF, final_value, nprod)
         
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
 
         # melt the dataframes
         melted_imports_matrix = pd.melt(
