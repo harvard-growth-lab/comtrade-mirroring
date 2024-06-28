@@ -67,9 +67,9 @@ class do3(_AtlasCleaning):
         # exports
         logging.info("exports table")
 
-        ccy_attractiveness = pd.read_stata(  # pd.read_parquet(
+        ccy_attractiveness = pd.read_parquet(  # pd.read_parquet(
             # TODO using weights file generated from seba's file, not python output
-            f"data/intermediate/weights_{self.year}_stata_output.dta"
+            f"data/intermediate/weights_{self.year}.parquet"
         )  # .parquet"
         ccy_attractiveness = ccy_attractiveness[
             (ccy_attractiveness.exporter.isin(["SAU", "IND", "CHL"]))
@@ -89,8 +89,7 @@ class do3(_AtlasCleaning):
             ["exporter", "importer"]
         ).ngroup()
         country_pairs = ccy_attractiveness[["idpair", "exporter", "importer"]]
-        npairs = country_pairs.count().idpair
-
+        
         # generate index for each product
         self.df["idprod"] = self.df.groupby(["commodity_code"]).ngroup()
         products = self.df[["idprod", "commodity_code"]].drop_duplicates(
@@ -105,12 +104,14 @@ class do3(_AtlasCleaning):
                 country_pairs["importer"],
                 products["commodity_code"],
             ],
-            names=["importer", "exporter", "commodity_code"],
+            names=["exporter", "importer", "commodity_code"],
         )
 
         all_pairs_products = (
             pd.DataFrame(index=multi_index).query("importer != exporter").reset_index()
         ).drop_duplicates()
+        
+        npairs = all_pairs_products[['exporter', 'importer']].drop_duplicates().shape[0]
 
         # Step 2: Calculate the value of exports for each country pair and product
         exports = self.df[self.df["trade_flow"] == 2][
@@ -137,56 +138,59 @@ class do3(_AtlasCleaning):
         exports_matrix = exports.fillna(0.0)
         imports_matrix = imports.fillna(0.0)
 
-        exports_matrix = exports_matrix.pivot(
+        exports_matrix = exports.pivot(
             index=["exporter", "importer"],
             columns="commodity_code",
             values="export_value",
         )
 
-        imports_matrix = imports_matrix.pivot(
-            index=["importer", "exporter"],
+        imports_matrix = imports.pivot(
+            index=["exporter", "importer"],
             columns="commodity_code",
             values="import_value",
         )
-
+        
         # multiply imports by (1 - cif_ratio)
         # TODO: confirm may need to be array of cif_ratio, why 1?
         imports_matrix = imports_matrix * (1 - cif_ratio)
+        
+        import pdb
+        pdb.set_trace()
 
         # flag indicators based on cases,
-        trdata = (
+        trdata = pd.DataFrame(
             # positive exports and positive imports => 1
-            1 * ((1 * (exports_matrix > 0) + 1 * (imports_matrix > 0)) > 1)
+            1 * ((1 * (exports_matrix > 0) 
+            + 1 * (imports_matrix > 0)) > 1)
             # positive exports => 1
-            + 1 * ((exports_matrix > 0))
+            + 1 * (exports_matrix > 0)
             # positive imports => 2
-            + 2 * ((imports_matrix > 0))
+            + 2 * (imports_matrix > 0)
         )
 
         ccy_attractiveness = (
-            ccy_attractiveness.set_index(["importer", "exporter"])
-            .reindex(trdata.index)
+            ccy_attractiveness.set_index(["exporter", "importer"])
+            .reindex(exports_matrix.index)
             .reset_index()
         )
 
-        final_value = np.array(ccy_attractiveness["value_final"])
+        final_value = np.array(ccy_attractiveness["final_value"])
         # country pair attractiveness
-        w_e_0 = np.array(ccy_attractiveness["w_e_0"].values.reshape(-1, 1))
-        w_i_0 = np.array(ccy_attractiveness["w_i_0"].values.reshape(-1, 1))
+        weight_exporter = np.array(ccy_attractiveness["weight_exporter"].values.reshape(-1, 1))
+        weight_importer = np.array(ccy_attractiveness["weight_importer"].values.reshape(-1, 1))
 
         # attractiveness exports and attractiveness imports => 1
         accuracy = (
-            1 * ((1 * (w_e_0 > 0) + 1 * (w_i_0 > 0)) > 1)
-            + 1 * ((w_e_0 > 0))
-            + 2 * ((w_i_0 > 0))
+            1 * ((1 * (weight_exporter > 0) + 1 * (weight_importer > 0)) > 1)
+            + 1 * ((weight_exporter > 0))
+            + 2 * ((weight_importer > 0))
         )
 
         # accuracy_array = accuracy.reshape(-1, 1)
         accuracy_matrix = np.ones((npairs, nprod)) * accuracy
-        # accurary_array = accuracy_matrix.reshape(-1, 1)
 
-        w_e = np.array(ccy_attractiveness["w_e"].values.reshape(-1, 1))
-        w_e_matrix = np.ones((npairs, nprod)) * w_e
+        weight = np.array(ccy_attractiveness["weight"].values.reshape(-1, 1))
+        weight_matrix = np.ones((npairs, nprod)) * weight
         
         import pdb
         pdb.set_trace()
@@ -204,12 +208,6 @@ class do3(_AtlasCleaning):
             var_name="commodity_code",
             value_name="export_value",
         )
-        # melted_VR = pd.melt(
-        #     VR.reset_index(),
-        #     id_vars=["importer", "exporter"],
-        #     var_name="commodity_code",
-        #     value_name="VR",
-        # )
 
         df = melted_imports_matrix.merge(
             melted_exports_matrix,
@@ -217,75 +215,42 @@ class do3(_AtlasCleaning):
             how="left",
         )
         
-        import pdb
-        pdb.set_trace()
-
         df['final_value'] = (.5 * df['export_value']) + (.5 * df['import_value'])
         
-        # import pdb
-        # pdb.set_trace()
+#         import pdb
+#         pdb.set_trace()
+                
+        weights = weight_matrix.reshape(-1,1)
+        export_values = df['export_value'].values.reshape(-1,1)
+        import_values = df['import_value'].values.reshape(-1,1)
+        trdata = trdata.values.reshape(-1,1)
+        accuracy = accuracy_matrix.reshape(-1,1) 
+        
+#         import pdb
+#         pdb.set_trace()
                 
         # df['final_value']  = (
-        #     ((w_e_matrix * exports_matrix.values) + ((1 - w_e_matrix) * imports_matrix.values))
-        #     * ((trdata == 4) * (accuracy_matrix == 4))
-        #     + (imports_matrix * ((trdata.values == 2) *(accuracy_matrix == 2)))
-        #     + (imports_matrix * ((trdata.values == 2) * (accuracy_matrix == 4)))
-        #     + (exports_matrix * ((trdata.values == 1) * (accuracy_matrix == 1)))
-        #     + (exports_matrix * ((trdata.values == 1) * (accuracy_matrix == 4)))
-        #     + (imports_matrix * ((trdata.values == 4) * (accuracy_matrix == 2)))
-        #     + (exports_matrix * ((trdata.values == 4) * (accuracy_matrix == 1)))
-        #     + (0.5 * (exports_matrix + imports_matrix) * ((trdata.values == 4) * (accuracy_matrix == 0)))
-        #     + (imports_matrix * ((trdata.values == 2) * (accuracy_matrix == 0)))
-        #     + (exports_matrix * ((trdata.values == 1) * (accuracy_matrix == 0)))
-        #     + (imports_matrix * ((trdata.values == 2) * (accuracy_matrix == 1)))
-        #     + (exports_matrix * ((trdata.values == 1) * (accuracy_matrix == 2)))
+        #     ((weights * export_values) + ((1 - weights) * import_values)) * ((trdata == 4) * (accuracy == 4))
+        #     + (import_values * ((trdata == 2) *(accuracy == 2)))
+        #     + (import_values * ((trdata == 2) * (accuracy == 4)))
+        #     + (export_values * ((trdata == 1) * (accuracy == 1)))
+        #     + (export_values * ((trdata == 1) * (accuracy == 4)))
+        #     + (import_values * ((trdata == 4) * (accuracy == 2)))
+        #     + (export_values * ((trdata == 4) * (accuracy == 1)))
+        #     + (0.5 * (export_values + import_values) * ((trdata == 4) * (accuracy == 0)))
+        #     + (import_values * ((trdata == 2) * (accuracy == 0)))
+        #     + (export_values * ((trdata == 1) * (accuracy == 0)))
+        #     + (import_values * ((trdata == 2) * (accuracy == 1)))
+        #     + (export_values * ((trdata == 1) * (accuracy == 2)))
         # )
 
-        
         import pdb
         pdb.set_trace()
-
+        
         # reweight VF
         # VR = VF
         # VR = self.reweight(VF, final_value, nprod)
-        
-        # import pdb
-        # pdb.set_trace()
-
-#         # melt the dataframes
-#         melted_imports_matrix = pd.melt(
-#             imports_matrix.reset_index(),
-#             id_vars=["importer", "exporter"],
-#             var_name="commodity_code",
-#             value_name="import_value",
-#         )
-#         melted_exports_matrix = pd.melt(
-#             exports_matrix.reset_index(),
-#             id_vars=["importer", "exporter"],
-#             var_name="commodity_code",
-#             value_name="export_value",
-#         )
-#         melted_VR = pd.melt(
-#             VR.reset_index(),
-#             id_vars=["importer", "exporter"],
-#             var_name="commodity_code",
-#             value_name="VR",
-#         )
-
-#         df = melted_imports_matrix.merge(
-#             melted_VR,
-#             on=["exporter", "importer", "commodity_code"],
-#             how="left",
-#         )
-#         df = df.merge(
-#             melted_exports_matrix,
-#             on=["exporter", "importer", "commodity_code"],
-#             how="left",
-#         )
-        
-        import pdb
-        pdb.set_trace()
-
+                
         # drop rows that don't have data
         df = df.loc[
             (df[["final_value", "import_value", "export_value"]] != 0.0).any(axis=1)
