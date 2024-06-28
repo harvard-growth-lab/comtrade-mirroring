@@ -153,6 +153,7 @@ class do3(_AtlasCleaning):
         # multiply imports by (1 - cif_ratio)
         # TODO: confirm may need to be array of cif_ratio, why 1?
         imports_matrix = imports_matrix * (1 - cif_ratio)
+        imports_matrix = imports_matrix.swaplevel().sort_index()
         
         # at commodity bilateral level
         # score of 4 if reporter provides positive imports and exports
@@ -186,7 +187,7 @@ class do3(_AtlasCleaning):
         )
 
         # accuracy_array = accuracy.reshape(-1, 1)
-        accuracy_matrix = pd.DataFrame(np.ones((npairs, nprod)) * accuracy)
+        accuracy_matrix = np.ones((npairs, nprod)) * accuracy
 
         weight = np.array(ccy_attractiveness["weight"].values.reshape(-1, 1))
         weight_matrix = np.ones((npairs, nprod)) * weight
@@ -225,12 +226,12 @@ class do3(_AtlasCleaning):
         pdb.set_trace()
         trdata = trdata_melted['trade_score'].values.reshape(-1,1)
         
-        accuracy_melted = pd.melt(accuracy_matrix.reset_index(),
-                 id_vars=['exporter', 'importer'],  
-                 var_name='commodity_code', 
-                 value_name='accuracy_score')
+        # accuracy_melted = pd.melt(accuracy_matrix.reset_index(),
+        #          id_vars=['exporter', 'importer'],  
+        #          var_name='commodity_code', 
+        #          value_name='accuracy_score')
 
-        accuracy = accuracy_melted.reshape(-1,1) 
+        accuracy = accuracy_matrix.reshape(-1,1) 
         
         import pdb
         pdb.set_trace()
