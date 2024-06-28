@@ -43,8 +43,8 @@ class do3(_AtlasCleaning):
         # TODO: temp to reduce data set size
         self.df = self.df[self.df.product_level == 6]
         self.df = self.df[
-            (self.df.reporter_iso.isin(["SAU", "IND", "CHL"]))
-            & (self.df.partner_iso.isin(["SAU", "IND", "CHL"]))
+            (self.df.reporter_iso.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
+            & (self.df.partner_iso.isin(["SAU", "IND", "CHL," "VEN", "ZWE"]))
         ]
 
         # creating country pairs and id of products
@@ -72,8 +72,8 @@ class do3(_AtlasCleaning):
             f"data/intermediate/weights_{self.year}.parquet"
         )  # .parquet"
         ccy_attractiveness = ccy_attractiveness[
-            (ccy_attractiveness.exporter.isin(["SAU", "IND", "CHL"]))
-            & (ccy_attractiveness.importer.isin(["SAU", "IND", "CHL"]))
+            (ccy_attractiveness.exporter.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
+            & (ccy_attractiveness.importer.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
         ]
 
         # ccy_attractiveness = ccy_attractiveness[
@@ -175,7 +175,8 @@ class do3(_AtlasCleaning):
 
         # country pair attractiveness
         weight_exporter = np.array(ccy_attractiveness["weight_exporter"].values.reshape(-1, 1))
-        weight_importer = np.array(ccy_attractiveness["weight_importer"].values.reshape(-1, 1))
+        weight_importer = np.array(ccy_attractiveness["weight_importer"].values.reshape(-1, 1)) 
+                #.swaplevel().sort_index().values.reshape(-1, 1))
 
         # score of 4 if exporter and importer weight both > 0 
         # score of 2 if importer weight only > 0
@@ -199,6 +200,7 @@ class do3(_AtlasCleaning):
             var_name="commodity_code",
             value_name="import_value",
         )
+        
         melted_exports_matrix = pd.melt(
             exports_matrix.reset_index(),
             id_vars=["importer", "exporter"],
@@ -212,7 +214,7 @@ class do3(_AtlasCleaning):
             how="left",
         )
                 
-        df['final_value'] = (.5 * df['export_value']) + (.5 * df['import_value'])
+        # df['final_value'] = (.5 * df['export_value']) + (.5 * df['import_value'])
                         
         weights = weight_matrix.reshape(-1,1)
         export_values = df['export_value'].values.reshape(-1,1)
@@ -224,6 +226,7 @@ class do3(_AtlasCleaning):
         
         import pdb
         pdb.set_trace()
+        
         trdata = trdata_melted['trade_score'].values.reshape(-1,1)
         
         # accuracy_melted = pd.melt(accuracy_matrix.reset_index(),
