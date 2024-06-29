@@ -67,17 +67,17 @@ class do3(_AtlasCleaning):
         # exports
         logging.info("exports table")
 
-        ccy_attractiveness = pd.read_parquet(  # pd.read_parquet(
+        ccy_accuracy = pd.read_parquet(  # pd.read_parquet(
             # TODO using weights file generated from seba's file, not python output
             f"data/intermediate/weights_{self.year}.parquet"
         )  # .parquet"
-        ccy_attractiveness = ccy_attractiveness[
-            (ccy_attractiveness.exporter.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
-            & (ccy_attractiveness.importer.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
+        ccy_accuracy = ccy_accuracy[
+            (ccy_accuracy.exporter.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
+            & (ccy_accuracy.importer.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
         ]
 
-        # ccy_attractiveness = ccy_attractiveness[
-        #     ccy_attractiveness.value_final >= 100_000
+        # ccy_accuracy = ccy_accuracy[
+        #     ccy_accuracy.value_final >= 100_000
         # ]
         # generate idpairs
         cif_ratio = 0.2
@@ -85,10 +85,10 @@ class do3(_AtlasCleaning):
         
 
         # generate index on unique country pairs
-        ccy_attractiveness["idpair"] = ccy_attractiveness.groupby(
+        ccy_accuracy["idpair"] = ccy_accuracy.groupby(
             ["exporter", "importer"]
         ).ngroup()
-        country_pairs = ccy_attractiveness[["idpair", "exporter", "importer"]]
+        country_pairs = ccy_accuracy[["idpair", "exporter", "importer"]]
         
         # generate index for each product
         self.df["idprod"] = self.df.groupby(["commodity_code"]).ngroup()
@@ -167,15 +167,17 @@ class do3(_AtlasCleaning):
 
         country_pairs_index = exports_matrix.index
 
-        ccy_attractiveness = (
-            ccy_attractiveness.set_index(["exporter", "importer"])
+        ccy_accuracy = (
+            ccy_accuracy.set_index(["exporter", "importer"])
             .reindex(country_pairs_index)
             # .reset_index()
         )
+        
+        cc_trade_total = np.array(ccy_accuracy["final_value"].values.reshape(-1, 1))
 
         # country pair attractiveness
-        weight_exporter = np.array(ccy_attractiveness["weight_exporter"].values.reshape(-1, 1))
-        weight_importer = np.array(ccy_attractiveness["weight_importer"].values.reshape(-1, 1)) 
+        weight_exporter = np.array(ccy_accuracy["weight_exporter"].values.reshape(-1, 1))
+        weight_importer = np.array(ccy_accuracy["weight_importer"].values.reshape(-1, 1)) 
                 #.swaplevel().sort_index().values.reshape(-1, 1))
 
         # score of 4 if exporter and importer weight both > 0 
@@ -187,10 +189,10 @@ class do3(_AtlasCleaning):
             + 2 * ((weight_importer > 0))
         )
 
-        # accuracy_array = accuracy.reshape(-1, 1)
+        # prep arrays for trade value logic
         accuracy_matrix = np.ones((npairs, nprod)) * accuracy
 
-        weight = np.array(ccy_attractiveness["weight"].values.reshape(-1, 1))
+        weight = np.array(ccy_accuracy["weight"].values.reshape(-1, 1))
         weight_matrix = np.ones((npairs, nprod)) * weight
                 
         # melt the dataframes
@@ -213,8 +215,6 @@ class do3(_AtlasCleaning):
             on=["exporter", "importer", "commodity_code"],
             how="left",
         )
-                
-        # df['final_value'] = (.5 * df['export_value']) + (.5 * df['import_value'])
                         
         weights = weight_matrix.reshape(-1,1)
         export_values = df['export_value'].values.reshape(-1,1)
@@ -230,17 +230,8 @@ class do3(_AtlasCleaning):
         import_values = np.nan_to_num(import_values, nan=0.0)
         weights = np.nan_to_num(weights, nan=0.0)
 
-
-        
-        # accuracy_melted = pd.melt(accuracy_matrix.reset_index(),
-        #          id_vars=['exporter', 'importer'],  
-        #          var_name='commodity_code', 
-        #          value_name='accuracy_score')
-
         accuracy = accuracy_matrix.reshape(-1,1) 
-        
-        df = df.fillna(0.0)
-        
+                
         df['final_value']  = (
             # if trdata and accuracy are characterized as four then multiply e and i by weights respectively
             (((weights * export_values) + ((1 - weights) * import_values)) * ((trdata == 4) * (accuracy == 4)))
@@ -261,12 +252,8 @@ class do3(_AtlasCleaning):
             + (export_values * ((trdata == 1) * (accuracy == 2)))
         )
 
-        # reweight VF
-        # VR = VF
-        # VR = self.reweight(df['final_value'], cc_trade_total, nprod)
-        import pdb
-        pdb.set_trace()
-                
+        df = self.reweight(df, cc_trade_total, nprod)
+
         # drop rows that don't have data
         df = df.loc[
             (df[["final_value", "import_value", "export_value"]] != 0.0).any(axis=1)
@@ -322,36 +309,54 @@ class do3(_AtlasCleaning):
             )
         )
 
-    def reweight(self, VF, trade_total, Nprod):
+    def reweight(self, df, trade_total, Nprod):
         """ """
         logging.info("REWEIGHTING...")
-        cc_products_sum = np.sum(VF, axis=1)
+        cc_scored_value_est = df.groupby(['importer', 'exporter'])['final_value'].sum().values.reshape(-1,1)
+
 
         # determine if data trade discrepancies
         case_1 = 1 * (
             (
-                np.where((trade_total / cc_traded_products_sum) > 1.20, 1, 0)
-                + np.where((trade_total - cc_traded_products_sum) > 2.5 * 10**7, 1, 0)
+                np.where((trade_total / cc_scored_value_est) > 1.20, 1, 0)
+                + np.where((trade_total - cc_scored_value_est) > 2.5 * 10**7, 1, 0)
                 + np.where(trade_total > 10**8, 1, 0)
             )
             == 3
         )
         case_2 = 1 * (
             (
-                np.where(value_final > 10**8, 1, 0) + np.where(cc_traded_products_sum < 10**5, 1, 0)
+                np.where(trade_total > 10**8, 1, 0) + np.where(cc_scored_value_est < 10**5, 1, 0)
                 == 2
             )
         )
 
         xxxx = 1 * ((case_1 + case_2) > 0)
-        value_xxxx = (value_final - cc_traded_products_sum) * (xxxx == 1)
-        value_reweight = value_final - value_xxxx
-
+        value_xxxx = (trade_total - cc_scored_value_est) * (xxxx == 1)
+        value_reweight = trade_total - value_xxxx
+        
         # proportionally reweight products for each country country pair
-        VR = VF - (VF * 1 * (VF < 1000))
-        VR = VR / np.sum(VR, axis=1).to_numpy().reshape(-1, 1)
-        VR = VR * value_reweight.to_numpy().reshape(-1, 1)
+        df['final_value'] = df['final_value'].where(df['final_value'] >= 1000, 0)    
+        trade_value_matrix = df.pivot(index=["exporter", "importer"],columns="commodity_code",values="final_value")
+        
+        partner_trade = trade_value_matrix.sum(axis=1)
+        trade_value_matrix = trade_value_matrix.div(partner_trade, axis=0)
+        
+        trade_value_matrix = trade_value_matrix * value_reweight.reshape(-1, 1)
+        trade_value_matrix.loc[:, "value_xxxx"] = value_xxxx
+        
+        melted_trade_matrix = pd.melt(
+            trade_value_matrix.reset_index(),
+            id_vars=["exporter", "importer"],
+            var_name="commodity_code",
+            value_name="final_value",
+        )
 
-        VR = VR.fillna(0.0)
-        VR.loc[:, "value_xxxx"] = value_xxxx
-        return VR
+        
+        df = df.drop(columns=['final_value']).merge(
+            melted_trade_matrix,
+            on=["exporter", "importer", "commodity_code"],
+            how="left",
+        )
+
+        return df
