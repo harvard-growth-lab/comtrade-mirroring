@@ -224,10 +224,13 @@ class do3(_AtlasCleaning):
                          var_name='commodity_code', 
                          value_name='trade_score')
         
-        import pdb
-        pdb.set_trace()
-        
         trdata = trdata_melted['trade_score'].values.reshape(-1,1)
+        trdata = np.nan_to_num(trdata, nan=0.0)
+        export_values = np.nan_to_num(export_values, nan=0.0)
+        import_values = np.nan_to_num(import_values, nan=0.0)
+        weights = np.nan_to_num(weights, nan=0.0)
+
+
         
         # accuracy_melted = pd.melt(accuracy_matrix.reset_index(),
         #          id_vars=['exporter', 'importer'],  
@@ -236,12 +239,11 @@ class do3(_AtlasCleaning):
 
         accuracy = accuracy_matrix.reshape(-1,1) 
         
-        import pdb
-        pdb.set_trace()
-                
+        df = df.fillna(0.0)
+        
         df['final_value']  = (
             # if trdata and accuracy are characterized as four then multiply e and i by weights respectively
-            ((weights * export_values) + ((1 - weights) * import_values)) * ((trdata == 4) * (accuracy == 4))
+            (((weights * export_values) + ((1 - weights) * import_values)) * ((trdata == 4) * (accuracy == 4)))
             # only an import value (none)
             + (import_values * ((trdata == 2) *(accuracy == 2)))
             # only reported an import value 
@@ -259,12 +261,11 @@ class do3(_AtlasCleaning):
             + (export_values * ((trdata == 1) * (accuracy == 2)))
         )
 
-        import pdb
-        pdb.set_trace()
-        
         # reweight VF
         # VR = VF
         # VR = self.reweight(df['final_value'], cc_trade_total, nprod)
+        import pdb
+        pdb.set_trace()
                 
         # drop rows that don't have data
         df = df.loc[
