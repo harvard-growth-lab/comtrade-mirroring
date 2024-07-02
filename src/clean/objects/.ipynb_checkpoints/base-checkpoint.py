@@ -11,11 +11,11 @@ class _AtlasCleaning(object):
     PRODUCT_CLASSIFICATIONS = ["H0", "HS", "S1", "S2", "ST"]
     
     HIERARCHY_LEVELS = {
-        "H0": (1, 2, 4, 6),
-        "HS": (1, 2, 4, 6),
-        "S1": (1, 2, 4),
-        "S2": (1, 2, 4),
-        "ST": (1, 2, 4),
+        "H0": (0, 2, 4, 6),
+        "HS": (0, 2, 4, 6),
+        "S1": (0, 2, 4),
+        "S2": (0, 2, 4),
+        "ST": (0, 2, 4),
     }
 
     # HIERARCHY_LEVELS = {

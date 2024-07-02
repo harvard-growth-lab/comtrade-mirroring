@@ -26,7 +26,6 @@ class do3(_AtlasCleaning):
 
     def __init__(self, year, product_classification, **kwargs):
         super().__init__(**kwargs)
-        # cProfile.run()
 
         self.product_classification = product_classification
         self.year = year
@@ -42,10 +41,10 @@ class do3(_AtlasCleaning):
 
         # TODO: temp to reduce data set size
         self.df = self.df[self.df.product_level == 6]
-        self.df = self.df[
-            (self.df.reporter_iso.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
-            & (self.df.partner_iso.isin(["SAU", "IND", "CHL," "VEN", "ZWE"]))
-        ]
+        # self.df = self.df[
+        #     (self.df.reporter_iso.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
+        #     & (self.df.partner_iso.isin(["SAU", "IND", "CHL," "VEN", "ZWE"]))
+        # ]
 
         # creating country pairs and id of products
 
@@ -71,16 +70,17 @@ class do3(_AtlasCleaning):
             # TODO using weights file generated from seba's file, not python output
             f"data/intermediate/weights_{self.year}.parquet"
         )  # .parquet"
-        ccy_accuracy = ccy_accuracy[
-            (ccy_accuracy.exporter.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
-            & (ccy_accuracy.importer.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
-        ]
+        # ccy_accuracy = ccy_accuracy[
+        #     (ccy_accuracy.exporter.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
+        #     & (ccy_accuracy.importer.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
+        # ]
 
         # ccy_accuracy = ccy_accuracy[
         #     ccy_accuracy.value_final >= 100_000
         # ]
+        
         # generate idpairs
-        cif_ratio = 0.2
+        cif_ratio = 0.08
         logging.info("set cif ratio")
         
 

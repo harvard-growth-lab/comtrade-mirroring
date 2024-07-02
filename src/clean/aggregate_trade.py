@@ -39,6 +39,10 @@ class TradeAggregator(_AtlasCleaning):
         }
 
         df = self.load_data()
+        
+        import pdb
+        pdb.set_trace()
+        
         if df.empty:
             logging.info(
                 f"Data for classification class {self.product_classification} not available. Nothing to aggregate"
@@ -46,16 +50,16 @@ class TradeAggregator(_AtlasCleaning):
             return None
 
         df = self.clean_data(df)
-
+        
         # returns bilateral data
         df = self.aggregate_data(df)
 
         # generates exports to world and imports to world
         exp_to_world = df[df.importer == "WLD"][["exporter", "exports_0"]].rename(
-            columns={"exports_0": "exp2WLD"}
+            columns={"exports_0": "total_exports"}
         )
         imp_to_world = df[df.exporter == "WLD"][["importer", "imports_0"]].rename(
-            columns={"imports_0": "imp2WLD"}
+            columns={"imports_0": "total_imports"}
         )
 
         df = df[(df.importer != "WLD") & (df.exporter != "WLD")]
@@ -67,7 +71,7 @@ class TradeAggregator(_AtlasCleaning):
         df = self.remove_outliers(df)
 
         df["year"] = self.year
-        df = df[["year", "exporter", "importer", "exportvalue_fob", "importvalue_cif"]]
+        df = df[["year", "exporter", "importer", "export_value_fob", "import_value_cif"]]
         df = df.sort_values(by=["exporter", "importer"])
         self.save_parquet(
             df, "intermediate", f"{self.year}_{self.product_classification}"
@@ -160,7 +164,7 @@ class TradeAggregator(_AtlasCleaning):
         """
         extract unique pair of importer and exporter by import and export trade values
         for both product level: [0, 1]
-        """
+        """        
         df = (
             df.groupby(
                 ["year", "trade_flow", "product_level", "reporter_iso", "partner_iso"]
@@ -168,10 +172,6 @@ class TradeAggregator(_AtlasCleaning):
             .agg({"trade_value": "sum", "reporter_ansnoclas": "sum"})
             .reset_index()
         )
-
-        df[["trade_value", "reporter_ansnoclas"]] = df[
-            ["trade_value", "reporter_ansnoclas"]
-        ].astype("float")
 
         dfs = {0: pd.DataFrame(), 4: pd.DataFrame()}
         # product level 0 and 4
@@ -196,14 +196,11 @@ class TradeAggregator(_AtlasCleaning):
                 fill_value=0,
             ).reset_index()
             
-            import pdb
-            pdb.set_trace()
-
             df_pl.columns = [
                 "_".join(str(i) for i in col).rstrip("_") if col[1] else col[0]
                 for col in df_pl.columns.values
             ]
-
+            
             # table for reporter who is an exporter
             reporting_exporter = df_pl[
                 [
@@ -284,21 +281,21 @@ class TradeAggregator(_AtlasCleaning):
     def remove_outliers(self, df):
         """ """
         df["ratio_exp"] = (
-            (df[f"exp2ansnoclas_4"] / df["exp2WLD"]).astype(float).fillna(0.0)
+            (df[f"exp2ansnoclas_4"] / df["total_exports"]).astype(float).fillna(0.0)
         )
         df["ratio_imp"] = (
-            (df[f"imp2ansnoclas_4"] / df["imp2WLD"]).astype(float).fillna(0.0)
+            (df[f"imp2ansnoclas_4"] / df["total_imports"]).astype(float).fillna(0.0)
         )
 
         for direction in ["exports", "imports"]:
             for product_level in [0, 4]:
                 # drop any country claiming exports/imports greater than 25% of global trade
-                df[f"{direction}_{product_level}"] = np.where(
+                df[f"{direction}_{product_level}digit"] = np.where(
                     df[f"ratio_{direction[:3]}"] > 0.25,
                     df[f"exports_{product_level}"] - df["exp2ansnoclas_4"],
                     df[f"{direction}_{product_level}"],
                 )
 
-        df["exportvalue_fob"] = df[["exports_0", f"exports_4"]].mean(axis=1)
-        df["importvalue_cif"] = df[["imports_0", f"imports_4"]].mean(axis=1)
-        return df[df[["exportvalue_fob", "importvalue_cif"]].max(axis=1) >= 1_000]
+        df["export_value_fob"] = df[["exports_0digit", f"exports_4digit"]].mean(axis=1)
+        df["import_value_cif"] = df[["imports_0digit", f"imports_4digit"]].mean(axis=1)
+        return df[df[["export_value_fob", "import_value_cif"]].max(axis=1) >= 1_000]

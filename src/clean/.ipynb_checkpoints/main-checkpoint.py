@@ -39,17 +39,17 @@ def run_atlas_cleaning(ingestion_attrs):
             )
         )
 
-        df = merge_classifications(year)
+        df = merge_classifications(year, ingestion_attrs["root_dir"])
 
         # logging.info(f"columns of df {df.columns}")
         df.astype({"importer": str, "exporter": str}).dtypes
-        df["temp1"] = df.filter(like="exportvalue_fob").median(axis=1)
-        df["temp2"] = df.filter(like="importvalue_cif").median(axis=1)
+        df["temp1"] = df.filter(like="export_value_fob").median(axis=1)
+        df["temp2"] = df.filter(like="import_value_cif").median(axis=1)
         df = df[["year", "exporter", "importer", "temp1", "temp2"]]
-        df = df.rename(columns={"temp1": "exportvalue_fob", "temp2": "importvalue_cif"})
+        df = df.rename(columns={"temp1": "export_value_fob", "temp2": "import_value_cif"})
 
         df = df.sort_values(
-            by=["year", "exporter", "importer", "exportvalue_fob", "importvalue_cif"]
+            by=["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
         )
         # save file as totals_raw
         df.to_parquet(
@@ -71,7 +71,7 @@ def run_atlas_cleaning(ingestion_attrs):
 
     merged_df = pd.concat(map(pd.read_parquet, year_totals), ignore_index=True)
     # expect insurance/freight to be approximately 1.08 of imports_fob
-    merged_df["importvalue_fob"] = merged_df["importvalue_cif"] * 0.925
+    merged_df["import_value_fob"] = merged_df["import_value_cif"] * 0.925
     # add distance measure
     # compute_distance(merged_df, start_year, end_year)
     merged_df.to_csv(
@@ -93,19 +93,19 @@ def compute_distance(df, start_year, end_year):
     df = df.merge(self.dist_cepii, on=["importer", "exporter"], how="left")
     df["lndist"] = np.log(df["distwces"])
     df.loc[df["lndist"].isna() & df["dist"].notna(), "lndist"] = np.log(df["dist"])
-    df["oneplust"] = df["importvalue_cif"] / df["exportvalue_fob"]
-    df["lnoneplust"] = np.log(df["importvalue_cif"] / df["exportvalue_fob"])
+    df["oneplust"] = df["import_value_cif"] / df["export_value_fob"]
+    df["lnoneplust"] = np.log(df["import_value_cif"] / df["export_value_fob"])
     df["tau"] = np.nan
     logging.info("Calculating CIF/FOB correction")
     # compute for each year
     for year in range(start_year, end_year + 1):
         df_3 = df[(df["year"] >= year - 1) & (df["year"] <= year + 1)].copy()
         # select the greater of the two, either the top 1% or 1,000,000
-        exp_p1 = max(df_3["exportvalue_fob"].quantile(0.01), 10**6)
-        exp_p1 = max(df_3["importvalue_cif"].quantile(0.01), 10**6)
+        exp_p1 = max(df_3["export_value_fob"].quantile(0.01), 10**6)
+        exp_p1 = max(df_3["import_value_cif"].quantile(0.01), 10**6)
         # use to set min boundaries
         df_3 = df_3[
-            (df_3["exportvalue_fob"] >= exp_p1) & (df_3["importvalue_cif"] >= imp_p1)
+            (df_3["export_value_fob"] >= exp_p1) & (df_3["import_value_cif"] >= imp_p1)
         ]
         # remove outliers, option to use winsorize with scipy
         # TODO: confirm chop off bottom 10% and top 10%
@@ -146,31 +146,31 @@ def compute_distance(df, start_year, end_year):
         df.loc[df["year"] == y, "tau"] = df.loc[df["year"] == y, "tau"].mean()
 
         print(df.columns)
-        df["importvalue_fob"] = np.nan
+        df["import_value_fob"] = np.nan
         df.loc[
-            (df["importvalue_fob"] == importvalue_cif)
+            (df["import_value_fob"] == import_value_cif)
             & (df["tau"] < 0)
             & (df["tau"].notnull()),
             "tau",
         ] = 0
 
         # small difference
-        mask_small_diff = df["importvalue_fob"].isnull() & (
+        mask_small_diff = df["import_value_fob"].isnull() & (
             df["lnoneplust"].abs() < 0.05
         )
-        df.loc[mask_small_diff, "importvalue_fob"] = df.loc[
-            mask_small_diff, "importvalue_cif"
+        df.loc[mask_small_diff, "import_value_fob"] = df.loc[
+            mask_small_diff, "import_value_cif"
         ]
 
         # positive
-        mask_positive = df["importvalue_fob"].isnull() & (df["lnoneplust"] > 0)
-        df.loc[mask_positive, "importvalue_fob"] = df.loc[
-            mask_positive, "importvalue_cif"
+        mask_positive = df["import_value_fob"].isnull() & (df["lnoneplust"] > 0)
+        df.loc[mask_positive, "import_value_fob"] = df.loc[
+            mask_positive, "import_value_cif"
         ] * (1 - df.loc[mask_positive, "tau"])
 
-        mask_negative = df["importvalue_fob"].isnull() & (df["lnoneplust"] < 0)
-        df.loc[mask_negative, "importvalue_fob"] = df.loc[
-            mask_negative, "importvalue_cif"
+        mask_negative = df["import_value_fob"].isnull() & (df["lnoneplust"] < 0)
+        df.loc[mask_negative, "import_value_fob"] = df.loc[
+            mask_negative, "import_value_cif"
         ]
 
         df = df[
@@ -178,9 +178,9 @@ def compute_distance(df, start_year, end_year):
                 "year",
                 "exporter",
                 "importer",
-                "exportvalue_fob",
-                "importvalue_cif",
-                "importvalue_fob",
+                "export_value_fob",
+                "import_value_cif",
+                "import_value_fob",
             ]
         ]
         df = df.sort_values(["year", "exporter", "importer"])

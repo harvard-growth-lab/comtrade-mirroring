@@ -31,7 +31,7 @@ def get_classifications(year):
     return classifications
 
 
-def merge_classifications(year):
+def merge_classifications(year, root_dir):
     """ """
     merge_conditions = [
         (year >= 1976 and year < 1995, f"{year}_S2.parquet"),
@@ -48,7 +48,7 @@ def merge_classifications(year):
                 logging.info("reading in file")
                 df = pd.read_parquet(
                     os.path.join(
-                        ingestion_attrs["root_dir"], "data", "intermediate", file
+                        root_dir, "data", "intermediate", file
                     )
                 )
             except FileNotFoundError:
@@ -58,7 +58,7 @@ def merge_classifications(year):
                 df = df.merge(
                     pd.read_parquet(
                         os.path.join(
-                            ingestion_attrs["root_dir"],
+                            root_dir,
                             "data",
                             "intermediate",
                             file,

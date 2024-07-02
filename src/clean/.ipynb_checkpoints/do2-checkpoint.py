@@ -49,12 +49,12 @@ class do2(_AtlasCleaning):
         # if empty fill in with imf population data
 
         # country country year from dofile1, all years
-        # all_ccy = pd.read_csv(
-        all_ccy = pd.read_stata(
-            # os.path.join(self.intermediate_data_path, f"Totals_RAW_trade.csv")
-            os.path.join(
-                self.intermediate_data_path, f"totals_raw_trade_stata_output.dta"
-            )
+        all_ccy = pd.read_csv(
+        # all_ccy = pd.read_stata(
+            os.path.join(self.intermediate_data_path, f"Totals_RAW_trade.csv")
+            # os.path.join(
+            #     self.intermediate_data_path, f"totals_raw_trade_stata_output.dta"
+            # )
         )
 
         wdi_cpi = self.inflation_adjustment(wdi_cpi)
@@ -72,12 +72,12 @@ class do2(_AtlasCleaning):
             ]
             ccy = ccy[ccy.exporter != ccy.importer]
             ccy = ccy[
-                ccy[["importvalue_fob", "exportvalue_fob"]].max(axis=1) >= 10**4
+                ccy[["import_value_fob", "export_value_fob"]].max(axis=1) >= 10**4
             ]
 
             # TODO: if calculate cif_ratio by distance and existing values then implement
             # checking for max value from dofile2
-            ccy["cif_ratio"] = (ccy["importvalue_cif"] / ccy["importvalue_fob"]) - 1
+            ccy["cif_ratio"] = (ccy["import_value_cif"] / ccy["import_value_fob"]) - 1
             ccy["cif_ratio"] = ccy["cif_ratio"].apply(
                 lambda val: min(val, 0.2) if pd.notnull(val) else val
             )
@@ -161,17 +161,17 @@ class do2(_AtlasCleaning):
             df = df.assign(
                 **{
                     col: df[col] / df.cpi_index_base
-                    for col in ["exportvalue_fob", "importvalue_fob"]
+                    for col in ["export_value_fob", "import_value_fob"]
                 }
             )
             df = df.fillna(0.0)
             df = df.drop(
-                columns=["cpi_index_base", "importvalue_cif", "cif_ratio"]
+                columns=["cpi_index_base", "import_value_cif", "cif_ratio"]
             ).rename(
                 # in stata v_e and v_i
                 columns={
-                    "exportvalue_fob": "exports_const_usd",
-                    "importvalue_fob": "imports_const_usd",
+                    "export_value_fob": "exports_const_usd",
+                    "import_value_fob": "imports_const_usd",
                 }
             )
 
@@ -239,7 +239,7 @@ class do2(_AtlasCleaning):
             ncountries = df["exporter"].nunique() 
 
             # calculate the mean of each row, exclude import or export value when equal to zero
-            df["temp_flow_avg"] = pd.DataFrame(
+            df["trade_flow_average"] = pd.DataFrame(
                 {
                     "exports": np.where(
                         df["exports_const_usd"] != 0, df["exports_const_usd"], np.nan
@@ -251,21 +251,21 @@ class do2(_AtlasCleaning):
             ).mean(axis=1)
 
             # percentage of countries total exports
-            df["perc_e"] = np.maximum(
-                df["temp_flow_avg"]
-                / df.groupby("exporter")["temp_flow_avg"].transform("sum"),
+            df["export_percentage"] = np.maximum(
+                df["trade_flow_average"]
+                / df.groupby("exporter")["trade_flow_average"].transform("sum"),
                 0.0,
             )
             # percentage of countries total imports
-            df["perc_i"] = np.maximum(
-                df["temp_flow_avg"]
-                / df.groupby("importer")["temp_flow_avg"].transform("sum"),
+            df["import_percentage"] = np.maximum(
+                df["trade_flow_average"]
+                / df.groupby("importer")["trade_flow_average"].transform("sum"),
                 0.0,
             )
-            df = df.drop(columns=["temp_flow_avg"])
+            df = df.drop(columns=["trade_flow_average"])
 
             for trade_flow in ["importer", "exporter"]:
-                df[f"nflows_{trade_flow}"] = (
+                df[f"{trade_flow}_nflows"] = (
                     (
                         (df["exports_const_usd"] != 0.0)
                         | (df["imports_const_usd"] != 0.0)
@@ -283,16 +283,9 @@ class do2(_AtlasCleaning):
                     df.groupby(trade_flow)[
                         f"trade_discrepancy_{trade_flow}_avg"
                     ].transform("sum")
-                    / df[f"nflows_{trade_flow}"]
+                    / df[f"{trade_flow}_nflows"]
                 )
-
-
-            # TODO: ask about Muhammed's code section (MAY)
             
-            # keep iso to keep country id
-            # iso = df['exporter'].drop_duplicates().values #.reshape(-1,1)
-            # iso_to_index = {code: index for index, code in enumerate(iso)}
-
             exporters = df['exporter'].unique()
             exporter_to_idx = {exp: idx for idx, exp in enumerate(exporters)}
             
@@ -305,57 +298,54 @@ class do2(_AtlasCleaning):
             trdiscrep_exp = trade_discrepancy.values
             trdiscrep_imp = trdiscrep_exp.T
             
-            nflows_exp = df.groupby('exporter')['nflows_exporter'].first().values.reshape(-1,1)
-            nflows_imp = df.groupby('importer')['nflows_importer'].first().reindex(exporters).values.reshape(-1,1)
+            nflows_exp = df.groupby('exporter')['exporter_nflows'].first().values.reshape(-1,1)
+            nflows_imp = df.groupby('importer')['importer_nflows'].first().reindex(exporters).values.reshape(-1,1)
 
             # based on normalized trade imbalance and number of trade partners
             # initialize accuracy metric to one
             # should end up being the same?
-            accuracy_exp = np.ones((ncountries, 1))
-            accuracy_imp = np.ones((ncountries, 1))
+            exporter_accuracy = np.ones((ncountries, 1))
+            importer_accuracy = np.ones((ncountries, 1))
 
             for _ in range(0, 25):
                 # @ is element-wise multiplication
-                prob_accuracy_exp = 1 / np.divide((trdiscrep_exp @ accuracy_imp), nflows_exp)
-                prob_accuracy_imp = 1 / np.divide((trdiscrep_imp @ accuracy_exp), nflows_imp)
-                accuracy_imp = prob_accuracy_imp
-                accuracy_exp = prob_accuracy_exp
+                prob_exporter_accuracy = 1 / np.divide((trdiscrep_exp @ importer_accuracy), nflows_exp)
+                prob_importer_accuracy = 1 / np.divide((trdiscrep_imp @ exporter_accuracy), nflows_imp)
+                importer_accuracy = prob_importer_accuracy
+                exporter_accuracy = prob_exporter_accuracy
                 
             trdiscrep_exp = (np.sum(trdiscrep_exp, axis=1) / ncountries).reshape(-1,1)
             trdiscrep_imp = (np.sum(trdiscrep_imp, axis=1) / ncountries).reshape(-1,1)
 
             # fix some df has single exporter for year 2015
             if self.alog == 1:
-                accuracy_exp = np.ln(accuracy_exp)
-                accuracy_imp = np.ln(accuracy_imp)
+                exporter_accuracy = np.ln(exporter_accuracy)
+                importer_accuracy = np.ln(importer_accuracy)
             if self.anorm == 1:
-                accuracy_exp = (accuracy_exp - accuracy_exp.mean()) / accuracy_exp.std()
-                accuracy_imp = (accuracy_imp - accuracy_imp.mean()) / accuracy_imp.std()
+                exporter_accuracy = (exporter_accuracy - exporter_accuracy.mean()) / exporter_accuracy.std()
+                importer_accuracy = (importer_accuracy - importer_accuracy.mean()) / importer_accuracy.std()
 
             if self.af == 0:
-                accuracy_final = np.mean([accuracy_exp, accuracy_imp], axis=0)
+                accuracy_score = np.mean([exporter_accuracy, importer_accuracy], axis=0)
                 # df["A_f"] = df[["A_e", "A_i"]].mean(axis=1)
                 
             elif self.af == 1:
-                accuracy_final = PCA().fit_transform(accuracy_exp, accuracy_imp)
+                accuracy_score = PCA().fit_transform(exporter_accuracy, importer_accuracy)
 
             if self.anorm == 1:
-                accuracy_final = (accuracy_final - accuracy_final.mean()) / accuracy_final.std()
+                accuracy_score = (accuracy_score - accuracy_score.mean()) / accuracy_score.std()
                         
             # combine np arrays into pandas 
             year_array = np.full(ncountries, year).reshape(-1,1)
             
-            cy_accuracy = pd.DataFrame(np.hstack([year_array, exporters.reshape(-1,1), nflows_exp, nflows_imp, trdiscrep_exp, trdiscrep_imp, accuracy_exp, accuracy_imp, accuracy_final]),
+            cy_accuracy = pd.DataFrame(np.hstack([year_array, exporters.reshape(-1,1), nflows_exp, nflows_imp, trdiscrep_exp, trdiscrep_imp, exporter_accuracy, importer_accuracy, accuracy_score]),
                                        columns=['year', 'iso', 'nflows_exp', 'nflows_imp', 'trdiscrep_exp', 'trdiscrep_imp', 'acc_exp', 'acc_imp', 'acc_final'])
 
             cy_accuracy.to_parquet("data/intermediate/accuracy.parquet")
             
-            # TODO: need to add in sigmas
-            # merge cpi index with exporters by year
-            # TODO: requires many to one, there are many A_e,A_i values for year/exporter
             ccy_acc = ccy.merge(
                 cy_accuracy[["year", "iso", "acc_exp", "acc_imp"]].rename(columns={
-                    "acc_exp": "acc_exp_for_exporter",
+                    "acc_exp": "exporter_accuracy_score",
                     "acc_imp": "acc_imp_for_exporter"
                 }),  # "sigmas"]],
                 left_on=["year", "exporter"],
@@ -366,7 +356,7 @@ class do2(_AtlasCleaning):
             ccy_acc = ccy_acc.merge(
                 cy_accuracy[["year", "iso", "acc_exp", "acc_imp"]].rename(columns={
                     "acc_exp": "acc_exp_for_importer",
-                    "acc_imp": "acc_imp_for_importer"
+                    "acc_imp": "importer_accuracy_score"
                 }),  # "sigmas"]],
                 left_on=["year", "importer"],
                 right_on=["year", "iso"],
@@ -379,78 +369,75 @@ class do2(_AtlasCleaning):
             for entity in ['exporter', 'importer']:
                 ccy_acc[f'tag_{entity[0]}'] = (~ccy_acc[entity].duplicated()).astype(int)
 
-            # merged["tag_e"] = merged.duplicated("exporter", keep="first").astype(int)
-            # merged["tag_i"] = merged.duplicated("importer", keep="first").astype(int)
-
             # remove trade values less than 1000
-            ccy_acc.loc[ccy_acc["importvalue_fob"] < 1000, "importvalue_fob"] = 0.0
-            ccy_acc.loc[ccy_acc["exportvalue_fob"] < 1000, "exportvalue_fob"] = 0.0
+            ccy_acc.loc[ccy_acc["import_value_fob"] < 1000, "import_value_fob"] = 0.0
+            ccy_acc.loc[ccy_acc["export_value_fob"] < 1000, "export_value_fob"] = 0.0
 
             # calculating percentiles grouped by unique exporter and then importer
-            percentiles_e = ccy_acc[ccy_acc.tag_e == 1]["acc_exp_for_exporter"].quantile([0.10, 0.25, 0.50, 0.75, 0.90]).round(3)
-            percentiles_i = ccy_acc[ccy_acc.tag_i == 1]["acc_imp_for_importer"].quantile([0.10, 0.25, 0.50, 0.75, 0.90]).round(3)
+            exporter_accuracy_percentiles = ccy_acc[ccy_acc.tag_e == 1]["exporter_accuracy_score"].quantile([0.10, 0.25, 0.50, 0.75, 0.90]).round(3)
+            importer_accuracy_percentiles = ccy_acc[ccy_acc.tag_i == 1]["importer_accuracy_score"].quantile([0.10, 0.25, 0.50, 0.75, 0.90]).round(3)
             
-            columns_to_cast = ['acc_exp_for_exporter', 
+            columns_to_cast = ['exporter_accuracy_score', 
                                   'acc_imp_for_exporter', 
                                   'acc_exp_for_importer', 
-                                  'acc_imp_for_importer']
+                                  'importer_accuracy_score']
 
             for col in columns_to_cast:
                 ccy_acc[col] = pd.to_numeric(ccy_acc[col], errors='coerce')
 
 
             # Weight Calculation
-            # attractiveness of the exporter
-            ccy_acc["weight"] = np.exp(ccy_acc["acc_exp_for_exporter"]) / (
-                np.exp(ccy_acc["acc_exp_for_exporter"]) + np.exp(ccy_acc["acc_imp_for_importer"])
+            # exporter accuracy 
+            ccy_acc["weight"] = np.exp(ccy_acc["exporter_accuracy_score"]) / (
+                np.exp(ccy_acc["exporter_accuracy_score"]) + np.exp(ccy_acc["importer_accuracy_score"])
             )
             
             # Output the percentiles
             # logging.info(
-            #     f":: exporter A_e :: 10, 25, 50, 75, 95 = {percentiles_e['10%']} & {percentiles_e['25%']} & {percentiles_e['50%']} & {percentiles_e['75%']} & {percentiles_e['90%']}"
+            #     f":: exporter A_e :: 10, 25, 50, 75, 95 = {exporter_accuracy_percentiles['10%']} & {exporter_accuracy_percentiles['25%']} & {exporter_accuracy_percentiles['50%']} & {exporter_accuracy_percentiles['75%']} & {exporter_accuracy_percentiles['90%']}"
             # )
             # logging.info(
-            #     f":: importer A_i :: 10, 25, 50, 75, 95 = {percentiles_i['10%']} & {percentiles_i['25%']} & {percentiles_i['50%']} & {percentiles_i['75%']} & {percentiles_i['90%']}"
+            #     f":: importer A_i :: 10, 25, 50, 75, 95 = {importer_accuracy_percentiles['10%']} & {importer_accuracy_percentiles['25%']} & {importer_accuracy_percentiles['50%']} & {importer_accuracy_percentiles['75%']} & {importer_accuracy_percentiles['90%']}"
             # )
 
             # include set of countries
             ccy_acc = ccy_acc.assign(
                 weight_exporter =np.where(
-                    (ccy_acc.acc_exp_for_exporter.notna())
-                    & (ccy_acc.acc_exp_for_exporter > percentiles_e[.10]),
+                    (ccy_acc.exporter_accuracy_score.notna())
+                    & (ccy_acc.exporter_accuracy_score > exporter_accuracy_percentiles[.10]),
                     1,
                     0,
                 ),
                 weight_importer=np.where(
-                    (ccy_acc.acc_imp_for_importer.notna())
-                    & (ccy_acc.acc_imp_for_importer > percentiles_i[.10]),
+                    (ccy_acc.importer_accuracy_score.notna())
+                    & (ccy_acc.importer_accuracy_score > importer_accuracy_percentiles[.10]),
                     1,
                     0,
                 ),
             )
             
             ccy_acc["discrep"] = np.exp(
-                np.abs(np.log(ccy_acc["exportvalue_fob"] / ccy_acc["importvalue_fob"]))
+                np.abs(np.log(ccy_acc["export_value_fob"] / ccy_acc["import_value_fob"]))
             )
             
             ccy_acc["discrep"] = ccy_acc["discrep"].replace(np.nan, 99)
 
             
-            df = self.calculate_estimated_value(ccy_acc, percentiles_e, percentiles_i)
+            df = self.calculate_estimated_value(ccy_acc, exporter_accuracy_percentiles, importer_accuracy_percentiles)
             df = df.drop(columns=["discrep"])
 
             # Calculate mintrade and update estvalue
-            df["min_trade"] = df[["exportvalue_fob", "importvalue_fob"]].min(axis=1)
+            df["min_trade"] = df[["export_value_fob", "import_value_fob"]].min(axis=1)
             df.loc[
-                (df["min_trade"].notna()) & (df["est_value"].isna()), "est_value"
+                (df["min_trade"].notna()) & (df["est_trade_value"].isna()), "est_trade_value"
             ] = df["min_trade"]
 
             # Rename columns
             df = df.rename(
                 columns={
-                    "exportvalue_fob": "export_value",
-                    "importvalue_fob": "import_value",
-                    "est_value": "final_value",
+                    "export_value_fob": "export_value",
+                    "import_value_fob": "import_value",
+                    "est_trade_value": "final_trade_value",
                 }
             )
 
@@ -461,13 +448,13 @@ class do2(_AtlasCleaning):
                 "importer",
                 "export_value",
                 "import_value",
-                "final_value",
+                "final_trade_value",
                 # "cif_ratio",
                 "weight",
                 "weight_exporter",
                 "weight_importer",
-                "acc_exp_for_exporter",
-                "acc_imp_for_importer",
+                "exporter_accuracy_score",
+                "importer_accuracy_score",
             ]
             df = df[columns_to_keep]
 
@@ -486,31 +473,31 @@ class do2(_AtlasCleaning):
         weights_years_total.to_parquet(output_path)
 
         
-    def calculate_estimated_value(self, df, perc_e, perc_i):
+    def calculate_estimated_value(self, df, export_percentage, import_percentage):
         """
         Series of conditions to determine estimated trade value
         """
         logging.info("Estimating total trade flows between countries")
         
-        df["est_value"] = np.where(
-            (df.acc_exp_for_exporter.notna())
-            & (df.acc_imp_for_importer.notna())
-            & (df.importvalue_fob.notna())
-            & (df.exportvalue_fob.notna()),
-            df.exportvalue_fob * df.weight + df.importvalue_fob * (1 - df.weight),
+        df["est_trade_value"] = np.where(
+            (df.exporter_accuracy_score.notna())
+            & (df.importer_accuracy_score.notna())
+            & (df.import_value_fob.notna())
+            & (df.export_value_fob.notna()),
+            df.export_value_fob * df.weight + df.import_value_fob * (1 - df.weight),
             np.nan,
         )
         
-        # conditions to determine est_value
-        df.loc[(df['acc_exp_for_exporter'] < perc_e[.50]) & (df['acc_imp_for_importer'] >= perc_i[.90]) & (df['acc_imp_for_importer'].notna()) & (df['acc_exp_for_exporter'].notna()) & df['est_value'].isna(), 'est_value'] = df['importvalue_fob']
-        df.loc[(df['acc_exp_for_exporter'] >= perc_e[.90]) & (df['acc_imp_for_importer'] < perc_i[.50]) & (df['acc_imp_for_importer'].notna()) & (df['acc_exp_for_exporter'].notna()) & df['est_value'].isna(), 'est_value'] = df['exportvalue_fob']
-        df.loc[(df['acc_exp_for_exporter'] < perc_e[.25]) & (df['acc_imp_for_importer'] >= perc_i[.75]) & (df['acc_imp_for_importer'].notna()) & (df['acc_exp_for_exporter'].notna()) & df['est_value'].isna(), 'est_value'] = df['importvalue_fob']
-        df.loc[(df['acc_exp_for_exporter'] >= perc_e[.75]) & (df['acc_imp_for_importer'] < perc_i[.25]) & (df['acc_imp_for_importer'].notna()) & (df['acc_exp_for_exporter'].notna()) & df['est_value'].isna(), 'est_value'] = df['exportvalue_fob']
-        df.loc[(df['acc_imp_for_importer'].notna()) & (df['acc_exp_for_exporter'].notna()) & (df['weight_exporter'] == 1) & (df['weight_importer'] == 1) & df['est_value'].isna(), 'est_value'] = df[['importvalue_fob', 'exportvalue_fob']].max(axis=1)
-        df.loc[(df['weight_importer'] == 1) & df['est_value'].isna(), 'est_value'] = df['importvalue_fob']
-        df.loc[(df['weight_exporter'] == 1) & df['est_value'].isna(), 'est_value'] = df['exportvalue_fob']
-        df.loc[df['est_value'].isna(), 'est_value'] = df['importvalue_fob']
-        df.loc[df['est_value'] == 0, 'est_value'] = np.nan        
+        # conditions to determine est_trade_value
+        df.loc[(df['exporter_accuracy_score'] < export_percentage[.50]) & (df['importer_accuracy_score'] >= import_percentage[.90]) & (df['importer_accuracy_score'].notna()) & (df['exporter_accuracy_score'].notna()) & df['est_trade_value'].isna(), 'est_trade_value'] = df['import_value_fob']
+        df.loc[(df['exporter_accuracy_score'] >= export_percentage[.90]) & (df['importer_accuracy_score'] < import_percentage[.50]) & (df['importer_accuracy_score'].notna()) & (df['exporter_accuracy_score'].notna()) & df['est_trade_value'].isna(), 'est_trade_value'] = df['export_value_fob']
+        df.loc[(df['exporter_accuracy_score'] < export_percentage[.25]) & (df['importer_accuracy_score'] >= import_percentage[.75]) & (df['importer_accuracy_score'].notna()) & (df['exporter_accuracy_score'].notna()) & df['est_trade_value'].isna(), 'est_trade_value'] = df['import_value_fob']
+        df.loc[(df['exporter_accuracy_score'] >= export_percentage[.75]) & (df['importer_accuracy_score'] < import_percentage[.25]) & (df['importer_accuracy_score'].notna()) & (df['exporter_accuracy_score'].notna()) & df['est_trade_value'].isna(), 'est_trade_value'] = df['export_value_fob']
+        df.loc[(df['importer_accuracy_score'].notna()) & (df['exporter_accuracy_score'].notna()) & (df['weight_exporter'] == 1) & (df['weight_importer'] == 1) & df['est_trade_value'].isna(), 'est_trade_value'] = df[['import_value_fob', 'export_value_fob']].max(axis=1)
+        df.loc[(df['weight_importer'] == 1) & df['est_trade_value'].isna(), 'est_trade_value'] = df['import_value_fob']
+        df.loc[(df['weight_exporter'] == 1) & df['est_trade_value'].isna(), 'est_trade_value'] = df['export_value_fob']
+        df.loc[df['est_trade_value'].isna(), 'est_trade_value'] = df['import_value_fob']
+        df.loc[df['est_trade_value'] == 0, 'est_trade_value'] = np.nan        
        
         
         return df
