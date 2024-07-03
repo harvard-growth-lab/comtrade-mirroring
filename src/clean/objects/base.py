@@ -27,6 +27,7 @@ class _AtlasCleaning(object):
         start_year,
         end_year,
         root_dir,
+        product_classification
     ):
         # INPUTS
         self.root_dir = root_dir
@@ -41,6 +42,8 @@ class _AtlasCleaning(object):
         self.df = None
         self.start_year = start_year
         self.end_year = end_year
+        
+        self.product_classification = product_classification
         
         self.wdi_path = os.path.join(self.raw_data_path, "wdi_extended.dta")
 

@@ -4,13 +4,14 @@ from os import path
 import pandas as pd
 from sys import argv
 import logging
+import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 
 from clean.objects.base import _AtlasCleaning
 
 
-class TradeAggregator(_AtlasCleaning):
+class AggregateTrade(_AtlasCleaning):
     COLUMNS_DICT = {
         "Year": "year",
         "Aggregate Level": "product_level",
@@ -25,11 +26,10 @@ class TradeAggregator(_AtlasCleaning):
         "Qty": "qty",
     }
 
-    def __init__(self, year, product_classification, **kwargs):
+    def __init__(self, year, **kwargs):
         super().__init__(**kwargs)
 
         self.year = year
-        self.product_classification = product_classification
         self.unspecified_by_class = {
             "HS": "9999",
             "H0": "9999",
@@ -37,20 +37,18 @@ class TradeAggregator(_AtlasCleaning):
             "S2": "9310",
             "ST": "9310",
         }
+        self.product_class = kwargs['product_classification']
 
         df = self.load_data()
-        
-        import pdb
-        pdb.set_trace()
-        
+
         if df.empty:
             logging.info(
-                f"Data for classification class {self.product_classification} not available. Nothing to aggregate"
+                f"Data for classification class {self.product_class} not available. Nothing to aggregate"
             )
             return None
 
         df = self.clean_data(df)
-        
+
         # returns bilateral data
         df = self.aggregate_data(df)
 
@@ -71,10 +69,13 @@ class TradeAggregator(_AtlasCleaning):
         df = self.remove_outliers(df)
 
         df["year"] = self.year
-        df = df[["year", "exporter", "importer", "export_value_fob", "import_value_cif"]]
+        # TODO: check in why row median of import_value_fob not take and left out of totals_raw_year.dta
+        df = df[
+            ["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
+        ]
         df = df.sort_values(by=["exporter", "importer"])
         self.save_parquet(
-            df, "intermediate", f"{self.year}_{self.product_classification}"
+            df, "intermediate", f"{self.year}_{self.product_class}"
         )
 
     def load_data(self):
@@ -84,7 +85,7 @@ class TradeAggregator(_AtlasCleaning):
         try:
             df = pd.read_csv(
                 path.join(
-                    self.raw_data_path, f"{self.product_classification}_{self.year}.zip"
+                    self.raw_data_path, f"{self.product_class}_{self.year}.zip"
                 ),
                 compression="zip",
                 usecols=self.COLUMNS_DICT.keys(),
@@ -109,11 +110,11 @@ class TradeAggregator(_AtlasCleaning):
     def clean_data(self, df):
         """ """
         logging.info(
-            f"Cleaning.. > {self.year} and classification = {self.product_classification}"
+            f"Cleaning.. > {self.year} and classification = {self.product_class}"
         )
 
         df = df[
-            df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_classification])
+            df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_class])
         ]
         df = df[df["trade_flow"].isin([1, 2])]
 
@@ -132,7 +133,7 @@ class TradeAggregator(_AtlasCleaning):
         #         lambda row: row["commodity_code"].zfill(row["product_level"]), axis=0
         #     )
 
-        for level in self.HIERARCHY_LEVELS[self.product_classification]:
+        for level in self.HIERARCHY_LEVELS[self.product_class]:
             df[df.product_level == level]["commodity_code"] = df[
                 df.product_level == level
             ]["commodity_code"].str.zfill(level)
@@ -143,7 +144,7 @@ class TradeAggregator(_AtlasCleaning):
             & (df["product_level"] == 4)
             & (
                 df["commodity_code"].str[:4]
-                == self.unspecified_by_class[self.product_classification]
+                == self.unspecified_by_class[self.product_class]
             )
         )
         df.loc[mask, "reporter_ansnoclas"] = df.loc[mask, "trade_value"]
@@ -164,7 +165,7 @@ class TradeAggregator(_AtlasCleaning):
         """
         extract unique pair of importer and exporter by import and export trade values
         for both product level: [0, 1]
-        """        
+        """
         df = (
             df.groupby(
                 ["year", "trade_flow", "product_level", "reporter_iso", "partner_iso"]
@@ -195,12 +196,12 @@ class TradeAggregator(_AtlasCleaning):
                 values=["trade_value", "reporter_ansnoclas"],
                 fill_value=0,
             ).reset_index()
-            
+
             df_pl.columns = [
                 "_".join(str(i) for i in col).rstrip("_") if col[1] else col[0]
                 for col in df_pl.columns.values
             ]
-            
+
             # table for reporter who is an exporter
             reporting_exporter = df_pl[
                 [

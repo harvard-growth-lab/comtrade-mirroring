@@ -4,12 +4,14 @@ from glob import glob
 import pandas as pd
 
 # from scipy.stats.mstats import winsorize
-
 from clean.objects.base import _AtlasCleaning
-from clean.aggregate_trade import TradeAggregator
+from clean.aggregate_trade import AggregateTrade
 from clean.utils import get_classifications, merge_classifications
 
+from clean.country_country_year import CountryCountryYear
+
 logging.basicConfig(level=logging.INFO)
+CIF_RATIO = .075
 
 
 def run_atlas_cleaning(ingestion_attrs):
@@ -26,65 +28,66 @@ def run_atlas_cleaning(ingestion_attrs):
     """
     start_year = ingestion_attrs["start_year"]
     end_year = ingestion_attrs["end_year"]
+    product_classification = ingestion_attrs["product_classification"]
     for year in range(start_year, end_year + 1):
-        # Comtrade uses concordance tables to provide data by all the classifications
+        
+        # get possible classifications based on year
         classifications = get_classifications(year)
-
+                
         list(
             map(
-                lambda product_class: TradeAggregator(
-                    year, product_class, **ingestion_attrs
+                lambda product_class: AggregateTrade(
+                    year, **ingestion_attrs
                 ),
                 classifications,
             )
         )
-
+        # depending on year, merge multiple classifications and then takes median of values
         df = merge_classifications(year, ingestion_attrs["root_dir"])
+        
+        # expect insurance/freight to be approximately 1.08 of imports_fob
+        # TODO: replace with compute distance function
+        df["import_value_fob"] = df["import_value_cif"] * (1 - CIF_RATIO)
 
-        # logging.info(f"columns of df {df.columns}")
-        df.astype({"importer": str, "exporter": str}).dtypes
-        df["temp1"] = df.filter(like="export_value_fob").median(axis=1)
-        df["temp2"] = df.filter(like="import_value_cif").median(axis=1)
-        df = df[["year", "exporter", "importer", "temp1", "temp2"]]
-        df = df.rename(columns={"temp1": "export_value_fob", "temp2": "import_value_cif"})
-
-        df = df.sort_values(
-            by=["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
-        )
+        os.makedirs(os.path.join(ingestion_attrs["root_dir"], "data", "raw", product_classification), exist_ok=True)
         # save file as totals_raw
         df.to_parquet(
             os.path.join(
                 ingestion_attrs["root_dir"],
                 "data",
-                "intermediate",
-                f"totals_raw_{year}.parquet",
+                "raw",
+                product_classification,
+                f"ccy_raw_{year}.parquet",
             ),
             index=False,
         )
+                
+        ccy = CountryCountryYear(df, year, **ingestion_attrs)
+        
 
-    # concat all total_raw files for all the years
-    year_totals = glob(
+    # concat all total_raw files for all years
+    # TODO: need to distinguish by requested classification
+    ccy_list = glob(
         os.path.join(
-            ingestion_attrs["root_dir"], "data", "intermediate", "totals_raw*.parquet"
+            ingestion_attrs["root_dir"], "data", "raw", product_classification, "ccy_raw_*.parquet"
         )
     )
+    ccy_df = pd.concat(map(pd.read_parquet, ccy_list), ignore_index=True)
 
-    merged_df = pd.concat(map(pd.read_parquet, year_totals), ignore_index=True)
-    # expect insurance/freight to be approximately 1.08 of imports_fob
-    merged_df["import_value_fob"] = merged_df["import_value_cif"] * 0.925
-    # add distance measure
-    # compute_distance(merged_df, start_year, end_year)
-    merged_df.to_csv(
-        os.path.join(
-            ingestion_attrs["root_dir"], "data", "intermediate", "Totals_RAW_trade.csv"
-        ),
-        index=False,
-    )
+    # TODO: compute_distance(ccy_df, start_year, end_year)
+    # ccy_df.to_csv(
+    #     os.path.join(
+    #         ingestion_attrs["root_dir"], "data", "intermediate", f"ccy_{start_year}_{end_year}.csv"
+    #     ),
+    #     index=False,
+    # )
+    
 
 
 def compute_distance(df, start_year, end_year):
     """
-    TODO: not validated, hold off on first round of code
+    TODO: not validated
+    currently not called in data and using place with CIF RATIO set to 7.25%
     """
     # TODO: confirm handling of Romania
     # for dist_cepii replace ROM with ROU
@@ -140,9 +143,9 @@ def compute_distance(df, start_year, end_year):
             c + (beta_dist * df["_lndist"]) + (beta_contig * df["_contig"])
         )
         df.loc[(df["year"] == y) & (df["tau"] < 0) & (df["tau"].notnull()), "tau"] = 0
-        df.loc[(df["year"] == y) & (df["tau"] > 0.2) & (df["tau"].notnull()), "tau"] = (
-            0.2
-        )
+        df.loc[
+            (df["year"] == y) & (df["tau"] > 0.2) & (df["tau"].notnull()), "tau"
+        ] = 0.2
         df.loc[df["year"] == y, "tau"] = df.loc[df["year"] == y, "tau"].mean()
 
         print(df.columns)
@@ -193,5 +196,6 @@ if __name__ == "__main__":
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
+        "product_classification": "H0"
     }
     run_atlas_cleaning(ingestion_attrs)

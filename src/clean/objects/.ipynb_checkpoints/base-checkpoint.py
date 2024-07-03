@@ -18,13 +18,6 @@ class _AtlasCleaning(object):
         "ST": (0, 2, 4),
     }
 
-    # HIERARCHY_LEVELS = {
-    #     "hs92": (1, 2, 4, 6),
-    #     "hs12": (1, 2, 4, 6),
-    #     "sitc": (1, 2, 4),
-    #     "services": (1, 2, 4, 6),
-    # }
-
     REGIONAL_GROUP_TYPES = ["world", "region", "subregion"]
 
     INGESTION_OUTPUT_FORMATS = ["parquet", "hdf5"]
@@ -34,6 +27,7 @@ class _AtlasCleaning(object):
         start_year,
         end_year,
         root_dir,
+        product_classification
     ):
         # INPUTS
         self.root_dir = root_dir
@@ -48,6 +42,8 @@ class _AtlasCleaning(object):
         self.df = None
         self.start_year = start_year
         self.end_year = end_year
+        
+        self.product_classification = product_classification
         
         self.wdi_path = os.path.join(self.raw_data_path, "wdi_extended.dta")
 
