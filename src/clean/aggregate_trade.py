@@ -37,7 +37,7 @@ class AggregateTrade(_AtlasCleaning):
             "S2": "9310",
             "ST": "9310",
         }
-        self.product_class = kwargs['product_classification']
+        self.product_class = kwargs["product_classification"]
 
         df = self.load_data()
 
@@ -74,9 +74,7 @@ class AggregateTrade(_AtlasCleaning):
             ["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
         ]
         df = df.sort_values(by=["exporter", "importer"])
-        self.save_parquet(
-            df, "intermediate", f"{self.year}_{self.product_class}"
-        )
+        self.save_parquet(df, "intermediate", f"{self.year}_{self.product_class}")
 
     def load_data(self):
         """
@@ -84,9 +82,7 @@ class AggregateTrade(_AtlasCleaning):
         """
         try:
             df = pd.read_csv(
-                path.join(
-                    self.raw_data_path, f"{self.product_class}_{self.year}.zip"
-                ),
+                path.join(self.raw_data_path, f"{self.product_class}_{self.year}.zip"),
                 compression="zip",
                 usecols=self.COLUMNS_DICT.keys(),
                 dtype={
@@ -113,9 +109,7 @@ class AggregateTrade(_AtlasCleaning):
             f"Cleaning.. > {self.year} and classification = {self.product_class}"
         )
 
-        df = df[
-            df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_class])
-        ]
+        df = df[df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_class])]
         df = df[df["trade_flow"].isin([1, 2])]
 
         # recodes Other Asia to Taiwan

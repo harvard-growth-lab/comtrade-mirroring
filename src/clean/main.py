@@ -11,7 +11,11 @@ from clean.utils import get_classifications, merge_classifications
 from clean.country_country_year import CountryCountryYear
 
 logging.basicConfig(level=logging.INFO)
-CIF_RATIO = .075
+CIF_RATIO = 0.075
+
+pd.options.display.max_columns = None
+pd.options.display.max_rows = None
+pd.set_option("max_colwidth", 400)
 
 
 def run_atlas_cleaning(ingestion_attrs):
@@ -30,26 +34,28 @@ def run_atlas_cleaning(ingestion_attrs):
     end_year = ingestion_attrs["end_year"]
     product_classification = ingestion_attrs["product_classification"]
     for year in range(start_year, end_year + 1):
-        
         # get possible classifications based on year
         classifications = get_classifications(year)
-                
+
         list(
             map(
-                lambda product_class: AggregateTrade(
-                    year, **ingestion_attrs
-                ),
+                lambda product_class: AggregateTrade(year, **ingestion_attrs),
                 classifications,
             )
         )
         # depending on year, merge multiple classifications and then takes median of values
         df = merge_classifications(year, ingestion_attrs["root_dir"])
-        
+
         # expect insurance/freight to be approximately 1.08 of imports_fob
         # TODO: replace with compute distance function
         df["import_value_fob"] = df["import_value_cif"] * (1 - CIF_RATIO)
 
-        os.makedirs(os.path.join(ingestion_attrs["root_dir"], "data", "raw", product_classification), exist_ok=True)
+        os.makedirs(
+            os.path.join(
+                ingestion_attrs["root_dir"], "data", "raw", product_classification
+            ),
+            exist_ok=True,
+        )
         # save file as totals_raw
         df.to_parquet(
             os.path.join(
@@ -61,15 +67,18 @@ def run_atlas_cleaning(ingestion_attrs):
             ),
             index=False,
         )
-                
+
         ccy = CountryCountryYear(df, year, **ingestion_attrs)
-        
 
     # concat all total_raw files for all years
     # TODO: need to distinguish by requested classification
     ccy_list = glob(
         os.path.join(
-            ingestion_attrs["root_dir"], "data", "raw", product_classification, "ccy_raw_*.parquet"
+            ingestion_attrs["root_dir"],
+            "data",
+            "raw",
+            product_classification,
+            "ccy_raw_*.parquet",
         )
     )
     ccy_df = pd.concat(map(pd.read_parquet, ccy_list), ignore_index=True)
@@ -81,7 +90,14 @@ def run_atlas_cleaning(ingestion_attrs):
     #     ),
     #     index=False,
     # )
-    
+
+    #         weights.append(self.df)
+
+    #         weights_years_total = pd.concat(weights)
+    #         output_path = os.path.join(
+    #             self.processed_data_path, f"weights_{start_year}-{end_year}.parquet"
+    #         )
+    #         weights_years_total.to_parquet(output_path)
 
 
 def compute_distance(df, start_year, end_year):
@@ -196,6 +212,6 @@ if __name__ == "__main__":
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
-        "product_classification": "H0"
+        "product_classification": "H0",
     }
     run_atlas_cleaning(ingestion_attrs)

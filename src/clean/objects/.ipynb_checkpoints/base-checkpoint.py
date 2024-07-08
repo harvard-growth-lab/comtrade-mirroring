@@ -38,6 +38,10 @@ class _AtlasCleaning(object):
         
         # data inputs
         self.dist_cepii = pd.read_stata(os.path.join(self.raw_data_path, "dist_cepii.dta"))
+        self.inflation = pd.read_parquet(
+            os.path.join('data', 'intermediate', "inflation_index.parquet")
+        )
+
 
         self.df = None
         self.start_year = start_year
