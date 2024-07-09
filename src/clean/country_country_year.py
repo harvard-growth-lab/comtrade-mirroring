@@ -4,6 +4,7 @@ import os
 import numpy as np
 from sklearn.decomposition import PCA
 import logging
+import copy
 
 logging.basicConfig(level=logging.INFO)
 
@@ -11,10 +12,11 @@ logging.basicConfig(level=logging.INFO)
 # generates a country country year table
 class CountryCountryYear(_AtlasCleaning):
     niter = 25  # Iterations A_e
+    trade_value_threshold = 10**4
+    population_threshold = 0.5 * 10**6  
     trade_flow_threshold = 10  # 30
     flow_limit = 10**4  # Minimum value to assume that there is a flow
     vfile = 1
-    poplimit = 0.5 * 10**6  # Only include countries with population above this number
     anorm = 0  # Normalize the score
     alog = 0  # Apply logs
     af = 0  # Combine A_e and A_i in single measure
@@ -27,7 +29,7 @@ class CountryCountryYear(_AtlasCleaning):
 
         # Set parameters
         self.year = year
-        self.df = df.copy()
+        self.df = df.copy(deep=True)
 
         # Step 1: Prepare economic indicators
         cpi, population = self.add_economic_indicators()
@@ -35,8 +37,7 @@ class CountryCountryYear(_AtlasCleaning):
 
         # Step 2: Clean and filter data
         self.clean_data()
-        self.filter_by_population_threshold(population)
-        self.compare_base_year_trade_values()
+        logging.info(f"after clean data {self.df.shape}")
 
         # merge data to have all possible combinations for exporter, importer
         all_combinations_ccy_index = pd.MultiIndex.from_product(
@@ -53,30 +54,39 @@ class CountryCountryYear(_AtlasCleaning):
         self.df = all_combinations_ccy.merge(
             self.df, on=["exporter", "importer"], how="left"
         )
-        self.filter_by_trade_flows
+        
+        self.filter_by_population_threshold(population)
+        logging.info(f"shape after filter by population  {self.df.shape}")
+        ccy = self.df.copy(deep=True)
+        self.compare_base_year_trade_values()
+        logging.info(f"shape after trade values comparison  {self.df.shape}")
+
 
         # Step 3: Calculate trade statistics
         self.calculate_trade_reporting_discrepancy()
+        self.filter_by_trade_flows
         self.calculate_trade_percentages()
         self.normalize_trade_flows()
+        
 
         # Step 4: Compute accuracy scores
-        ccy_acc = self.compute_accuracy_scores()
+        ccy_accuracy = self.compute_accuracy_scores()
+    
         (
-            ccy_acc,
+            ccy_accuracy,
             exporter_accuracy_percentiles,
             importer_accuracy_percentiles,
-        ) = self.calculate_accuracy_percentiles(ccy_acc)
+        ) = self.calculate_accuracy_percentiles(ccy, ccy_accuracy)
 
         # Step 5: Estimate trade values
-        self.calculate_weights(ccy_acc, exporter_accuracy_percentiles, importer_accuracy_percentiles)
+        ccy_accuracy = self.calculate_weights(ccy_accuracy, exporter_accuracy_percentiles, importer_accuracy_percentiles)
 
-        ccy_acc = self.calculate_estimated_value(
-            ccy_acc, exporter_accuracy_percentiles, importer_accuracy_percentiles
+        ccy_accuracy = self.calculate_estimated_value(
+            ccy_accuracy, exporter_accuracy_percentiles, importer_accuracy_percentiles
         )
 
         # Step 6: Finalize output
-        self.finalize_output(ccy_acc)
+        self.finalize_output(ccy_accuracy)
 
 
     def clean_data(self):
@@ -87,10 +97,12 @@ class CountryCountryYear(_AtlasCleaning):
                 | (self.df.importer.isin(["WLD", "ANS"]))
             )
         ]
+        logging.info(f"shape of df {self.df.shape}")
         self.df = self.df[self.df.exporter != self.df.importer]
         self.df = self.df[
-            self.df[["import_value_fob", "export_value_fob"]].max(axis=1) >= 10**4
+            self.df[["import_value_fob", "export_value_fob"]].max(axis=1) >= self.trade_value_threshold
         ]
+        logging.info(f"shape of df {self.df.shape}")
 
         # TODO: ensures cif_ratio is never greater than .20
         # this does nothing while CIF RATIO set as a constant and not using compute_distance()
@@ -103,14 +115,12 @@ class CountryCountryYear(_AtlasCleaning):
         # saved as temp_accuracy.dta in stata
         # self.df.to_parquet(f"data/intermediate/ccy_{year}.parquet")
 
-    def filter_by_population_threshold(
-        self, population: pd.DataFrame(), pop_limit=0.5 * 10**6
-    ):
+    def filter_by_population_threshold(self, population: pd.DataFrame()):
         """
         Drop all exporter and importers with populations below the population limit
         """
         population = population[population.year == self.year].drop(columns=["year"])
-        countries_under_threshold = population[population.imf_pop < pop_limit][
+        countries_under_threshold = population[population.imf_pop < self.population_threshold][
             "iso"
         ].tolist()
         self.df = self.df[
@@ -268,6 +278,8 @@ class CountryCountryYear(_AtlasCleaning):
         """ """
         # count trade flows for each country as an importer and exporter
         for trade_flow in ["importer", "exporter"]:
+            import pdb
+            pdb.set_trace()
             self.df[f"{trade_flow}_nflows"] = (
                 (
                     (self.df["exports_const_usd"] != 0.0)
@@ -315,6 +327,7 @@ class CountryCountryYear(_AtlasCleaning):
             index="exporter", columns="importer", values="reporting_discrepancy"
         ).fillna(0)
         reporting_discrepancy = reporting_discrepancy.reindex(
+            # columns=exporters
             index=exporters, columns=exporters, fill_value=0
         )
 
@@ -331,6 +344,9 @@ class CountryCountryYear(_AtlasCleaning):
             .reindex(exporters)
             .values.reshape(-1, 1)
         )
+        
+        import pdb
+        pdb.set_trace()
 
         ncountries = self.df["exporter"].nunique()
         # initialize accuracy to one
@@ -345,11 +361,17 @@ class CountryCountryYear(_AtlasCleaning):
             prob_importer_accuracy = 1 / np.divide(
                 (trdiscrep_imp @ exporter_accuracy), nflows_imp
             )
+            
             importer_accuracy = prob_importer_accuracy
             exporter_accuracy = prob_exporter_accuracy
+        import pdb
+        pdb.set_trace()
 
         trdiscrep_exp = (np.sum(trdiscrep_exp, axis=1) / ncountries).reshape(-1, 1)
         trdiscrep_imp = (np.sum(trdiscrep_imp, axis=1) / ncountries).reshape(-1, 1)
+        
+        import pdb
+        pdb.set_trace()
 
         # fix some df has single exporter for year 2015
         if self.alog == 1:
@@ -404,15 +426,16 @@ class CountryCountryYear(_AtlasCleaning):
                 "acc_final",
             ],
         )
-
+        import pdb
+        pdb.set_trace()
         cy_accuracy.to_parquet("data/intermediate/accuracy.parquet")
         return cy_accuracy
 
     
-    def calculate_accuracy_percentiles(self, ccy_accuracy):
+    def calculate_accuracy_percentiles(self, ccy, ccy_accuracy):
         """ """
         # earlier ccy
-        ccy_acc = self.df.merge(
+        ccy_acc = ccy.merge(
             ccy_accuracy[["year", "iso", "acc_exp", "acc_imp"]].rename(
                 columns={
                     "acc_exp": "exporter_accuracy_score",
@@ -424,7 +447,7 @@ class CountryCountryYear(_AtlasCleaning):
             how="left",
         ).drop(columns=["iso"])
 
-        ccy_acc = cy_acc.merge(
+        ccy_acc = ccy_acc.merge(
             ccy_accuracy[["year", "iso", "acc_exp", "acc_imp"]].rename(
                 columns={
                     "acc_exp": "acc_exp_for_importer",
@@ -436,6 +459,9 @@ class CountryCountryYear(_AtlasCleaning):
             how="left",
             suffixes=("", "_for_importer"),
         ).drop(columns=["iso"])
+        
+        import pdb
+        pdb.set_trace()
 
         ccy_acc = ccy_acc[ccy_acc.importer != ccy_acc.exporter]
 
@@ -493,9 +519,11 @@ class CountryCountryYear(_AtlasCleaning):
                 0,
             ),
         )
+        import pdb
+        pdb.set_trace()
 
         ccy_acc["discrep"] = np.exp(
-            np.abs(np.log(ccy_acc["exports_const_usd"] / ccy_acc["imports_const_usd"]))
+            np.abs(np.log(ccy_acc["export_value_fob"] / ccy_acc["import_value_fob"]))
         )
         ccy_acc["discrep"] = ccy_acc["discrep"].replace(np.nan, 99)
         return ccy_acc
@@ -525,7 +553,7 @@ class CountryCountryYear(_AtlasCleaning):
             & (df["exporter_accuracy_score"].notna())
             & df["est_trade_value"].isna(),
             "est_trade_value",
-        ] = df["imports_const_usd"]
+        ] = df["import_value_fob"]
 
         df.loc[
             (df["exporter_accuracy_score"] >= export_percentiles[0.90])
@@ -534,7 +562,7 @@ class CountryCountryYear(_AtlasCleaning):
             & (df["exporter_accuracy_score"].notna())
             & df["est_trade_value"].isna(),
             "est_trade_value",
-        ] = df["exports_const_usd"]
+        ] = df["export_value_fob"]
 
         df.loc[
             (df["exporter_accuracy_score"] < export_percentiles[0.25])
@@ -543,7 +571,7 @@ class CountryCountryYear(_AtlasCleaning):
             & (df["exporter_accuracy_score"].notna())
             & df["est_trade_value"].isna(),
             "est_trade_value",
-        ] = df["imports_const_usd"]
+        ] = df["import_value_fob"]
 
         df.loc[
             (df["exporter_accuracy_score"] >= export_percentiles[0.75])
@@ -552,7 +580,7 @@ class CountryCountryYear(_AtlasCleaning):
             & (df["exporter_accuracy_score"].notna())
             & df["est_trade_value"].isna(),
             "est_trade_value",
-        ] = df["exports_const_usd"]
+        ] = df["export_value_fob"]
 
         df.loc[
             (df["importer_accuracy_score"].notna())
@@ -561,23 +589,23 @@ class CountryCountryYear(_AtlasCleaning):
             & (df["weight_importer"] == 1)
             & df["est_trade_value"].isna(),
             "est_trade_value",
-        ] = df[["imports_const_usd", "exports_const_usd"]].max(axis=1)
+        ] = df[["import_value_fob", "export_value_fob"]].max(axis=1)
 
         df.loc[
             (df["weight_importer"] == 1) & df["est_trade_value"].isna(),
             "est_trade_value",
-        ] = df["imports_const_usd"]
+        ] = df["import_value_fob"]
         df.loc[
             (df["weight_exporter"] == 1) & df["est_trade_value"].isna(),
             "est_trade_value",
-        ] = df["exports_const_usd"]
-        df.loc[df["est_trade_value"].isna(), "est_trade_value"] = df["imports_const_usd"]
+        ] = df["export_value_fob"]
+        df.loc[df["est_trade_value"].isna(), "est_trade_value"] = df["import_value_fob"]
         df.loc[df["est_trade_value"] == 0, "est_trade_value"] = np.nan
 
         df = df.drop(columns=["discrep"])
 
         # Calculate mintrade and update estvalue
-        df["min_trade"] = df[["exports_const_usd", "imports_const_usd"]].min(
+        df["min_trade"] = df[["export_value_fob", "import_value_fob"]].min(
             axis=1
         )
         df.loc[
@@ -591,8 +619,8 @@ class CountryCountryYear(_AtlasCleaning):
         """
         df = df.rename(
             columns={
-                "exports_const_usd": "export_value",
-                "imports_const_usd": "import_value",
+                "export_value_fob": "export_value",
+                "import_value_fob": "import_value",
                 "est_trade_value": "final_trade_value",
             }
         )
@@ -613,10 +641,13 @@ class CountryCountryYear(_AtlasCleaning):
             "importer_accuracy_score",
         ]
         df = df[columns_to_keep]
+        logging.info("PAUSE BEFORE SAVING NEW")
+        import pdb
+        pdb.set_trace()
 
         # Save the DataFrame to a file
         output_path = os.path.join(
-            self.intermediate_data_path, f"weights_{self.year}.parquet"
+            self.intermediate_data_path, f"weights_{self.year}_new.parquet"
         )
         df.to_parquet(output_path)
 
