@@ -165,8 +165,6 @@ class CountryCountryYear(_AtlasCleaning):
                                 | (self.df["importer"] == iso)
                             )
                         ]
-        import pdb
-        pdb.set_trace()
 
         # confirms all countries included have data as importer and exporter if not, then drop the country
         importer_only, exporter_only = set(self.df["importer"].unique()) - set(
@@ -355,9 +353,6 @@ class CountryCountryYear(_AtlasCleaning):
             
             importer_accuracy = importer_accuracy_probability
             exporter_accuracy = exporter_accuracy_probability
-
-        import pdb
-        pdb.set_trace()
         
         trdiscrep_exp = (np.sum(trdiscrep_exp, axis=1) / ncountries).reshape(-1, 1)
         trdiscrep_imp = (np.sum(trdiscrep_imp, axis=1) / ncountries).reshape(-1, 1)
@@ -414,8 +409,6 @@ class CountryCountryYear(_AtlasCleaning):
                 "acc_final",
             ],
         )
-        import pdb
-        pdb.set_trace()
         cy_accuracy.to_parquet("data/intermediate/accuracy_new.parquet")
         return cy_accuracy
 
@@ -448,9 +441,6 @@ class CountryCountryYear(_AtlasCleaning):
             suffixes=("", "_for_importer"),
         ).drop(columns=["iso"])
         
-        import pdb
-        pdb.set_trace()
-
         ccy_acc = ccy_acc[ccy_acc.importer != ccy_acc.exporter]
 
         for entity in ["exporter", "importer"]:
@@ -507,8 +497,6 @@ class CountryCountryYear(_AtlasCleaning):
                 0,
             ),
         )
-        import pdb
-        pdb.set_trace()
 
         ccy_acc["discrep"] = np.exp(
             np.abs(np.log(ccy_acc["export_value_fob"] / ccy_acc["import_value_fob"]))
@@ -629,9 +617,6 @@ class CountryCountryYear(_AtlasCleaning):
             "importer_accuracy_score",
         ]
         df = df[columns_to_keep]
-        logging.info("PAUSE BEFORE SAVING NEW")
-        import pdb
-        pdb.set_trace()
 
         # Save the DataFrame to a file
         output_path = os.path.join(
