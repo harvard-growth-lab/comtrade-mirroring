@@ -9,6 +9,7 @@ from clean.aggregate_trade import AggregateTrade
 from clean.utils import get_classifications, merge_classifications
 
 from clean.country_country_year import CountryCountryYear
+from clean.accuracy import Accuracy
 
 logging.basicConfig(level=logging.INFO)
 CIF_RATIO = 0.075
@@ -46,7 +47,7 @@ def run_atlas_cleaning(ingestion_attrs):
         # depending on year, merge multiple classifications and then takes median of values
         df = merge_classifications(year, ingestion_attrs["root_dir"])
 
-        # expect insurance/freight to be approximately 1.08 of imports_fob
+        # place holder for the cost of insurance/freight ==1.08 
         # TODO: replace with compute distance function
         df["import_value_fob"] = df["import_value_cif"] * (1 - CIF_RATIO)
 
@@ -69,6 +70,11 @@ def run_atlas_cleaning(ingestion_attrs):
         )
 
         ccy = CountryCountryYear(df, year, **ingestion_attrs)
+        ccy.save_parquet(ccy.df, 'processed', 'country_country_year_test')
+        
+        accuracy = Accuracy(ccy.df, ccy.ncountries, year, **ingestion_attrs)
+        accuracy.save_parquet(accuracy.df, 'processed', 'accuracy_test')
+        
 
     # concat all total_raw files for all years
     # TODO: need to distinguish by requested classification

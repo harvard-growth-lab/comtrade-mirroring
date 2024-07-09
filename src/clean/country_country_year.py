@@ -29,13 +29,13 @@ class CountryCountryYear(_AtlasCleaning):
 
         # Set parameters
         self.year = year
-        self.df = df.copy(deep=True)
+        self.df = df
 
-        # Step 1: Prepare economic indicators
+        # Prepare economic indicators
         cpi, population = self.add_economic_indicators()
         cpi = self.inflation_adjustment(cpi)
 
-        # Step 2: Clean and filter data
+        # Clean and filter data
         self.clean_data()
         logging.info(f"after clean data {self.df.shape}")
 
@@ -56,38 +56,42 @@ class CountryCountryYear(_AtlasCleaning):
         )
         
         self.filter_by_population_threshold(population)
-        logging.info(f"shape after filter by population  {self.df.shape}")
-        ccy = self.df.copy(deep=True)
+        # save intermediate ccy file
+        self.save_parquet(self.df, 'intermediate', 'country_country_year')
+        # ccy = self.df.copy(deep=True)
+        # import pdb
+        # pdb.set_trace()
         self.compare_base_year_trade_values()
-        logging.info(f"shape after trade values comparison  {self.df.shape}")
 
 
-        # Step 3: Calculate trade statistics
+        # Calculate trade statistics
         self.calculate_trade_reporting_discrepancy()
         self.filter_by_trade_flows()
-        ncountries = self.df["exporter"].nunique()
+        self.ncountries = self.df["exporter"].nunique()
+        logging.info(self.df["exporter"].nunique())
         self.calculate_trade_percentages()
         self.normalize_trade_flows()
+        logging.info("final: ", self.df["exporter"].nunique())
         
-
-        # Step 4: Compute accuracy scores
-        ccy_accuracy = self.compute_accuracy_scores(ncountries)
+        
+        # Compute accuracy scores
+#         ccy_accuracy = self.compute_accuracy_scores(ncountries)
     
-        (
-            ccy_accuracy,
-            exporter_accuracy_percentiles,
-            importer_accuracy_percentiles,
-        ) = self.calculate_accuracy_percentiles(ccy, ccy_accuracy)
+#         (
+#             ccy_accuracy,
+#             exporter_accuracy_percentiles,
+#             importer_accuracy_percentiles,
+#         ) = self.calculate_accuracy_percentiles(ccy, ccy_accuracy)
 
-        # Step 5: Estimate trade values
-        ccy_accuracy = self.calculate_weights(ccy_accuracy, exporter_accuracy_percentiles, importer_accuracy_percentiles)
+#         # Step 5: Estimate trade values
+#         ccy_accuracy = self.calculate_weights(ccy_accuracy, exporter_accuracy_percentiles, importer_accuracy_percentiles)
 
-        ccy_accuracy = self.calculate_estimated_value(
-            ccy_accuracy, exporter_accuracy_percentiles, importer_accuracy_percentiles
-        )
+#         ccy_accuracy = self.calculate_estimated_value(
+#             ccy_accuracy, exporter_accuracy_percentiles, importer_accuracy_percentiles
+#         )
 
-        # Step 6: Finalize output
-        self.finalize_output(ccy_accuracy)
+#         # Step 6: Finalize output
+#         self.finalize_output(ccy_accuracy)
 
 
     def clean_data(self):
@@ -113,8 +117,6 @@ class CountryCountryYear(_AtlasCleaning):
         self.df["cif_ratio"] = self.df["cif_ratio"].apply(
             lambda val: min(val, 0.20) if pd.notnull(val) else val
         )
-        # saved as temp_accuracy.dta in stata
-        # self.df.to_parquet(f"data/intermediate/ccy_{year}.parquet")
 
     def filter_by_population_threshold(self, population: pd.DataFrame()):
         """
@@ -507,10 +509,10 @@ class CountryCountryYear(_AtlasCleaning):
         
     def calculate_estimated_value(self, df, export_percentiles, import_percentiles):
         """
-        Series of conditions to determine estimated trade value using accuracy scores
-        and relative percentage of imports and exports
+        Series of filtered data based on Nan values with applied conditions to determine 
+        estimated trade value. Uses accuracy scores and relative percentage of imports and exports
         """
-        
+        # est trade value only if accuracy scores and trade values are not nan
         filtered_df = (
             (df["importer_accuracy_score"].notna()) &
             (df["exporter_accuracy_score"].notna()) &
@@ -522,6 +524,13 @@ class CountryCountryYear(_AtlasCleaning):
             df.loc[filtered_df, 'import_value_fob'] * (1 - df.loc[filtered_df, 'weight'])
         )
         
+        # est trade value only if accuracy scores are not nan
+        filtered_df = (
+            (df["importer_accuracy_score"].notna()) &
+            (df["exporter_accuracy_score"].notna()) &
+            df["est_trade_value"].isna()
+        )
+
         # conditions to determine est_trade_value
         conditions = [
             (df["exporter_accuracy_score"] < export_percentiles[0.50]) & (df["importer_accuracy_score"] >= import_percentiles[0.90]),
@@ -539,19 +548,13 @@ class CountryCountryYear(_AtlasCleaning):
             df[["import_value_fob", "export_value_fob"]].max(axis=1),
         ]
 
-        filtered_df = (
-            (df["importer_accuracy_score"].notna()) &
-            (df["exporter_accuracy_score"].notna()) &
-            df["est_trade_value"].isna()
-        )
-
-        # Use numpy.select to apply conditions
         df.loc[filtered_df, "est_trade_value"] = np.select(
             condlist=conditions,
             choicelist=replacement_values,
             default=df["est_trade_value"]
         )
-                
+        
+        # remaining est trade value with nan
         filtered_df = df["est_trade_value"].isna()
         importer_mask = filtered_df & (df["importer_weight"] == 1)
         exporter_mask = filtered_df & (df["exporter_weight"] == 1)
@@ -562,7 +565,7 @@ class CountryCountryYear(_AtlasCleaning):
         # fill remaining NaNs with import_value_fob
         df["est_trade_value"] = df["est_trade_value"].fillna(df["import_value_fob"])
 
-        # Replace 0 with NaN
+        # Replace est trade value 0 with NaN
         df.loc[df["est_trade_value"] == 0, "est_trade_value"] = np.nan
 
         df = df.drop(columns=["discrep"])

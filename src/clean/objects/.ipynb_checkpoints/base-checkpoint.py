@@ -53,21 +53,11 @@ class _AtlasCleaning(object):
 
     def load_parquet(
         self,
-        table_name: str,
-        schema: typing.Optional[str] = None,
+        data_folder,
+        table_name: str
     ):
-        if schema is not None:
-            read_dir = os.path.join(self.root_dir, schema)
-        else:
-            read_dir = os.path.join(self.root_dir)
-
+        read_dir = os.path.join(self.root_dir, 'data', data_folder)
         df = pd.read_parquet(os.path.join(read_dir, f"{table_name}.parquet"))
-        if self.limit_data_coverage and "year" in df.columns:
-            if schema == "sitc":
-                df = df[df.year >= (self.latest_year - 25)]
-            else:
-                df = df[df.year >= self.earliest_year]
-
         return df
 
     def save_parquet(self, df, data_folder, table_name: str):
