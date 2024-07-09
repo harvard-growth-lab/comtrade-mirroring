@@ -4,12 +4,12 @@ from glob import glob
 import pandas as pd
 
 # from scipy.stats.mstats import winsorize
-from clean.objects.base import _AtlasCleaning
+from clean.table_objects.base import _AtlasCleaning
 from clean.aggregate_trade import AggregateTrade
 from clean.utils import get_classifications, merge_classifications
 
-from clean.country_country_year import CountryCountryYear
-from clean.accuracy import Accuracy
+from clean.table_objects.country_country_year import CountryCountryYear
+from clean.table_objects.accuracy import Accuracy
 
 logging.basicConfig(level=logging.INFO)
 CIF_RATIO = 0.075
@@ -70,12 +70,13 @@ def run_atlas_cleaning(ingestion_attrs):
         )
 
         ccy = CountryCountryYear(df, year, **ingestion_attrs)
-        ccy.save_parquet(ccy.df, 'processed', 'country_country_year')
+        ccy.save_parquet(ccy.df, 'processed', f'country_country_year_{year}')
         
         accuracy = Accuracy(ccy.ncountries, year, **ingestion_attrs)
-        accuracy.save_parquet(accuracy.df, 'processed', 'accuracy')
+        accuracy.save_parquet(accuracy.df, 'processed', f'accuracy_{year}')
         
 
+    # TODO: concat all years
     # concat all total_raw files for all years
     # TODO: need to distinguish by requested classification
     ccy_list = glob(
