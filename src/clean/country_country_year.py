@@ -64,13 +64,14 @@ class CountryCountryYear(_AtlasCleaning):
 
         # Step 3: Calculate trade statistics
         self.calculate_trade_reporting_discrepancy()
-        self.filter_by_trade_flows
+        self.filter_by_trade_flows()
+        ncountries = self.df["exporter"].nunique()
         self.calculate_trade_percentages()
         self.normalize_trade_flows()
         
 
         # Step 4: Compute accuracy scores
-        ccy_accuracy = self.compute_accuracy_scores()
+        ccy_accuracy = self.compute_accuracy_scores(ncountries)
     
         (
             ccy_accuracy,
@@ -164,6 +165,8 @@ class CountryCountryYear(_AtlasCleaning):
                                 | (self.df["importer"] == iso)
                             )
                         ]
+        import pdb
+        pdb.set_trace()
 
         # confirms all countries included have data as importer and exporter if not, then drop the country
         importer_only, exporter_only = set(self.df["importer"].unique()) - set(
@@ -184,6 +187,7 @@ class CountryCountryYear(_AtlasCleaning):
             self.df["exporter"].nunique() == self.df["importer"].nunique()
         ), f"Number of exporters does not equal number of importers"
 
+        
     def compare_base_year_trade_values(self):
         """
         Convert all trade dollars to base year (2010 - US) and zero out trade between countries
@@ -216,14 +220,6 @@ class CountryCountryYear(_AtlasCleaning):
         ] = 0.0
 
         # Filter rows
-        mask_exporter = self.df.groupby("exporter")["exports_const_usd"].transform(
-            lambda x: (x > 0).any()
-        )
-        mask_importer = self.df.groupby("importer")["imports_const_usd"].transform(
-            lambda x: (x > 0).any()
-        )
-        self.df = self.df[mask_exporter & mask_importer]
-
         self.df = self.df.groupby("exporter").filter(
             lambda row: (row["exports_const_usd"] > 0).sum() > 0
         )
@@ -278,8 +274,6 @@ class CountryCountryYear(_AtlasCleaning):
         """ """
         # count trade flows for each country as an importer and exporter
         for trade_flow in ["importer", "exporter"]:
-            import pdb
-            pdb.set_trace()
             self.df[f"{trade_flow}_nflows"] = (
                 (
                     (self.df["exports_const_usd"] != 0.0)
@@ -301,7 +295,7 @@ class CountryCountryYear(_AtlasCleaning):
                 / self.df[f"{trade_flow}_nflows"]
             )
 
-    def compute_accuracy_scores(self):
+    def compute_accuracy_scores(self, ncountries):
         """
         Compute accuracy scores for exporters and importers based on trade reporting discrepancies.
 
@@ -345,34 +339,29 @@ class CountryCountryYear(_AtlasCleaning):
             .values.reshape(-1, 1)
         )
         
-        import pdb
-        pdb.set_trace()
-
-        ncountries = self.df["exporter"].nunique()
+        
         # initialize accuracy to one
         exporter_accuracy = np.ones((ncountries, 1))
         importer_accuracy = np.ones((ncountries, 1))
 
         for _ in range(0, 25):
             # @ is element-wise multiplication
-            prob_exporter_accuracy = 1 / np.divide(
+            exporter_accuracy_probability = 1 / np.divide(
                 (trdiscrep_exp @ importer_accuracy), nflows_exp
             )
-            prob_importer_accuracy = 1 / np.divide(
+            importer_accuracy_probability = 1 / np.divide(
                 (trdiscrep_imp @ exporter_accuracy), nflows_imp
             )
             
-            importer_accuracy = prob_importer_accuracy
-            exporter_accuracy = prob_exporter_accuracy
+            importer_accuracy = importer_accuracy_probability
+            exporter_accuracy = exporter_accuracy_probability
+
         import pdb
         pdb.set_trace()
-
+        
         trdiscrep_exp = (np.sum(trdiscrep_exp, axis=1) / ncountries).reshape(-1, 1)
         trdiscrep_imp = (np.sum(trdiscrep_imp, axis=1) / ncountries).reshape(-1, 1)
         
-        import pdb
-        pdb.set_trace()
-
         # fix some df has single exporter for year 2015
         if self.alog == 1:
             exporter_accuracy = np.ln(exporter_accuracy)
@@ -387,7 +376,6 @@ class CountryCountryYear(_AtlasCleaning):
 
         if self.af == 0:
             accuracy_score = np.mean([exporter_accuracy, importer_accuracy], axis=0)
-            # df["A_f"] = df[["A_e", "A_i"]].mean(axis=1)
 
         elif self.af == 1:
             accuracy_score = PCA().fit_transform(exporter_accuracy, importer_accuracy)
@@ -428,7 +416,7 @@ class CountryCountryYear(_AtlasCleaning):
         )
         import pdb
         pdb.set_trace()
-        cy_accuracy.to_parquet("data/intermediate/accuracy.parquet")
+        cy_accuracy.to_parquet("data/intermediate/accuracy_new.parquet")
         return cy_accuracy
 
     
