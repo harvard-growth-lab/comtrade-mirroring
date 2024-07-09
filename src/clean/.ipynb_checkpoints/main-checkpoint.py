@@ -70,10 +70,10 @@ def run_atlas_cleaning(ingestion_attrs):
         )
 
         ccy = CountryCountryYear(df, year, **ingestion_attrs)
-        ccy.save_parquet(ccy.df, 'processed', 'country_country_year_test')
+        ccy.save_parquet(ccy.df, 'processed', 'country_country_year')
         
-        accuracy = Accuracy(ccy.df, ccy.ncountries, year, **ingestion_attrs)
-        accuracy.save_parquet(accuracy.df, 'processed', 'accuracy_test')
+        accuracy = Accuracy(ccy.ncountries, year, **ingestion_attrs)
+        accuracy.save_parquet(accuracy.df, 'processed', 'accuracy')
         
 
     # concat all total_raw files for all years
