@@ -404,8 +404,8 @@ class CountryCountryYear(_AtlasCleaning):
                 "nflows_imp",
                 "trdiscrep_exp",
                 "trdiscrep_imp",
-                "acc_exp",
-                "acc_imp",
+                "exporter_accuracy",
+                "importer_accuracy",
                 "acc_final",
             ],
         )
@@ -417,10 +417,10 @@ class CountryCountryYear(_AtlasCleaning):
         """ """
         # earlier ccy
         ccy_acc = ccy.merge(
-            ccy_accuracy[["year", "iso", "acc_exp", "acc_imp"]].rename(
+            ccy_accuracy[["year", "iso", "exporter_accuracy", "importer_accuracy"]].rename(
                 columns={
-                    "acc_exp": "exporter_accuracy_score",
-                    "acc_imp": "acc_imp_for_exporter",
+                    "exporter_accuracy": "exporter_accuracy_score",
+                    "importer_accuracy": "acc_imp_for_exporter",
                 }
             ),
             left_on=["year", "exporter"],
@@ -429,10 +429,10 @@ class CountryCountryYear(_AtlasCleaning):
         ).drop(columns=["iso"])
 
         ccy_acc = ccy_acc.merge(
-            ccy_accuracy[["year", "iso", "acc_exp", "acc_imp"]].rename(
+            ccy_accuracy[["year", "iso", "exporter_accuracy", "importer_accuracy"]].rename(
                 columns={
-                    "acc_exp": "acc_exp_for_importer",
-                    "acc_imp": "importer_accuracy_score",
+                    "exporter_accuracy": "acc_exp_for_importer",
+                    "importer_accuracy": "importer_accuracy_score",
                 }
             ),
             left_on=["year", "importer"],
@@ -484,13 +484,13 @@ class CountryCountryYear(_AtlasCleaning):
 
         # include set of countries
         ccy_acc = ccy_acc.assign(
-            weight_exporter=np.where(
+            exporter_weight=np.where(
                 (ccy_acc.exporter_accuracy_score.notna())
                 & (ccy_acc.exporter_accuracy_score > exporter_accuracy_percentiles[0.10]),
                 1,
                 0,
             ),
-            weight_importer=np.where(
+            importer_weight=np.where(
                 (ccy_acc.importer_accuracy_score.notna())
                 & (ccy_acc.importer_accuracy_score > importer_accuracy_percentiles[0.10]),
                 1,
@@ -507,75 +507,62 @@ class CountryCountryYear(_AtlasCleaning):
         
     def calculate_estimated_value(self, df, export_percentiles, import_percentiles):
         """
-        Series of conditions to determine estimated trade value
+        Series of conditions to determine estimated trade value using accuracy scores
+        and relative percentage of imports and exports
         """
-        logging.info("Estimating total trade flows between countries")
+        
+        filtered_df = (
+            (df["importer_accuracy_score"].notna()) &
+            (df["exporter_accuracy_score"].notna()) &
+            (df["import_value_fob"].notna()) &
+            (df["export_value_fob"].notna())
+        )
+        df.loc[filtered_df, 'est_trade_value'] = (
+            df.loc[filtered_df, 'export_value_fob'] * df.loc[filtered_df, 'weight'] + 
+            df.loc[filtered_df, 'import_value_fob'] * (1 - df.loc[filtered_df, 'weight'])
+        )
+        
+        # conditions to determine est_trade_value
+        conditions = [
+            (df["exporter_accuracy_score"] < export_percentiles[0.50]) & (df["importer_accuracy_score"] >= import_percentiles[0.90]),
+            (df["exporter_accuracy_score"] >= export_percentiles[0.90]) & (df["importer_accuracy_score"] < import_percentiles[0.50]),
+            (df["exporter_accuracy_score"] < export_percentiles[0.25]) & (df["importer_accuracy_score"] >= import_percentiles[0.75]),
+            (df["exporter_accuracy_score"] >= export_percentiles[0.75]) & (df["importer_accuracy_score"] < import_percentiles[0.25]),
+            (df["exporter_weight"] == 1) & (df["importer_weight"] == 1),
+        ]
 
-        df["est_trade_value"] = np.where(
-            (df.exporter_accuracy_score.notna())
-            & (df.importer_accuracy_score.notna())
-            & (df.import_value_fob.notna())
-            & (df.export_value_fob.notna()),
-            df.export_value_fob * df.weight + df.import_value_fob * (1 - df.weight),
-            np.nan,
+        replacement_values = [
+            df["import_value_fob"],
+            df["export_value_fob"],
+            df["import_value_fob"],
+            df["export_value_fob"],
+            df[["import_value_fob", "export_value_fob"]].max(axis=1),
+        ]
+
+        filtered_df = (
+            (df["importer_accuracy_score"].notna()) &
+            (df["exporter_accuracy_score"].notna()) &
+            df["est_trade_value"].isna()
         )
 
-        # conditions to determine est_trade_value
-        # TODO: loop through and filter dataset so not running notna() each time
-        df.loc[
-            (df["exporter_accuracy_score"] < export_percentiles[0.50])
-            & (df["importer_accuracy_score"] >= import_percentiles[0.90])
-            & (df["importer_accuracy_score"].notna())
-            & (df["exporter_accuracy_score"].notna())
-            & df["est_trade_value"].isna(),
-            "est_trade_value",
-        ] = df["import_value_fob"]
+        # Use numpy.select to apply conditions
+        df.loc[filtered_df, "est_trade_value"] = np.select(
+            condlist=conditions,
+            choicelist=replacement_values,
+            default=df["est_trade_value"]
+        )
+                
+        filtered_df = df["est_trade_value"].isna()
+        importer_mask = filtered_df & (df["importer_weight"] == 1)
+        exporter_mask = filtered_df & (df["exporter_weight"] == 1)
 
-        df.loc[
-            (df["exporter_accuracy_score"] >= export_percentiles[0.90])
-            & (df["importer_accuracy_score"] < import_percentiles[0.50])
-            & (df["importer_accuracy_score"].notna())
-            & (df["exporter_accuracy_score"].notna())
-            & df["est_trade_value"].isna(),
-            "est_trade_value",
-        ] = df["export_value_fob"]
+        df.loc[importer_mask, "est_trade_value"] = df.loc[importer_mask, "import_value_fob"]
+        df.loc[exporter_mask, "est_trade_value"] = df.loc[exporter_mask, "export_value_fob"]
 
-        df.loc[
-            (df["exporter_accuracy_score"] < export_percentiles[0.25])
-            & (df["importer_accuracy_score"] >= import_percentiles[0.75])
-            & (df["importer_accuracy_score"].notna())
-            & (df["exporter_accuracy_score"].notna())
-            & df["est_trade_value"].isna(),
-            "est_trade_value",
-        ] = df["import_value_fob"]
+        # fill remaining NaNs with import_value_fob
+        df["est_trade_value"] = df["est_trade_value"].fillna(df["import_value_fob"])
 
-        df.loc[
-            (df["exporter_accuracy_score"] >= export_percentiles[0.75])
-            & (df["importer_accuracy_score"] < import_percentiles[0.25])
-            & (df["importer_accuracy_score"].notna())
-            & (df["exporter_accuracy_score"].notna())
-            & df["est_trade_value"].isna(),
-            "est_trade_value",
-        ] = df["export_value_fob"]
-
-        df.loc[
-            (df["importer_accuracy_score"].notna())
-            & (df["exporter_accuracy_score"].notna())
-            & (df["weight_exporter"] == 1)
-            & (df["weight_importer"] == 1)
-            & df["est_trade_value"].isna(),
-            "est_trade_value",
-        ] = df[["import_value_fob", "export_value_fob"]].max(axis=1)
-
-        df.loc[
-            (df["weight_importer"] == 1) & df["est_trade_value"].isna(),
-            "est_trade_value",
-        ] = df["import_value_fob"]
-        df.loc[
-            (df["weight_exporter"] == 1) & df["est_trade_value"].isna(),
-            "est_trade_value",
-        ] = df["export_value_fob"]
-        df.loc[df["est_trade_value"].isna(), "est_trade_value"] = df["import_value_fob"]
+        # Replace 0 with NaN
         df.loc[df["est_trade_value"] == 0, "est_trade_value"] = np.nan
 
         df = df.drop(columns=["discrep"])
@@ -611,8 +598,8 @@ class CountryCountryYear(_AtlasCleaning):
             "final_trade_value",
             # "cif_ratio",
             "weight",
-            "weight_exporter",
-            "weight_importer",
+            "exporter_weight",
+            "importer_weight",
             "exporter_accuracy_score",
             "importer_accuracy_score",
         ]
