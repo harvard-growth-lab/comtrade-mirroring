@@ -158,7 +158,7 @@ class AggregateTrade(_AtlasCleaning):
     def aggregate_data(self, df):
         """
         extract unique pair of importer and exporter by import and export trade values
-        for both product level: [0, 1]
+        for both product level: [0, 4]
         """
         df = (
             df.groupby(

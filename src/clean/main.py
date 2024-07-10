@@ -10,6 +10,7 @@ from clean.utils import get_classifications, merge_classifications
 
 from clean.table_objects.country_country_year import CountryCountryYear
 from clean.table_objects.accuracy import Accuracy
+from clean.table_objects.country_country_product_year import CountryCountryProductYear
 
 logging.basicConfig(level=logging.INFO)
 CIF_RATIO = 0.075
@@ -47,7 +48,7 @@ def run_atlas_cleaning(ingestion_attrs):
         # depending on year, merge multiple classifications and then takes median of values
         df = merge_classifications(year, ingestion_attrs["root_dir"])
 
-        # place holder for the cost of insurance/freight ==1.08 
+        # place holder for the cost of insurance/freight ==1.08
         # TODO: replace with compute distance function
         df["import_value_fob"] = df["import_value_cif"] * (1 - CIF_RATIO)
 
@@ -70,11 +71,13 @@ def run_atlas_cleaning(ingestion_attrs):
         )
 
         ccy = CountryCountryYear(df, year, **ingestion_attrs)
-        ccy.save_parquet(ccy.df, 'processed', f'country_country_year_{year}')
-        
+        ccy.save_parquet(ccy.df, "processed", f"country_country_year_{year}")
+
         accuracy = Accuracy(ccy.ncountries, year, **ingestion_attrs)
-        accuracy.save_parquet(accuracy.df, 'processed', f'accuracy_{year}')
-        
+        accuracy.save_parquet(accuracy.df, "processed", f"accuracy_{year}")
+
+        ccpy = CountryCountryProductYear(year, **ingestion_attrs)
+        ccpy.save_parquet(ccpy.df, "processed", f"country_country_product_{year}")
 
     # TODO: concat all years
     # concat all total_raw files for all years
@@ -89,22 +92,6 @@ def run_atlas_cleaning(ingestion_attrs):
         )
     )
     ccy_df = pd.concat(map(pd.read_parquet, ccy_list), ignore_index=True)
-
-    # TODO: compute_distance(ccy_df, start_year, end_year)
-    # ccy_df.to_csv(
-    #     os.path.join(
-    #         ingestion_attrs["root_dir"], "data", "intermediate", f"ccy_{start_year}_{end_year}.csv"
-    #     ),
-    #     index=False,
-    # )
-
-    #         weights.append(self.df)
-
-    #         weights_years_total = pd.concat(weights)
-    #         output_path = os.path.join(
-    #             self.processed_data_path, f"weights_{start_year}-{end_year}.parquet"
-    #         )
-    #         weights_years_total.to_parquet(output_path)
 
 
 def compute_distance(df, start_year, end_year):
