@@ -5,12 +5,13 @@ import pandas as pd
 
 # from scipy.stats.mstats import winsorize
 from clean.table_objects.base import _AtlasCleaning
-from clean.aggregate_trade import AggregateTrade
+from clean.table_objects.aggregate_trade import AggregateTrade
 from clean.utils import get_classifications, merge_classifications
 
 from clean.table_objects.country_country_year import CountryCountryYear
 from clean.table_objects.accuracy import Accuracy
 from clean.table_objects.country_country_product_year import CountryCountryProductYear
+from clean.table_objects.complexity import Complexity
 
 logging.basicConfig(level=logging.INFO)
 CIF_RATIO = 0.075
@@ -39,13 +40,17 @@ def run_atlas_cleaning(ingestion_attrs):
         # get possible classifications based on year
         classifications = get_classifications(year)
 
-        list(
-            map(
-                lambda product_class: AggregateTrade(year, **ingestion_attrs),
-                classifications,
+        try:
+            list(
+                map(
+                    lambda product_class: AggregateTrade(year, **ingestion_attrs),
+                    classifications,
+                )
             )
-        )
-        # depending on year, merge multiple classifications and then takes median of values
+        except ValueError as e:
+            logging.error(f"Downloader file not found, skipping {self.year}")
+        
+        # depending on year, merge multiple classifications, take median of values
         df = merge_classifications(year, ingestion_attrs["root_dir"])
 
         # place holder for the cost of insurance/freight ==1.08 
