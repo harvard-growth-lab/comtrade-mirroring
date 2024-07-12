@@ -37,11 +37,13 @@ def run_atlas_cleaning(ingestion_attrs):
     start_year = ingestion_attrs["start_year"]
     end_year = ingestion_attrs["end_year"]
     product_classification = ingestion_attrs["product_classification"]
+    downloaded_files_path = ingestion_attrs['downloaded_files_path']
     
     # load data 
     dist = pd.read_stata(os.path.join('data', 'raw', "dist_cepii.dta"))
     
     for year in range(start_year, end_year + 1):
+        logging.info(f"Aggregating data for {year}")
         # get possible classifications based on year
         classifications = get_classifications(year)
 
@@ -53,9 +55,11 @@ def run_atlas_cleaning(ingestion_attrs):
                 )
             )
         except ValueError as e:
-            logging.error(f"Downloader file not found, skipping {self.year}")        
+            logging.error(f"Downloader file not found, skipping {year}")        
 
+    logging.info("Completed data aggregations, starting next loop")
     for year in range(start_year, end_year + 1):
+        logging.info(f"Beginning compute distance for year {year}")
         # depending on year, merge multiple classifications, take median of values
         df = merge_classifications(year, ingestion_attrs["root_dir"])
         # compute distance requires three years of aggregated data
@@ -111,11 +115,18 @@ def compute_distance(df, year, product_classification, dist):
     based on distances compute cost of cif as a percentage of import_value_fob
     """
     # lag and lead
-    df_lag = pd.read_parquet(f"data/intermediate/{year - 1}_{product_classification}.parquet")
-    df_lead = pd.read_parquet(f"data/intermediate/{year + 1}_{product_classification}.parquet")
+    try:
+        df_lag = pd.read_parquet(f"data/intermediate/{year - 1}_{product_classification}.parquet")
+    except:
+        df_lag = pd.DataFrame()
+        logging.error(f"Didn't download year: {df_lag}")
+    try:
+        df_lead = pd.read_parquet(f"data/intermediate/{year + 1}_{product_classification}.parquet")
+    except:
+        df_lead = pd.DataFrame()
+        logging.error(f"Didn't download year: {df_lead}")
     df = pd.concat([df_lag, df, df_lead])
 
-    df = pd.read_parquet("data/intermediate/2015_compute_dist_syn.parquet")
     dist.loc[dist["exporter"] == "ROU", "exporter"] = "ROM"
     dist.loc[dist["importer"] == "ROU", "exporter"] = "ROM"
 
@@ -198,8 +209,9 @@ def run_stata_code(df, stata_code):
 
 if __name__ == "__main__":
     ingestion_attrs = {
-        "start_year": 2015,
-        "end_year": 2015,
+        "start_year": 2019,
+        "end_year": 2022,
+        "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",

@@ -6,7 +6,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 def get_classifications(year):
-    """ 
+    """
     Based on year, generate list of all available classifications for that year
     """
     classifications = []
@@ -29,7 +29,7 @@ def get_classifications(year):
 
 
 def merge_classifications(year: str, root_dir: str) -> pd.DataFrame():
-    """ 
+    """
     Based on year, merge comtrade classifications and then take median export, import values
     """
     merge_conditions = [
