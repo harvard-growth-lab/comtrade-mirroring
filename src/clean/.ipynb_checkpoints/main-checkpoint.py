@@ -47,15 +47,15 @@ def run_atlas_cleaning(ingestion_attrs):
         # get possible classifications based on year
         classifications = get_classifications(year)
 
-        try:
-            list(
-                map(
-                    lambda product_class: AggregateTrade(year, **ingestion_attrs),
-                    classifications,
-                )
+        # try:
+        list(
+            map(
+                lambda product_class: AggregateTrade(year, **ingestion_attrs),
+                classifications,
             )
-        except ValueError as e:
-            logging.error(f"Downloader file not found, skipping {year}")        
+        )
+        # except ValueError as e:
+        #     logging.error(f"Downloader file not found, skipping {year}")        
 
     logging.info("Completed data aggregations, starting next loop")
     for year in range(start_year, end_year + 1):
@@ -162,13 +162,6 @@ def compute_distance(df, year, product_classification, dist):
         loc beta_dist = _coef[lndist]
         loc se_dist = _se[lndist]
         loc beta_contig = _coef[contig]
-
-        display "`c'"
-        display "`c_se'"
-        display "`beta_dist'"
-        display "`se_dist'"
-        display "`beta_contig'"
-
         '''
     output = run_stata_code(df, stata_code)
     # Extract the coefficients and standard errors

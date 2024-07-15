@@ -47,6 +47,7 @@ class AggregateTrade(_AtlasCleaning):
         self.check_commodity_code_length()
         self.label_unspecified_products()
         self.handle_germany_reunification()
+        self.save_parquet(self.df, "raw", f"cleaned_{self.product_class}_{self.year}")
 
         # returns bilateral data
         df_0 = self.aggregate_data(0)
@@ -62,7 +63,7 @@ class AggregateTrade(_AtlasCleaning):
         self.df = self.df[
             ["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
         ]
-        self.save_parquet(self.df, "intermediate", f"{self.year}_{self.product_class}")
+        self.save_parquet(self.df, "intermediate", f"{self.product_class}_{self.year}")
 
         
     def load_comtrade_downloader_file(self):
@@ -73,16 +74,6 @@ class AggregateTrade(_AtlasCleaning):
             df = pd.read_parquet(
                 os.path.join(self.downloaded_files_path, f"{self.product_class}_{self.year}.parquet"),
                 columns=self.COLUMNS_DICT.keys(),
-                # dtype={
-                #     "period": int,
-                #     "digitLevel": int,
-                #     "flowCode": int,
-                #     "reporterISO3": str,
-                #     "partnerISO3": str,
-                #     "cmdCode": str,
-                #     "qty": float,
-                #     "primaryValue": int,
-                # },
             )
         except FileNotFoundError:
             error_message = f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate"
@@ -92,7 +83,16 @@ class AggregateTrade(_AtlasCleaning):
     
     def filter_data(self):
         self.df = self.df[self.df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_class])]
-        self.df['trade_flow'] = pd.Categorical(self.df['trade_flow'].replace({'M': 1, 'X': 2}))
+        #TODO how do I handle reimports and reexports (SEBA question)
+        self.df['trade_flow'] = self.df['trade_flow'].replace({'M': 1, 'X': 2, 'RM': 3, 'RX': 4})
+        try:
+            self.df['trade_flow'] = self.df['trade_flow'].astype(str).astype(int)
+        except:
+            print("unexpected unique trade_flow and not mapped to an integer")
+
+
+
+
         self.df[self.df["trade_flow"].isin([1, 2])]
     
     def recode_other_asia_to_taiwan(self):

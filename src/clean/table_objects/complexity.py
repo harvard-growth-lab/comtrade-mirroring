@@ -15,6 +15,11 @@ logging.basicConfig(level=logging.INFO)
 
 # complexity table
 class Complexity(_AtlasCleaning):
+    NOISY_TRADE = {"S2": ["9310","9610","9710","9999","XXXX"],
+                    "H0": ["7108","9999","XXXX"],
+                    "H4": ["7108","9999","XXXX"]}
+
+    
     def __init__(self, year, **kwargs):
         super().__init__(**kwargs)
         self.product_class = kwargs["product_classification"]
@@ -51,23 +56,58 @@ class Complexity(_AtlasCleaning):
         self.df = self.df.merge(aux_stats[['exporter', 'population', 'gdp_pc']], on=["exporter"], how="left")
         self.df = self.df.fillna(0.0)
         
-        import pdb
-        pdb.set_trace()
-        
         self.df['reliable'] = self.df['exporter'].isin(reliable_exporters.exporter).astype(bool)
-        # country specific 
         # reliable=False for "SYR", "GNQ", used to be HKG (now added to Atlas)
         # reliable=True for "ARM","BHR","CYP","MMR","SWZ","TGO","BFA" "COD","LBR","SDN","SGP"
         
-        # totals by country
-        # totals by product
-        # save fulldata
-                                          
+        total_by_country = self.df[['exporter', 'export_value']].groupby('exporter').agg('sum').reset_index()
+        total_by_commodity = self.df[['commodity_code', 'export_value']].groupby('commodity_code').agg('sum').reset_index()
+        drop_countries = total_by_country[total_by_country.export_value==0.0]['exporter'].tolist() 
+        drop_commodities = total_by_commodity[total_by_commodity.export_value==0.0]['commodity_code'].tolist()
+        if drop_countries or drop_commodities:
+            self.df = self.df[~self.df.exporter.isin(drop_countries)]
+            self.df = self.df[~self.df.commodity_code.isin(drop_commodities)]
+            
+        # save all countries, 207 countries
+        # self.save_parquet(self.df, "intermediate", "all_countries")
+        
+        # only reliable countries, subset of 123 countries
+        self.df = self.df[self.df.reliable==True]
+        
+        self.df = self.df.groupby(['exporter', 'commodity_code']).agg({
+                'export_value': 'sum',
+                'population': 'first',
+                'gdp_pc': 'first'
+            }).reset_index()
+        
+        # drop unknown trade
+        self.df = self.df[~self.df.commodity_code.isin(self.NOISY_TRADE[self.product_classification])]
+        
+        # mcp matrix, rca of 1 and greater
+        self.df['by_commodity_code'] = self.df.groupby('commodity_code')['export_value'].transform('sum')
+        self.df['by_exporter'] = self.df.groupby('exporter')['export_value'].transform('sum')
+        # rca calculation, a commodity's percentage of a country export basket in comparison to the 
+        # export value for the product in global trade 
+        self.df['rca'] = (self.df['export_value'] / self.df['by_exporter']) / (self.df['by_commodity_code'] / self.df['export_value'].sum())
 
-        # separate into more reliable countries (~140 countries)
+        self.df['mcp'] = np.where(self.df['rca'] >= 1, 1, 0)
+        
+        import pdb
+        pdb.set_trace()
+        
+        # filter data
+        # Herfindahl-Hirschman Index Calculation
+        self.df['HH_index'] = (self.df['export_value'] / self.df.groupby('commodity_code')['export_value'].transform('sum'))**2
+        self.df = self.df.groupby('commodity_code').agg('sum')
+        export_totals = self.df.export_value.sum()
+        self.df['share'] = 100 * (self.df['export_value'] / self.df.export_value.sum())
+        effective_exporters = 1 / self.df['HH_index']
+        
 
-        # remove noisy commodity codes
-
+        
+        # pass mcp matrix into Shreyas's ecomplexity package
+        
+        
         # col names for complexity package
         trade_cols = {
             "time": "year",
@@ -77,7 +117,9 @@ class Complexity(_AtlasCleaning):
         }
 
         # calculate complexity
-        complexity_df = ecomplexity(self.df, trade_cols)
+        complexity_df = ecomplexity(self.df[['year', 'exporter', 'commodity_code', 'export_value']], 
+                                    trade_cols,
+                                   presence_test="manual")
 
         # calculate proximity
         proximity_df = proximity(self.df, trade_cols)

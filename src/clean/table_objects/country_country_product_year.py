@@ -28,7 +28,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.year = year
 
         # load data
-        self.df = self.load_parquet(f"raw/{self.product_classification}", f"{self.product_classification}_{self.year}")
+        
+        self.df = self.load_parquet(f"raw", f"cleaned_{self.product_classification}_{self.year}")
         # leaving filter for quick testing purposes
         # self.df = self.df[
         #     (self.df.reporter_iso.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
