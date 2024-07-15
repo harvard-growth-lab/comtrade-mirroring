@@ -84,10 +84,10 @@ def run_atlas_cleaning(ingestion_attrs):
             index=False,
         )
 
-        ccy = CountryCountryYear(df, year, **ingestion_attrs)
+        ccy = CountryCountryYear(year, **ingestion_attrs)
         ccy.save_parquet(ccy.df, 'processed', f'country_country_year_{year}')
         
-        accuracy = Accuracy(ccy.ncountries, year, **ingestion_attrs)
+        accuracy = Accuracy(year, **ingestion_attrs)
         accuracy.save_parquet(accuracy.df, 'processed', f'accuracy_{year}')
         
         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
