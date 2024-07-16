@@ -33,11 +33,12 @@ def merge_classifications(year: str, root_dir: str) -> pd.DataFrame():
     Based on year, merge comtrade classifications and then take median export, import values
     """
     merge_conditions = [
-        (year >= 1976 and year < 1995, f"{year}_S2.parquet"),
-        (year >= 1995, f"{year}_H0.parquet"),
-        (year >= 1995, f"{year}_HS.parquet"),
-        (year >= 1985 and year <= 2003, f"{year}_S3.parquet"),
-        (year <= 2003, f"{year}_ST.parquet"),
+        # TODO account for hs12?
+        (year >= 1976 and year < 1995, f"S2_{year}.parquet"),
+        (year >= 1995, f"H0_{year}.parquet"),
+        (year >= 1995, f"HS_{year}.parquet"),
+        (year >= 1985 and year <= 2003, f"S3_{year}.parquet"),
+        (year <= 2003, f"ST_{year}.parquet"),
     ]
 
     df = pd.DataFrame()
@@ -67,7 +68,7 @@ def merge_classifications(year: str, root_dir: str) -> pd.DataFrame():
             except FileNotFoundError:
                 continue
 
-    df.astype({"importer": str, "exporter": str}).dtypes
+    # df.astype({"importer": str, "exporter": str}).dtypes
     df["export_value_fob"] = df.filter(like="export_value_fob").median(axis=1)
     df["import_value_cif"] = df.filter(like="import_value_cif").median(axis=1)
     return df[["year", "exporter", "importer", "export_value_fob", "import_value_cif"]]

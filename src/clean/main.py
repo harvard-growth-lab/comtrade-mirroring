@@ -98,17 +98,22 @@ def compute_distance(df, year, product_classification, dist):
     based on distances compute cost of cif as a percentage of import_value_fob
     """
     # lag and lead
-    try:
-        df_lag = pd.read_parquet(f"data/intermediate/{year - 1}_{product_classification}.parquet")
-    except:
-        df_lag = pd.DataFrame()
-        logging.error(f"Didn't download year: {df_lag}")
-    try:
-        df_lead = pd.read_parquet(f"data/intermediate/{year + 1}_{product_classification}.parquet")
-    except:
-        df_lead = pd.DataFrame()
-        logging.error(f"Didn't download year: {df_lead}")
-    df = pd.concat([df_lag, df, df_lead])
+    df_lag_lead = pd.DataFrame()
+    for year in [year - 1, year + 1]:
+        try:
+            df_lag_lead = pd.read_parquet(f"data/intermediate/{year}_{product_classification}.parquet")
+        except FileNotFoundError:
+            try:
+                classifications = get_classifications(year)
+                list(
+                    map(
+                        lambda product_class: AggregateTrade(year, **ingestion_attrs),
+                        classifications,
+                    )
+                )
+            except:
+                logging.error(f"Didn't download year: {year}")
+        df = pd.concat([df, df_lag_lead])
 
     dist.loc[dist["exporter"] == "ROU", "exporter"] = "ROM"
     dist.loc[dist["importer"] == "ROU", "exporter"] = "ROM"

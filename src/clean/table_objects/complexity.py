@@ -84,24 +84,43 @@ class Complexity(_AtlasCleaning):
         self.df = self.df[~self.df.commodity_code.isin(self.NOISY_TRADE[self.product_classification])]
         
         # mcp matrix, rca of 1 and greater
+        mcp = self.df.copy(deep=True)
         self.df['by_commodity_code'] = self.df.groupby('commodity_code')['export_value'].transform('sum')
         self.df['by_exporter'] = self.df.groupby('exporter')['export_value'].transform('sum')
         # rca calculation, a commodity's percentage of a country export basket in comparison to the 
         # export value for the product in global trade 
         self.df['rca'] = (self.df['export_value'] / self.df['by_exporter']) / (self.df['by_commodity_code'] / self.df['export_value'].sum())
-
+        # mcp matrix binary?
         self.df['mcp'] = np.where(self.df['rca'] >= 1, 1, 0)
+        
+        # Herfindahl-Hirschman Index Calculation
+        self.df['HH_index'] = (self.df['export_value'] / self.df.groupby('commodity_code')['export_value'].transform('sum'))**2
+        # mcp becomes the count of cases where rca>=1 for each commoditycode
+        self.df = self.df.groupby('commodity_code').agg('sum')
+        self.df['share'] = 100 * (self.df['export_value'] / self.df.export_value.sum())
+        self.df = self.df.sort_by(["export_value"])
+        self.df['cumul_share'] = self.df.groupby('group')['share'].cumsum()
+        self.df['eff_exporters'] = 1 / self.df['HH_index']
+        
+        # generate flags:
+        self.df['flag_for_small_share'] = (self.df['cumul_share'] <= 0.025)
+        self.df['flag_for_few_exporters'] = (self.df['eff_exporters'] <= 2)
+        self.df['flag_for_low_ubiquity'] = (self.df['mcp'] <= 2)
         
         import pdb
         pdb.set_trace()
         
-        # filter data
-        # Herfindahl-Hirschman Index Calculation
-        self.df['HH_index'] = (self.df['export_value'] / self.df.groupby('commodity_code')['export_value'].transform('sum'))**2
-        self.df = self.df.groupby('commodity_code').agg('sum')
-        export_totals = self.df.export_value.sum()
-        self.df['share'] = 100 * (self.df['export_value'] / self.df.export_value.sum())
-        effective_exporters = 1 / self.df['HH_index']
+        self.df['exclude_flag'] = self.df['flag_for_small_share'] + self.df['flag_for_few_exporters'] + self.df['flag_for_low_ubiquity']
+        self.df['exclude_flag'] = np.where(self.df['exclude_flag'] > 0, 1, 0)
+        self.df['exclude_flag'] = np.where(self.df['export_value'] < 1, 1, 0)
+        drop_products_list = self.df[self.df['exclude_flag'==1]]['commodity_code'].unique().tolist()
+        # drop least traded products
+        self.df = self.df[~self.df['commodity_code'].isin(drop_products_list)]
+        
+                  
+        
+        import pdb
+        pdb.set_trace()
         
 
         

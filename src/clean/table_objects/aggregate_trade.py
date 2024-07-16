@@ -40,15 +40,15 @@ class AggregateTrade(_AtlasCleaning):
         # load data
         self.df = self.load_comtrade_downloader_file()
         logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
-        import pdb
-        pdb.set_trace()
         # filter and clean data
         self.filter_data()
         # moved to compactor
         # self.recode_other_asia_to_taiwan()
         self.check_commodity_code_length()
         self.label_unspecified_products()
+        logging.info(f"Size after unspecified products dataframe {self.df.shape}")
         self.handle_germany_reunification()
+
         logging.info(f"Size of raw_cleaned comtrade dataframe {self.df.shape}")
         self.save_parquet(self.df, "raw", f"cleaned_{self.product_class}_{self.year}")
 
@@ -96,6 +96,7 @@ class AggregateTrade(_AtlasCleaning):
     
 
     def recode_other_asia_to_taiwan(self):
+        # already doing this in compactor
         self.df.loc[self.df["reporter"] == "Other Asia, nes", "reporter_iso"] = "TWN"
         self.df.loc[self.df["partner"] == "Other Asia, nes", "partner_iso"] = "TWN"
         self.df[["reporter_iso", "partner_iso"]] = self.df[

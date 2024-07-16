@@ -331,6 +331,7 @@ class CountryCountryProductYear(_AtlasCleaning):
                 * ((self.trade_score == 1) * (self.accuracy_scores == 2))
             )
         )
+        self.save_parquet("processed", "f{year}_qa_in_estfinalvalue_ccpy")
 
     def reweight_final_trade_value(self, trade_total):
         """
