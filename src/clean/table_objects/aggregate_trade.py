@@ -12,7 +12,7 @@ from clean.table_objects.base import _AtlasCleaning
 
 
 class AggregateTrade(_AtlasCleaning):
-    COLUMNS_DICT = {
+    COLUMNS_DICT_COMPACTOR = {
         "period": "year",
         "digitLevel": "product_level",
         "flowCode": "trade_flow",
@@ -21,6 +21,16 @@ class AggregateTrade(_AtlasCleaning):
         "cmdCode": "commodity_code",
         "primaryValue": "trade_value",
         "qty": "qty",
+    }
+    COLUMNS_DICT = {
+        "Year": "year",
+        "Aggregate Level": "product_level",
+        "Trade Flow Code": "trade_flow",
+        "Reporter ISO": "reporter_iso",
+        "Partner ISO": "partner_iso",
+        "Commodity Code": "commodity_code",
+        "Trade Value (US$)": "trade_value",
+        "Qty": "qty",
     }
 
     def __init__(self, year, **kwargs):
@@ -66,34 +76,63 @@ class AggregateTrade(_AtlasCleaning):
         self.df = self.df[
             ["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
         ]
-        self.save_parquet(self.df, "intermediate", f"{self.product_class}_{self.year}")
+        self.save_parquet(
+            self.df, "intermediate", f"og_data_{self.product_class}_{self.year}"
+        )
 
-        
     def load_comtrade_downloader_file(self):
         """
         outputs a dataframe for one year of Comtrade data from Comtrade Downloader script
         """
         try:
-            df = pd.read_parquet(
-                os.path.join(self.downloaded_files_path, f"{self.product_class}_{self.year}.parquet"),
-                columns=self.COLUMNS_DICT.keys(),
+            columns = self.COLUMNS_DICT
+            df = pd.read_csv(
+                os.path.join(
+                    self.raw_data_path, f"{self.product_class}_{self.year}.zip"
+                ),
+                usecols=self.COLUMNS_DICT.keys(),
+                dtype={
+                    "Year": int,
+                    "Aggregate Level": int,
+                    "Trade Flow Code": int,
+                    "Reporter": str,
+                    "Reporter ISO": str,
+                    "Partner": str,
+                    "Partner ISO": str,
+                    "Commodity Code": str,
+                    "Qty Unit Code": int,
+                    "Qty": float,
+                    "Trade Value (US$)": int,
+                },
             )
         except FileNotFoundError:
-            error_message = f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate"
-            raise ValueError(error_message)
-        return df.rename(columns=self.COLUMNS_DICT)
-    
-    
+            try:
+                columns = self.COLUMNS_DICT_COMPACTOR
+                df = pd.read_parquet(
+                    os.path.join(
+                        self.downloaded_files_path,
+                        f"{self.product_class}_{self.year}.parquet",
+                    ),
+                    columns=self.COLUMNS_DICT_COMPACTOR.keys(),
+                )
+            except:
+                error_message = f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate"
+                raise ValueError(error_message)
+        return df.rename(columns=columns)
+
     def filter_data(self):
-        self.df = self.df[self.df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_class])]
-        #TODO how do I handle reimports and reexports (SEBA question)
-        self.df['trade_flow'] = self.df['trade_flow'].replace({'M': 1, 'X': 2, 'RM': 3, 'RX': 4})
+        self.df = self.df[
+            self.df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_class])
+        ]
+        # TODO how do I handle reimports and reexports (SEBA question)
+        self.df["trade_flow"] = self.df["trade_flow"].replace(
+            {"M": 1, "X": 2, "RM": 3, "RX": 4}
+        )
         try:
-            self.df['trade_flow'] = self.df['trade_flow'].astype(str).astype(int)
+            self.df["trade_flow"] = self.df["trade_flow"].astype(str).astype(int)
         except:
             print("unexpected unique trade_flow and not mapped to an integer")
         self.df = self.df[self.df["trade_flow"].isin([1, 2])]
-    
 
     def recode_other_asia_to_taiwan(self):
         # already doing this in compactor
@@ -105,18 +144,20 @@ class AggregateTrade(_AtlasCleaning):
         self.df.drop(["reporter", "partner"], axis=1)
 
     def check_commodity_code_length(self):
-        mask = self.df["commodity_code"].astype(str).str.len() < self.df["product_level"]
+        mask = (
+            self.df["commodity_code"].astype(str).str.len() < self.df["product_level"]
+        )
         if not self.df[mask].empty:
             self.df["commodity_code"] = self.df.apply(
-                lambda row: row["commodity_code"].zfill(row["product_level"]), axis=0
+                lambda row: str(row["commodity_code"]).zfill(int(row["product_level"])),
+                axis=1,
             )
 
         for level in self.HIERARCHY_LEVELS[self.product_class]:
             self.df[self.df.product_level == level]["commodity_code"] = self.df[
                 self.df.product_level == level
             ]["commodity_code"].str.zfill(level)
-            
-    
+
     def label_unspecified_products(self):
         mask = (
             (self.df["partner_iso"] == "ANS")
@@ -129,18 +170,24 @@ class AggregateTrade(_AtlasCleaning):
         self.df.loc[mask, "reporter_ansnoclas"] = self.df.loc[mask, "trade_value"]
         self.df["reporter_ansnoclas"] = self.df["reporter_ansnoclas"].fillna(0)
 
-        
     def handle_germany_reunification(self):
         # drop DEU/DDR trade because within country trade
-        self.df = self.df[~((self.df["reporter_iso"] == "DEU") & (self.df["partner_iso"] == "DDR"))]
-        self.df = self.df[~((self.df["reporter_iso"] == "DDR") & (self.df["partner_iso"] == "DEU"))]
+        self.df = self.df[
+            ~((self.df["reporter_iso"] == "DEU") & (self.df["partner_iso"] == "DDR"))
+        ]
+        self.df = self.df[
+            ~((self.df["reporter_iso"] == "DDR") & (self.df["partner_iso"] == "DEU"))
+        ]
         # DEU is current germany iso code
         self.df.loc[self.df["partner_iso"].isin(["DEU", "DDR"]), "partner_iso"] = "DEU"
-        self.df.loc[self.df["reporter_iso"].isin(["DEU", "DDR"]), "reporter_iso"] = "DEU"
+        self.df.loc[
+            self.df["reporter_iso"].isin(["DEU", "DDR"]), "reporter_iso"
+        ] = "DEU"
         # set USSR to Russia
         self.df.loc[self.df["partner_iso"].isin(["RUS", "SUN"]), "partner_iso"] = "RUS"
-        self.df.loc[self.df["reporter_iso"].isin(["RUS", "SUN"]), "reporter_iso"] = "RUS"
-    
+        self.df.loc[
+            self.df["reporter_iso"].isin(["RUS", "SUN"]), "reporter_iso"
+        ] = "RUS"
 
     def aggregate_data(self, level):
         """
@@ -263,33 +310,36 @@ class AggregateTrade(_AtlasCleaning):
         Raises:
         AssertionError: If there are duplicate exporters or importers in the world trade data.
         """
-        exp_to_world = self.df[self.df.importer == "WLD"][["exporter", "exports_0"]].rename(
-                columns={"exports_0": "total_exports"}
-            )
-        imp_to_world = self.df[self.df.exporter == "WLD"][["importer", "imports_0"]].rename(
-                columns={"imports_0": "total_imports"}
-            )
-        
+        exp_to_world = self.df[self.df.importer == "WLD"][
+            ["exporter", "exports_0"]
+        ].rename(columns={"exports_0": "total_exports"})
+        imp_to_world = self.df[self.df.exporter == "WLD"][
+            ["importer", "imports_0"]
+        ].rename(columns={"imports_0": "total_imports"})
+
         self.df = self.df[(self.df.importer != "WLD") & (self.df.exporter != "WLD")]
         assert exp_to_world["exporter"].is_unique
         self.df = self.df.merge(exp_to_world, on="exporter", how="left")
         assert imp_to_world["importer"].is_unique
         self.df = self.df.merge(imp_to_world, on="importer", how="left")
 
-        
     def remove_outliers(self):
-        """ 
+        """
         Adjusts export and import values for countries claiming unrealistically high trade volumes.
-        
+
         Calculates export (FOB) and import (CIF) values as the mean of 0-digit and 4-digit product levels
-        
+
         Removes entries with negligible trade values.
         """
         self.df["ratio_exp"] = (
-            (self.df[f"exp2ansnoclas_4"] / self.df["total_exports"]).astype(float).fillna(0.0)
+            (self.df[f"exp2ansnoclas_4"] / self.df["total_exports"])
+            .astype(float)
+            .fillna(0.0)
         )
         self.df["ratio_imp"] = (
-            (self.df[f"imp2ansnoclas_4"] / self.df["total_imports"]).astype(float).fillna(0.0)
+            (self.df[f"imp2ansnoclas_4"] / self.df["total_imports"])
+            .astype(float)
+            .fillna(0.0)
         )
 
         for direction in ["exports", "imports"]:
@@ -300,7 +350,11 @@ class AggregateTrade(_AtlasCleaning):
                     self.df[f"exports_{product_level}"] - self.df["exp2ansnoclas_4"],
                     self.df[f"{direction}_{product_level}"],
                 )
-        self.df["export_value_fob"] = self.df[["exports_0digit", f"exports_4digit"]].mean(axis=1)
-        self.df["import_value_cif"] = self.df[["imports_0digit", f"imports_4digit"]].mean(axis=1)
+        self.df["export_value_fob"] = self.df[
+            ["exports_0digit", f"exports_4digit"]
+        ].mean(axis=1)
+        self.df["import_value_cif"] = self.df[
+            ["imports_0digit", f"imports_4digit"]
+        ].mean(axis=1)
         # evaluate removing this, filtering out less than $1,000
         self.df[self.df[["export_value_fob", "import_value_cif"]].max(axis=1) >= 1_000]

@@ -29,7 +29,10 @@ class CountryCountryYear(_AtlasCleaning):
 
         # Set parameters
         self.year = year
-        self.df = self.load_parquet(f"raw/{self.product_classification}", f"ccy_raw_{self.year}")
+        self.df = self.load_parquet(
+            os.path.join(f"intermediate", self.product_classification),
+            f"{self.product_classification}_{self.year}",
+        )
 
         # Prepare economic indicators
         cpi, population = self.add_economic_indicators()
@@ -80,20 +83,20 @@ class CountryCountryYear(_AtlasCleaning):
             self.df[["import_value_fob", "export_value_fob"]].max(axis=1)
             >= self.trade_value_threshold
         ]
-    
-    
+
     def apply_relative_cif_markup(self):
         """ """
         # ensures cif_ratio is never greater than .20
         df = self.df.copy(deep=True)
-        df["cif_ratio"] = (
-            df["import_value_cif"] / df["import_value_fob"]
-        ) - 1
+        df["cif_ratio"] = (df["import_value_cif"] / df["import_value_fob"]) - 1
+        logging.info("review CIF ratio from compute distance")
+        import pdb
+
+        pdb.set_trace()
         df["cif_ratio"] = df["cif_ratio"].apply(
             lambda val: min(val, 0.20) if pd.notnull(val) else val
         )
         return df
-        
 
     def filter_by_population_threshold(self, population: pd.DataFrame()):
         """
@@ -177,7 +180,7 @@ class CountryCountryYear(_AtlasCleaning):
             self.df[col] = self.df[col] / self.df.cpi_index_base
 
         self.df = self.df.drop(
-            columns=["cpi_index_base", "import_value_cif"]#, "cif_ratio"]
+            columns=["cpi_index_base", "import_value_cif"]  # , "cif_ratio"]
         )
         # in stata v_e and v_i
         self.df = self.df.rename(
@@ -270,7 +273,6 @@ class CountryCountryYear(_AtlasCleaning):
                 ].transform("sum")
                 / self.df[f"{trade_flow}_nflows"]
             )
-
 
     def add_economic_indicators(self):
         """

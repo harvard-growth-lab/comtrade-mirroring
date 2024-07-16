@@ -26,7 +26,7 @@ class Accuracy(_AtlasCleaning):
         # load data
         ccy_intermediate = self.load_parquet("intermediate", "country_country_year")
         self.ccy = self.load_parquet("processed", "country_country_year")
-        
+
         # Compute accuracy scores
         ccy_accuracy = self.compute_accuracy_scores()
 
@@ -97,7 +97,7 @@ class Accuracy(_AtlasCleaning):
         # initialize accuracy to one
         exporter_accuracy = np.ones((self.ncountries, 1))
         importer_accuracy = np.ones((self.ncountries, 1))
-        
+
         for _ in range(0, 25):
             # @ is element-wise multiplication
             exporter_accuracy_probability = 1 / np.divide(
@@ -109,7 +109,6 @@ class Accuracy(_AtlasCleaning):
 
             importer_accuracy = importer_accuracy_probability
             exporter_accuracy = exporter_accuracy_probability
-            
 
         trdiscrep_exp = (np.sum(trdiscrep_exp, axis=1) / self.ncountries).reshape(-1, 1)
         trdiscrep_imp = (np.sum(trdiscrep_imp, axis=1) / self.ncountries).reshape(-1, 1)

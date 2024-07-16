@@ -22,11 +22,20 @@ class _AtlasCleaning(object):
 
     INGESTION_OUTPUT_FORMATS = ["parquet", "hdf5"]
 
-    def __init__(self, start_year, end_year, downloaded_files_path, root_dir, product_classification):
+    def __init__(
+        self,
+        start_year,
+        end_year,
+        downloaded_files_path,
+        root_dir,
+        product_classification,
+    ):
         # INPUTS
         self.product_classification = product_classification
-        
-        self.downloaded_files_path = os.path.join(downloaded_files_path, self.product_classification)
+
+        self.downloaded_files_path = os.path.join(
+            downloaded_files_path, self.product_classification
+        )
         self.root_dir = root_dir
         self.data_path = os.path.join(self.root_dir, "data")
         self.raw_data_path = os.path.join(self.data_path, "raw")
@@ -44,8 +53,6 @@ class _AtlasCleaning(object):
         self.df = None
         self.start_year = start_year
         self.end_year = end_year
-
-        
 
         self.wdi_path = os.path.join(self.raw_data_path, "wdi_extended.dta")
 
