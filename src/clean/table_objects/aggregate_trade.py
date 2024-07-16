@@ -39,7 +39,9 @@ class AggregateTrade(_AtlasCleaning):
 
         # load data
         self.df = self.load_comtrade_downloader_file()
-        
+        logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
+        import pdb
+        pdb.set_trace()
         # filter and clean data
         self.filter_data()
         # moved to compactor
@@ -47,6 +49,7 @@ class AggregateTrade(_AtlasCleaning):
         self.check_commodity_code_length()
         self.label_unspecified_products()
         self.handle_germany_reunification()
+        logging.info(f"Size of raw_cleaned comtrade dataframe {self.df.shape}")
         self.save_parquet(self.df, "raw", f"cleaned_{self.product_class}_{self.year}")
 
         # returns bilateral data
@@ -89,12 +92,9 @@ class AggregateTrade(_AtlasCleaning):
             self.df['trade_flow'] = self.df['trade_flow'].astype(str).astype(int)
         except:
             print("unexpected unique trade_flow and not mapped to an integer")
-
-
-
-
-        self.df[self.df["trade_flow"].isin([1, 2])]
+        self.df = self.df[self.df["trade_flow"].isin([1, 2])]
     
+
     def recode_other_asia_to_taiwan(self):
         self.df.loc[self.df["reporter"] == "Other Asia, nes", "reporter_iso"] = "TWN"
         self.df.loc[self.df["partner"] == "Other Asia, nes", "partner_iso"] = "TWN"
@@ -299,7 +299,6 @@ class AggregateTrade(_AtlasCleaning):
                     self.df[f"exports_{product_level}"] - self.df["exp2ansnoclas_4"],
                     self.df[f"{direction}_{product_level}"],
                 )
-
         self.df["export_value_fob"] = self.df[["exports_0digit", f"exports_4digit"]].mean(axis=1)
         self.df["import_value_cif"] = self.df[["imports_0digit", f"imports_4digit"]].mean(axis=1)
         # evaluate removing this, filtering out less than $1,000

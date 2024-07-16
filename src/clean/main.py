@@ -47,22 +47,19 @@ def run_atlas_cleaning(ingestion_attrs):
         # get possible classifications based on year
         classifications = get_classifications(year)
 
-        # try:
         list(
             map(
                 lambda product_class: AggregateTrade(year, **ingestion_attrs),
                 classifications,
             )
         )
-        # except ValueError as e:
-        #     logging.error(f"Downloader file not found, skipping {year}")        
-
+    
     logging.info("Completed data aggregations, starting next loop")
     for year in range(start_year, end_year + 1):
-        logging.info(f"Beginning compute distance for year {year}")
         # depending on year, merge multiple classifications, take median of values
         df = merge_classifications(year, ingestion_attrs["root_dir"])
         # compute distance requires three years of aggregated data
+        logging.info(f"Beginning compute distance for year {year}")
         compute_distance(df, year, product_classification, dist)
         df["import_value_fob"] = df["import_value_cif"] * (1 - CIF_RATIO)
 
@@ -92,22 +89,8 @@ def run_atlas_cleaning(ingestion_attrs):
         
         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
         ccpy.save_parquet(ccpy.df, 'processed', f'country_country_product_{year}')
-                
 
-    # TODO: concat all years
-    # concat all total_raw files for all years
-    # TODO: need to distinguish by requested classification
-    ccy_list = glob(
-        os.path.join(
-            ingestion_attrs["root_dir"],
-            "data",
-            "raw",
-            product_classification,
-            "ccy_raw_*.parquet",
-        )
-    )
-    ccy_df = pd.concat(map(pd.read_parquet, ccy_list), ignore_index=True)
-
+        # complexity files
 
 
 def compute_distance(df, year, product_classification, dist):

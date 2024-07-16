@@ -19,7 +19,7 @@ class CountryCountryProductYear(_AtlasCleaning):
     }
     TRADE_DATA_DISCREPANCIES = 0
     NOT_SPECIFIED = 1
-    CIF_RATIO = 0.075
+    # CIF_RATIO = 0.075
 
     def __init__(self, year, **kwargs):
         super().__init__(**kwargs)
@@ -30,6 +30,9 @@ class CountryCountryProductYear(_AtlasCleaning):
         # load data
         
         self.df = self.load_parquet(f"raw", f"cleaned_{self.product_classification}_{self.year}")
+        logging.info(f"shape of raw cleaned data {self.df.shape}")
+        import pdb
+        pdb.set_trace()
         # leaving filter for quick testing purposes
         # self.df = self.df[
         #     (self.df.reporter_iso.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
@@ -87,8 +90,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.df = self.df[self.df.product_level == 6]
 
         # TODO: reivew if any initial repetitive country code cleaning
-        # TODO: repeat deal with germany/russia unification
-
         # drop commodity code totals
         self.df = self.df[self.df.commodity_code != "TOTAL"]
         drop_values = ["WLD", "NAN", "nan"]
