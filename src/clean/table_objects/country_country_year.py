@@ -33,33 +33,35 @@ class CountryCountryYear(_AtlasCleaning):
             os.path.join(f"intermediate", self.product_classification),
             f"{self.product_classification}_{self.year}",
         )
-
+        
         # Prepare economic indicators
         cpi, population = self.add_economic_indicators()
         cpi = self.inflation_adjustment(cpi)
-
+        
         # Clean and filter data
         self.clean_data()
-        ccy_cif_ratio = self.apply_relative_cif_markup()
-        # save intermediate ccy file (saved as temp_accuracy.dta in stata file)
-        self.save_parquet(ccy_cif_ratio, "intermediate", "country_country_year")
-
+        
         # merge data to have all possible combinations for exporter, importer
         all_combinations_ccy_index = pd.MultiIndex.from_product(
             [
+                [self.year],
                 self.df["exporter"].unique(),
                 self.df["importer"].unique(),
             ],
-            names=["exporter", "importer"],
+            names=["year", "exporter", "importer"],
         )
         all_combinations_ccy = pd.DataFrame(
             index=all_combinations_ccy_index
-        ).reset_index()
+        ).query("importer != exporter").reset_index().drop_duplicates()
 
         self.df = all_combinations_ccy.merge(
-            self.df, on=["exporter", "importer"], how="left"
+            self.df, on=["year", "exporter", "importer"], how="left"
         )
-
+        # temp_accuracy in stata
+        self.apply_relative_cif_markup()
+        # save intermediate ccy file (saved as temp_accuracy.dta in stata file)
+        self.save_parquet(self.df, "intermediate", "ccy_cif_markup")
+        
         self.filter_by_population_threshold(population)
         self.compare_base_year_trade_values()
 
@@ -68,7 +70,8 @@ class CountryCountryYear(_AtlasCleaning):
         self.filter_by_trade_flows()
         self.calculate_trade_percentages()
         self.normalize_trade_flows()
-
+        
+        
     def clean_data(self):
         self.df = self.df.dropna(subset=["exporter", "importer"])
         self.df = self.df[
@@ -87,16 +90,11 @@ class CountryCountryYear(_AtlasCleaning):
     def apply_relative_cif_markup(self):
         """ """
         # ensures cif_ratio is never greater than .20
-        df = self.df.copy(deep=True)
-        df["cif_ratio"] = (df["import_value_cif"] / df["import_value_fob"]) - 1
+        self.df["cif_ratio"] = (self.df["import_value_cif"] / self.df["import_value_fob"]) - 1
         logging.info("review CIF ratio from compute distance")
-        import pdb
-
-        pdb.set_trace()
-        df["cif_ratio"] = df["cif_ratio"].apply(
+        self.df["cif_ratio"] = self.df["cif_ratio"].apply(
             lambda val: min(val, 0.20) if pd.notnull(val) else val
         )
-        return df
 
     def filter_by_population_threshold(self, population: pd.DataFrame()):
         """
@@ -180,7 +178,7 @@ class CountryCountryYear(_AtlasCleaning):
             self.df[col] = self.df[col] / self.df.cpi_index_base
 
         self.df = self.df.drop(
-            columns=["cpi_index_base", "import_value_cif"]  # , "cif_ratio"]
+            columns=["cpi_index_base", "import_value_cif"]#, "cif_ratio"]
         )
         # in stata v_e and v_i
         self.df = self.df.rename(
@@ -323,7 +321,8 @@ class CountryCountryYear(_AtlasCleaning):
         ]
         cpi["cpi_index_base"] = cpi["cpi_index"] / base_year_cpi_index
 
-        cpi.to_parquet(
-            os.path.join(self.intermediate_data_path, "inflation_index.parquet")
-        )
+        self.save_parquet(cpi, "intermediate", "inflation_index")
+        # cpi.to_parquet(
+        #     os.path.join(self.intermediate_data_path, "inflation_index.parquet")
+        # )
         return cpi

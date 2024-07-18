@@ -24,7 +24,6 @@ class CountryCountryProductYear(_AtlasCleaning):
     def __init__(self, year, **kwargs):
         super().__init__(**kwargs)
         pr = cProfile.Profile()
-        pr.enable()
 
         self.product_classification = kwargs["product_classification"]
         self.year = year
@@ -32,22 +31,22 @@ class CountryCountryProductYear(_AtlasCleaning):
         # load data
 
         self.df = self.load_parquet(
-            f"raw", f"cleaned_{self.product_classification}_{self.year}"
+            f"intermediate", f"cleaned_{self.product_classification}_{self.year}"
         )
-        logging.info(f"shape of raw cleaned data {self.df.shape}")
+        # logging.info(f"number of exporters {len(self.df.exporter.unique())}")
         # leaving filter for quick testing purposes
         # self.df = self.df[
         #     (self.df.reporter_iso.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
         #     & (self.df.partner_iso.isin(["SAU", "IND", "CHL," "VEN", "ZWE"]))
         # ]
-        accuracy = self.load_parquet("processed", f"accuracy")
+        accuracy = self.load_parquet("processed", f"accuracy_{self.year}")
         # accuracy = accuracy[
         #     accuracy.value_final >= 100_000
         # ]
-        # accuracy = accuracy[
-        #     (accuracy.exporter.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
-        #     & (accuracy.importer.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
-        # ]
+#         accuracy = accuracy[
+#             (accuracy.exporter.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
+#             & (accuracy.importer.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
+#         ]
 
         # prepare the data
         self.filter_and_clean_data()
@@ -56,14 +55,28 @@ class CountryCountryProductYear(_AtlasCleaning):
         )
 
         # calculate the value of exports for each country pair and product
-        self.exports_matrix = self.generate_trade_value_matrix("exports")
-        self.imports_matrix = self.generate_trade_value_matrix("imports")
+        self.exports_matrix = self.generate_trade_value_matrix("exports", accuracy)
+        self.imports_matrix = self.generate_trade_value_matrix("imports", accuracy)
         # merge in cif ratio
-        # self.imports_matrix = self.imports_matrix * (1 - self.CIF_RATIO)
-        self.imports_matrix = self.imports_matrix.swaplevel().sort_index()
+        self.imports_matrix = self.imports_matrix.reset_index().merge(
+            accuracy[["exporter", "importer", "cif_ratio"]],
+            on=["importer", "exporter"],
+            how="left",
+        )
+        # account for cif 
+        cif_factor = (1 - self.imports_matrix['cif_ratio'])
+        self.imports_matrix = self.imports_matrix.set_index(['importer', 'exporter'])
+        self.imports_matrix = self.imports_matrix.drop(columns=['cif_ratio'])
+        self.imports_matrix = self.imports_matrix.multiply(np.array(cif_factor).reshape(-1,1), axis=0)
+        
+        
+        # swap importer, exporter to exporter, importer to merge with exports matrix
+        self.imports_matrix = self.imports_matrix.swaplevel()
 
         self.trade_score = self.assign_trade_scores()
         cc_trade_totals, self.accuracy_scores = self.assign_accuracy_scores(accuracy)
+        # import pdb
+        # pdb.set_trace()
 
         # prep matrices for trade value logic
         self.prepare_for_matrix_multiplication(accuracy)
@@ -76,13 +89,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.handle_not_specified()
 
         self.df["year"] = self.year
-        pr.disable()
-        s = io.StringIO()
-        sortby = SortKey.CUMULATIVE
-        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats()
-        print("RESULT OF CPROFILING")
-        print(s.getvalue())
 
     def filter_and_clean_data(self):
         """
@@ -117,6 +123,9 @@ class CountryCountryProductYear(_AtlasCleaning):
         ensuring all potential trade relationships are accounted for
         """
         # generate index on unique country pairs
+        logging.info("setup trade analysis")
+        # import pdb
+        # pdb.set_trace()
         accuracy["idpair"] = accuracy.groupby(["exporter", "importer"]).ngroup()
         country_pairs = accuracy[["idpair", "exporter", "importer"]]
 
@@ -169,14 +178,6 @@ class CountryCountryProductYear(_AtlasCleaning):
             df = self.df[self.df["trade_flow"] == 1][
                 ["reporter_iso", "partner_iso", "commodity_code", "trade_value"]
             ]
-            cif_ratio = accuracy[["exporter", "importer", "cif_ratio"]]
-            df = df.merge(
-                accuracy[["exporter", "importer", "cif_ratio"]],
-                left_on=["reporter_iso", "partner_iso"],
-                right_on=["exporter", "importer"],
-                how="left",
-            )
-            df["imports_value"] = df["imports_value"] * (1 - df["cif_ratio"])
 
         df.columns = [reporter, partner, "commodity_code", f"{trade_flow}_value"]
         #  all products and all country pairs
@@ -234,6 +235,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         Prepare data for matrix multiplication by reshaping and melting dataframes,
         merging trade data, and handling NaN values.
         """
+        import pdb
+        pdb.set_trace()
         self.weight_matrix = np.array(accuracy["weight"].values.reshape(-1, 1))
         self.weight_matrix = np.ones((self.npairs, self.nprod)) * self.weight_matrix
 
@@ -349,9 +352,6 @@ class CountryCountryProductYear(_AtlasCleaning):
                 * ((self.trade_score == 1) * (self.accuracy_scores == 2))
             )
         )
-        import pdb
-
-        pdb.set_trace()
 
     def reweight_final_trade_value(self, trade_total):
         """

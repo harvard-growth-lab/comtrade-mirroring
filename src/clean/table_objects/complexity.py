@@ -164,24 +164,42 @@ class Complexity(_AtlasCleaning):
         )
         # drop least traded products
         self.df = self.df[~self.df["commodity_code"].isin(drop_products_list)]
+        self.df['year'] = self.year
 
         # pass mcp matrix into Shreyas's ecomplexity package
         trade_cols = {
             "time": "year",
             "loc": "exporter",
             "prod": "commodity_code",
-            "val": "mcp",
+            "val": "export_value",
         }
 
-        # calculate complexity
+        # calculate complexity, not mcp matrix
         complexity_df = ecomplexity(
-            self.df[["year", "exporter", "commodity_code", "mcp"]],
+            self.df[["year", "exporter", "commodity_code", "export_value"]],
             trade_cols,
-            presence_test="manual",
+            # presence_test="manual",
         )
 
         # calculate proximity
         proximity_df = proximity(self.df, trade_cols)
+        
+        
+        
+        # Additional steps:
+        # pci1 = df['pci'].values  # Assuming 'pci' column exists
+        # rca1 = RCA
+        # eci1 = (rca1 >= 1) * pci1.T
+        # eci1 = eci1 / (rca1 >= 1).sum(axis=1, keepdims=True)
+        # eci1 = np.ones_like(rca1) * eci1
+
+        # values being generated from stata code output
+        prody = ((self.df['rca'] / self.df['rca'].sum()) * self.df['gdp_pc']).sum()
+        # pci_1 = df['
+        import pdb
+        pdb.set_trace()
+        
+        i = 0 
 
         # impute for all countries with product restrictions
         # presence of each country across products (m matrix for all countries)

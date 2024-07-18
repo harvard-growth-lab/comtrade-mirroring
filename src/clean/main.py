@@ -5,6 +5,7 @@ from glob import glob
 import pandas as pd
 from scipy.stats.mstats import winsorize
 import numpy as np
+from time import gmtime, strftime, localtime
 
 from clean.table_objects.base import _AtlasCleaning
 from clean.table_objects.aggregate_trade import AggregateTrade
@@ -34,6 +35,7 @@ def run_atlas_cleaning(ingestion_attrs):
             - end_year (int): Data coverage from the latest year.
             - root_dir (str): root directory path
     """
+    print(f"start time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
     start_year = ingestion_attrs["start_year"]
     end_year = ingestion_attrs["end_year"]
     product_classification = ingestion_attrs["product_classification"]
@@ -43,16 +45,18 @@ def run_atlas_cleaning(ingestion_attrs):
     dist = pd.read_stata(os.path.join('data', 'raw', "dist_cepii.dta"))
     
     for year in range(start_year - 1, end_year + 2):
-        logging.info(f"Aggregating data for {year}")
-        # get possible classifications based on year
-        classifications = get_classifications(year)
+        file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
+        if not os.path.isfile(file_name):
+            logging.info(f"Aggregating data for {year}")
+            # get possible classifications based on year
+            classifications = get_classifications(year)
 
-        list(
-            map(
-                lambda product_class: AggregateTrade(year, **ingestion_attrs),
-                classifications,
+            list(
+                map(
+                    lambda product_class: AggregateTrade(year, **ingestion_attrs),
+                    classifications,
+                )
             )
-        )
     
     logging.info("Completed data aggregations, starting next loop")
     for year in range(start_year, end_year + 1):
@@ -61,16 +65,14 @@ def run_atlas_cleaning(ingestion_attrs):
         # compute distance requires three years of aggregated data
         logging.info(f"Beginning compute distance for year {year}")
         df = compute_distance(df, year, product_classification, dist)
-        import pdb
-        pdb.set_trace()
-
+        
         os.makedirs(
             os.path.join(
                 ingestion_attrs["root_dir"], "data", "intermediate", product_classification
             ),
             exist_ok=True,
         )
-        # country country year input file
+        # country country year intermediate file, passed into CCY object
         df.to_parquet(
             os.path.join(
                 ingestion_attrs["root_dir"],
@@ -81,20 +83,18 @@ def run_atlas_cleaning(ingestion_attrs):
             ),
             index=False,
         )
-
         ccy = CountryCountryYear(year, **ingestion_attrs)
-        ccy.save_parquet(ccy.df, 'processed', f'og_data_country_country_year_{year}')
+        ccy.save_parquet(ccy.df, 'processed', f'country_country_year_{year}')
         
         accuracy = Accuracy(year, **ingestion_attrs)
         logging.info("confirm CIF ratio column is present")
-        import pdb
-        pdb.set_trace()
-        accuracy.save_parquet(accuracy.df, 'processed', f'og_data_accuracy_{year}')
+        accuracy.save_parquet(accuracy.df, 'processed', f'accuracy_{year}')
         
         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
-        ccpy.save_parquet(ccpy.df, 'processed', f'og_data_country_country_product_{year}')
+        ccpy.save_parquet(ccpy.df, 'processed', f'country_country_product_{year}')
 
         # complexity files
+        print(f"end time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
 
 def compute_distance(df, year, product_classification, dist):
@@ -103,13 +103,11 @@ def compute_distance(df, year, product_classification, dist):
     """
     # lag and lead
     df_lag_lead = pd.DataFrame()
-    for year in [year - 1, year + 1]:
+    for wrap_year in [year - 1, year + 1]:
         try:
-            df_lag_lead = pd.read_parquet(f"data/intermediate/og_data_{product_classification}_{year}.parquet")
+            df_lag_lead = pd.read_parquet(f"data/intermediate/aggregated_{product_classification}_{wrap_year}.parquet")
         except FileNotFoundError:
-            logging.error(f"Didn't download year: {year}")
-        import pdb
-        pdb.set_trace()
+            logging.error(f"Didn't download year: {wrap_year}")
         df = pd.concat([df, df_lag_lead])
 
     dist.loc[dist["exporter"] == "ROU", "exporter"] = "ROM"
