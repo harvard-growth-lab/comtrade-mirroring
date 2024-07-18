@@ -5,3 +5,4 @@ src/data/
 src/clean/__pycache__/
 src/clean/.ipynb_checkpoints/
 src/clean/stata_files/.ipynb_checkpoints/
+*/.ipynb_checkpoints/
