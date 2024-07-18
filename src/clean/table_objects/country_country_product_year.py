@@ -461,6 +461,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         atio of 'not specified' trade to total trade for each exporter ratio exceeds 1/3 (33.33%)
         unspecified trade.
         """
+        import pdb
+        pdb.set_trace()
         not_specified_val = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[
             self.product_classification
         ][self.NOT_SPECIFIED]

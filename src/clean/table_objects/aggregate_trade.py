@@ -49,19 +49,13 @@ class AggregateTrade(_AtlasCleaning):
         # load data
         self.df = self.load_comtrade_downloader_file()
         
-        import pdb
-        pdb.set_trace()
         logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
         # filter and clean data
         self.filter_data()
-        import pdb
-        pdb.set_trace()
 
         # moved to compactor
         # self.recode_other_asia_to_taiwan()
         self.check_commodity_code_length()
-        import pdb
-        pdb.set_trace()
 
         self.label_unspecified_products()
         logging.info(f"Size after unspecified products dataframe {self.df.shape}")
@@ -74,27 +68,14 @@ class AggregateTrade(_AtlasCleaning):
         df_4 = self.aggregate_data(4)
         self.df = df_0.merge(df_4, on=["importer", "exporter"])
         
-        import pdb
-        pdb.set_trace()
-
-
         # Process and integrate world trade data into the main dataset.
         self.aggregate_to_world_level()
-        import pdb
-        pdb.set_trace()
-
-
         self.remove_outliers()
-        import pdb
-        pdb.set_trace()
-
 
         self.df["year"] = self.year
         self.df = self.df[
             ["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
         ]
-        import pdb
-        pdb.set_trace()
 
         self.save_parquet(
             self.df, "intermediate", f"aggregated_{self.product_class}_{self.year}"
@@ -147,9 +128,12 @@ class AggregateTrade(_AtlasCleaning):
             self.df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_class])
         ]
         # TODO how do I handle reimports and reexports (SEBA question)
-        self.df["trade_flow"] = self.df["trade_flow"].replace(
+        self.df.loc[:, "trade_flow"] = self.df["trade_flow"].replace(
             {"M": 1, "X": 2, "RM": 3, "RX": 4}
         )
+        # self.df["trade_flow"] = self.df["trade_flow"].replace(
+        #     {"M": 1, "X": 2, "RM": 3, "RX": 4}
+        # )
         try:
             self.df["trade_flow"] = self.df["trade_flow"].astype(str).astype(int)
         except:

@@ -67,6 +67,7 @@ def run_atlas_cleaning(ingestion_attrs):
         
         os.makedirs(
             os.path.join(
+                # Totals_RAW_trade.dta
                 ingestion_attrs["root_dir"], "data", "intermediate", product_classification
             ),
             exist_ok=True,
@@ -114,6 +115,7 @@ def compute_distance(df, year, product_classification, dist):
             df_lag_lead = pd.read_parquet(f"data/intermediate/aggregated_{product_classification}_{wrap_year}.parquet")
         except FileNotFoundError:
             logging.error(f"Didn't download year: {wrap_year}")
+
         df = pd.concat([df, df_lag_lead])
 
     dist.loc[dist["exporter"] == "ROU", "exporter"] = "ROM"
@@ -124,22 +126,22 @@ def compute_distance(df, year, product_classification, dist):
     df.loc[df["exporter"] == "ROM", "exporter"] = "ROU"
     df.loc[df["importer"] == "ROM", "exporter"] = "ROU"
 
-
     df["lndist"] = np.log(df["distwces"])
     df.loc[(df['lndist'].isna()) & (df['dist'].notna()), 'lndist'] = np.log(df['dist'])
     df["oneplust"] = df["import_value_cif"] / df["export_value_fob"]
     df["lnoneplust"] = np.log(df["import_value_cif"] / df["export_value_fob"])
     df["tau"] = np.nan
-        
+    
+    compute_dist_df = df.copy(deep=True)
     # select the greater of the two, either the top 1% or 1,000,000
-    exp_p1 = max(df["export_value_fob"].quantile(0.01), 10**6)
-    imp_p1 = max(df["import_value_cif"].quantile(0.01), 10**6)
+    exp_p1 = max(compute_dist_df["export_value_fob"].quantile(0.01), 10**6)
+    imp_p1 = max(compute_dist_df["import_value_cif"].quantile(0.01), 10**6)
     # use to set min boundaries
-    df = df[~
-        (df["export_value_fob"] < exp_p1) | (df["import_value_cif"] < imp_p1)
+    compute_dist_df = compute_dist_df[~
+        (compute_dist_df["export_value_fob"] < exp_p1) | (compute_dist_df["import_value_cif"] < imp_p1)
     ]
-    df['lnoneplust'] = winsorize(df['lnoneplust'], limits=[0.1, 0.1])
-    df[['lnoneplust', 'lndist', 'contig']] = df[['lnoneplust', 'lndist', 'contig']].fillna(0.0)
+    compute_dist_df['lnoneplust'] = winsorize(compute_dist_df['lnoneplust'], limits=[0.1, 0.1])
+    compute_dist_df[['lnoneplust', 'lndist', 'contig']] = compute_dist_df[['lnoneplust', 'lndist', 'contig']].fillna(0.0)
 
     stata_code = '''
         egen int idc_o = group(exporter)
@@ -152,7 +154,7 @@ def compute_distance(df, year, product_classification, dist):
         loc se_dist = _se[lndist]
         loc beta_contig = _coef[contig]
         '''
-    output = run_stata_code(df, stata_code)
+    output = run_stata_code(compute_dist_df, stata_code)
     # Extract the coefficients and standard errors
     coefficients = output['e(b)'][0]
     std_errors = np.sqrt(np.diag(output['e(V)']))
@@ -164,7 +166,12 @@ def compute_distance(df, year, product_classification, dist):
         'se_dist': std_errors[0],
         'beta_contig': coefficients[1]
     }
+    
     tau_replace = res['c'] + (res['beta_dist'] * df['lndist']) + (res['beta_contig'] * df['contig'])
+    
+    # clean up compute dist df
+    del compute_dist_df
+
     df.loc[df['year'] == year, 'tau'] = tau_replace
     df.loc[(df['year'] == year) & (df['tau'] < 0) & (df['tau'].notna()), 'tau'] = 0
     df.loc[(df['year'] == year) & (df['tau'] > .2) & (df['tau'].notna()), 'tau'] = 0.2
