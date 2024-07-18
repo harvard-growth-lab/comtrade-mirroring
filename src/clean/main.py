@@ -6,6 +6,8 @@ import pandas as pd
 from scipy.stats.mstats import winsorize
 import numpy as np
 from time import gmtime, strftime, localtime
+import cProfile
+
 
 from clean.table_objects.base import _AtlasCleaning
 from clean.table_objects.aggregate_trade import AggregateTrade
@@ -45,18 +47,15 @@ def run_atlas_cleaning(ingestion_attrs):
     dist = pd.read_stata(os.path.join('data', 'raw', "dist_cepii.dta"))
     
     for year in range(start_year - 1, end_year + 2):
-        file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
-        if not os.path.isfile(file_name):
-            logging.info(f"Aggregating data for {year}")
-            # get possible classifications based on year
-            classifications = get_classifications(year)
-
-            list(
-                map(
-                    lambda product_class: AggregateTrade(year, **ingestion_attrs),
-                    classifications,
-                )
-            )
+        # file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
+        # if not os.path.isfile(file_name):
+        
+        # get possible classifications based on year
+        logging.info("removing classifications step until can confirm with Seba")
+        classifications = [product_classification]
+        # classifications = get_classifications(year)
+        logging.info(f"Aggregating data for {year} and these classifications {classifications}")
+        [AggregateTrade(year, product_class, **ingestion_attrs) for product_class in classifications]
     
     logging.info("Completed data aggregations, starting next loop")
     for year in range(start_year, end_year + 1):
@@ -90,11 +89,18 @@ def run_atlas_cleaning(ingestion_attrs):
         logging.info("confirm CIF ratio column is present")
         accuracy.save_parquet(accuracy.df, 'processed', f'accuracy_{year}')
         
+        # cProfile.run('run_ccpy()')
+        # cProfile.run('CountryCountryProductYear(year, **ingestion_attrs)')
+        # logging.info("finished running cprofile")
         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
         ccpy.save_parquet(ccpy.df, 'processed', f'country_country_product_{year}')
 
         # complexity files
         print(f"end time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+
+        
+def run_ccpy():
+    return CountryCountryProductYear(year, **ingestion_attrs)
 
 
 def compute_distance(df, year, product_classification, dist):

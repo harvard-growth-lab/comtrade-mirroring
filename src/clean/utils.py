@@ -34,11 +34,11 @@ def merge_classifications(year: str, root_dir: str) -> pd.DataFrame():
     """
     merge_conditions = [
         # TODO account for hs12?
-        (year >= 1976 and year < 1995, f"S2_{year}.parquet"),
-        (year >= 1995, f"H0_{year}.parquet"),
-        (year >= 1995, f"HS_{year}.parquet"),
-        (year >= 1985 and year <= 2003, f"S3_{year}.parquet"),
-        (year <= 2003, f"ST_{year}.parquet"),
+        (year >= 1976 and year < 1995, f"aggregated_S2_{year}.parquet"),
+        (year >= 1995, f"aggregated_H0_{year}.parquet"),
+        (year >= 1995, f"aggregated_HS_{year}.parquet"),
+        (year >= 1985 and year <= 2003, f"aggregated_S3_{year}.parquet"),
+        (year <= 2003, f"aggregated_ST_{year}.parquet"),
     ]
 
     df = pd.DataFrame()

@@ -57,6 +57,7 @@ class CountryCountryYear(_AtlasCleaning):
         self.df = all_combinations_ccy.merge(
             self.df, on=["year", "exporter", "importer"], how="left"
         )
+        self.df = self.df.drop(columns=["year"])
         # temp_accuracy in stata
         self.apply_relative_cif_markup()
         # save intermediate ccy file (saved as temp_accuracy.dta in stata file)

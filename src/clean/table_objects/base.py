@@ -33,9 +33,7 @@ class _AtlasCleaning(object):
         # INPUTS
         self.product_classification = product_classification
 
-        self.downloaded_files_path = os.path.join(
-            downloaded_files_path, self.product_classification
-        )
+        self.downloaded_files_path = downloaded_files_path
         self.root_dir = root_dir
         self.data_path = os.path.join(self.root_dir, "data")
         self.raw_data_path = os.path.join(self.data_path, "raw")

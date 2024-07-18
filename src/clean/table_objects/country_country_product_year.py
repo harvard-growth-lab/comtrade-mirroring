@@ -23,7 +23,6 @@ class CountryCountryProductYear(_AtlasCleaning):
 
     def __init__(self, year, **kwargs):
         super().__init__(**kwargs)
-        pr = cProfile.Profile()
 
         self.product_classification = kwargs["product_classification"]
         self.year = year
@@ -36,28 +35,32 @@ class CountryCountryProductYear(_AtlasCleaning):
         # logging.info(f"number of exporters {len(self.df.exporter.unique())}")
         # leaving filter for quick testing purposes
         # self.df = self.df[
-        #     (self.df.reporter_iso.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
-        #     & (self.df.partner_iso.isin(["SAU", "IND", "CHL," "VEN", "ZWE"]))
+        #     (self.df.reporter_iso.isin(["SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]))
+        #     & (self.df.partner_iso.isin(["SAU", "IND", "CHL," "VEN", "ZWE", "ABW", "CAN"]))
         # ]
         accuracy = self.load_parquet("processed", f"accuracy_{self.year}")
         # accuracy = accuracy[
         #     accuracy.value_final >= 100_000
         # ]
-#         accuracy = accuracy[
-#             (accuracy.exporter.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
-#             & (accuracy.importer.isin(["SAU", "IND", "CHL", "VEN", "ZWE"]))
-#         ]
+        # accuracy = accuracy[
+        #     (accuracy.exporter.isin(["SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]))
+        #     & (accuracy.importer.isin(["SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]))
+        # ]
 
         # prepare the data
         self.filter_and_clean_data()
+        logging.info("ccpy: filtered and cleaned data")
         self.all_ccpy, self.npairs, self.nprod = self.setup_trade_analysis_framework(
             accuracy
         )
+        logging.info("ccpy: set up trade analysis framework")
 
         # calculate the value of exports for each country pair and product
         self.exports_matrix = self.generate_trade_value_matrix("exports", accuracy)
         self.imports_matrix = self.generate_trade_value_matrix("imports", accuracy)
         # merge in cif ratio
+        logging.info("ccpy: genered import and export matrices")
+
         self.imports_matrix = self.imports_matrix.reset_index().merge(
             accuracy[["exporter", "importer", "cif_ratio"]],
             on=["importer", "exporter"],
@@ -68,7 +71,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.imports_matrix = self.imports_matrix.set_index(['importer', 'exporter'])
         self.imports_matrix = self.imports_matrix.drop(columns=['cif_ratio'])
         self.imports_matrix = self.imports_matrix.multiply(np.array(cif_factor).reshape(-1,1), axis=0)
-        
+        logging.info("ccpy: accounted for cif")
+
         
         # swap importer, exporter to exporter, importer to merge with exports matrix
         self.imports_matrix = self.imports_matrix.swaplevel()
@@ -77,18 +81,31 @@ class CountryCountryProductYear(_AtlasCleaning):
         cc_trade_totals, self.accuracy_scores = self.assign_accuracy_scores(accuracy)
         # import pdb
         # pdb.set_trace()
+        logging.info("ccpy: assigned accuracy scores")
+
 
         # prep matrices for trade value logic
         self.prepare_for_matrix_multiplication(accuracy)
+        logging.info("ccpy: prepped for matrix multiplication")
+
 
         self.calculate_final_trade_value()
+        logging.info("ccpy: calculated final trade val")
+
         self.reweight_final_trade_value(cc_trade_totals)
+        logging.info("ccpy: reweighted")
+
 
         # final processing
         self.filter_and_handle_trade_data_discrepancies()
+        logging.info("ccpy: handle trade data discrepancies")
+
         self.handle_not_specified()
+        logging.info("ccpy: handled not specified")
 
         self.df["year"] = self.year
+        self.save_parquet(self.df, "processed", f"country_country_product_year_{self.year}")
+        
 
     def filter_and_clean_data(self):
         """
@@ -235,8 +252,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         Prepare data for matrix multiplication by reshaping and melting dataframes,
         merging trade data, and handling NaN values.
         """
-        import pdb
-        pdb.set_trace()
         self.weight_matrix = np.array(accuracy["weight"].values.reshape(-1, 1))
         self.weight_matrix = np.ones((self.npairs, self.nprod)) * self.weight_matrix
 
@@ -450,8 +465,8 @@ class CountryCountryProductYear(_AtlasCleaning):
             self.product_classification
         ][self.NOT_SPECIFIED]
 
-        not_specified_df = self.df.copy(deep=True)
-        not_specified_df["not_specified"] = self.df.apply(
+        # not_specified_df = self.df.copy(deep=True)
+        self.df["not_specified"] = self.df.apply(
             lambda x: (
                 x["final_value"]
                 if x["commodity_code"] == not_specified_val and x["importer"] == "ANS"
@@ -462,22 +477,23 @@ class CountryCountryProductYear(_AtlasCleaning):
 
         # stata VR translated to final_value
         # need to confirm if ANS should be filtered from earlier
-        not_specified_df.loc[
+        self.df.loc[
             (self.df["commodity_code"] == not_specified_val)
             & (self.df["importer"] == "ANS"),
             "final_value",
         ] = None
 
-        not_specified_df = not_specified_df.groupby("exporter", as_index=False).agg(
+        # TODO group by may become an issue, memory?
+        grouped = self.df.groupby("exporter", as_index=False).agg(
             {"not_specified": "sum", "final_value": "sum"}
         )
-        not_specified_df["not_specified_trade_ratio"] = (
-            not_specified_df["not_specified"] / not_specified_df["final_value"]
+        grouped["not_specified_trade_ratio"] = (
+            grouped["not_specified"] / grouped["final_value"]
         )
 
         countries_with_too_many_ns = (
-            not_specified_df.loc[
-                not_specified_df["not_specified_trade_ratio"] > 1 / 3, "exporter"
+            grouped.loc[
+                grouped["not_specified_trade_ratio"] > 1 / 3, "exporter"
             ]
             .unique()
             .tolist()

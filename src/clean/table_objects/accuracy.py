@@ -173,29 +173,29 @@ class Accuracy(_AtlasCleaning):
         """ """
         self.df = ccy.merge(
             ccy_accuracy[
-                ["year", "iso", "exporter_accuracy", "importer_accuracy"]
+                ["iso", "exporter_accuracy", "importer_accuracy"]
             ].rename(
                 columns={
                     "exporter_accuracy": "exporter_accuracy_score",
                     "importer_accuracy": "acc_imp_for_exporter",
                 }
             ),
-            left_on=["year", "exporter"],
-            right_on=["year", "iso"],
+            left_on=["exporter"],
+            right_on=["iso"],
             how="left",
         ).drop(columns=["iso"])
 
         self.df = self.df.merge(
             ccy_accuracy[
-                ["year", "iso", "exporter_accuracy", "importer_accuracy"]
+                ["iso", "exporter_accuracy", "importer_accuracy"]
             ].rename(
                 columns={
                     "exporter_accuracy": "acc_exp_for_importer",
                     "importer_accuracy": "importer_accuracy_score",
                 }
             ),
-            left_on=["year", "importer"],
-            right_on=["year", "iso"],
+            left_on=["importer"],
+            right_on=["iso"],
             how="left",
             suffixes=("", "_for_importer"),
         ).drop(columns=["iso"])
@@ -363,7 +363,7 @@ class Accuracy(_AtlasCleaning):
 
         # Select and reorder columns
         columns_to_keep = [
-            "year",
+            # "year",
             "exporter",
             "importer",
             "export_value",

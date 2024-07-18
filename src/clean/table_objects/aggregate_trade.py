@@ -33,7 +33,7 @@ class AggregateTrade(_AtlasCleaning):
         "Qty": "qty",
     }
 
-    def __init__(self, year, **kwargs):
+    def __init__(self, year, product_class, **kwargs):
         super().__init__(**kwargs)
 
         # initialize object variables
@@ -45,16 +45,24 @@ class AggregateTrade(_AtlasCleaning):
             "S2": "9310",
             "ST": "9310",
         }
-        self.product_class = kwargs["product_classification"]
-
+        self.product_class = product_class
         # load data
         self.df = self.load_comtrade_downloader_file()
+        
+        import pdb
+        pdb.set_trace()
         logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
         # filter and clean data
         self.filter_data()
+        import pdb
+        pdb.set_trace()
+
         # moved to compactor
         # self.recode_other_asia_to_taiwan()
         self.check_commodity_code_length()
+        import pdb
+        pdb.set_trace()
+
         self.label_unspecified_products()
         logging.info(f"Size after unspecified products dataframe {self.df.shape}")
         self.handle_germany_reunification()
@@ -65,16 +73,29 @@ class AggregateTrade(_AtlasCleaning):
         df_0 = self.aggregate_data(0)
         df_4 = self.aggregate_data(4)
         self.df = df_0.merge(df_4, on=["importer", "exporter"])
+        
+        import pdb
+        pdb.set_trace()
+
 
         # Process and integrate world trade data into the main dataset.
         self.aggregate_to_world_level()
+        import pdb
+        pdb.set_trace()
+
 
         self.remove_outliers()
+        import pdb
+        pdb.set_trace()
+
 
         self.df["year"] = self.year
         self.df = self.df[
             ["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
         ]
+        import pdb
+        pdb.set_trace()
+
         self.save_parquet(
             self.df, "intermediate", f"aggregated_{self.product_class}_{self.year}"
         )
@@ -104,12 +125,14 @@ class AggregateTrade(_AtlasCleaning):
                     "Trade Value (US$)": int,
                 },
             )
+            logging.info("using original csv file not from compactor")
         except FileNotFoundError:
             try:
                 columns = self.COLUMNS_DICT_COMPACTOR
                 df = pd.read_parquet(
                     os.path.join(
                         self.downloaded_files_path,
+                        self.product_class,
                         f"{self.product_class}_{self.year}.parquet",
                     ),
                     columns=self.COLUMNS_DICT_COMPACTOR.keys(),
