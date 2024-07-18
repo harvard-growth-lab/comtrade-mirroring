@@ -23,7 +23,7 @@ class CountryCountryProductYear(_AtlasCleaning):
 
     def __init__(self, year, **kwargs):
         super().__init__(**kwargs)
-
+        print(f"starting ccpy: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
         self.product_classification = kwargs["product_classification"]
         self.year = year
 
@@ -34,77 +34,111 @@ class CountryCountryProductYear(_AtlasCleaning):
         )
         # logging.info(f"number of exporters {len(self.df.exporter.unique())}")
         # leaving filter for quick testing purposes
-        # self.df = self.df[
-        #     (self.df.reporter_iso.isin(["SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]))
-        #     & (self.df.partner_iso.isin(["SAU", "IND", "CHL," "VEN", "ZWE", "ABW", "CAN"]))
-        # ]
+        self.df = self.df[
+            (self.df.reporter_iso.isin(["USA", "BEL", "SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]))
+            & (self.df.partner_iso.isin(["USA", "BEL","SAU", "IND", "CHL," "VEN", "ZWE", "ABW", "CAN"]))
+        ]
         accuracy = self.load_parquet("processed", f"accuracy_{self.year}")
         # accuracy = accuracy[
         #     accuracy.value_final >= 100_000
         # ]
-        # accuracy = accuracy[
-        #     (accuracy.exporter.isin(["SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]))
-        #     & (accuracy.importer.isin(["SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]))
-        # ]
-
+        accuracy = accuracy[
+            (accuracy.exporter.isin(["USA", "BEL","SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]))
+            & (accuracy.importer.isin(["USA", "BEL","SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]))
+        ]
+        import pdb
+        pdb.set_trace()
         # prepare the data
         self.filter_and_clean_data()
+        logging.info("check after filter for WLD, nan, NAN")
+        import pdb
+        pdb.set_trace()
+
         logging.info("ccpy: filtered and cleaned data")
+        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
         self.all_ccpy, self.npairs, self.nprod = self.setup_trade_analysis_framework(
             accuracy
         )
         logging.info("ccpy: set up trade analysis framework")
+        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
         # calculate the value of exports for each country pair and product
         self.exports_matrix = self.generate_trade_value_matrix("exports", accuracy)
         self.imports_matrix = self.generate_trade_value_matrix("imports", accuracy)
         # merge in cif ratio
         logging.info("ccpy: genered import and export matrices")
-
+        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
         self.imports_matrix = self.imports_matrix.reset_index().merge(
             accuracy[["exporter", "importer", "cif_ratio"]],
             on=["importer", "exporter"],
             how="left",
         )
+        
+        import pdb
+        pdb.set_trace()
         # account for cif 
         cif_factor = (1 - self.imports_matrix['cif_ratio'])
         self.imports_matrix = self.imports_matrix.set_index(['importer', 'exporter'])
         self.imports_matrix = self.imports_matrix.drop(columns=['cif_ratio'])
         self.imports_matrix = self.imports_matrix.multiply(np.array(cif_factor).reshape(-1,1), axis=0)
         logging.info("ccpy: accounted for cif")
+        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
-        
+        import pdb
+        pdb.set_trace()
+
         # swap importer, exporter to exporter, importer to merge with exports matrix
         self.imports_matrix = self.imports_matrix.swaplevel()
+        import pdb
+        pdb.set_trace()
 
         self.trade_score = self.assign_trade_scores()
         cc_trade_totals, self.accuracy_scores = self.assign_accuracy_scores(accuracy)
         # import pdb
         # pdb.set_trace()
         logging.info("ccpy: assigned accuracy scores")
+        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+        import pdb
+        pdb.set_trace()
 
 
         # prep matrices for trade value logic
         self.prepare_for_matrix_multiplication(accuracy)
         logging.info("ccpy: prepped for matrix multiplication")
+        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
-
+        import pdb
+        pdb.set_trace()
         self.calculate_final_trade_value()
         logging.info("ccpy: calculated final trade val")
+        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+        
+        import pdb
+        pdb.set_trace()
 
         self.reweight_final_trade_value(cc_trade_totals)
         logging.info("ccpy: reweighted")
-
+        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+        import pdb
+        pdb.set_trace()
 
         # final processing
         self.filter_and_handle_trade_data_discrepancies()
         logging.info("ccpy: handle trade data discrepancies")
+        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+        import pdb
+        pdb.set_trace()
+
 
         self.handle_not_specified()
         logging.info("ccpy: handled not specified")
+        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+        import pdb
+        pdb.set_trace()
+
 
         self.df["year"] = self.year
-        self.save_parquet(self.df, "processed", f"country_country_product_year_{self.year}")
+        # self.save_parquet(self.df, "processed", f"country_country_product_year_{self.year}")
         
 
     def filter_and_clean_data(self):
@@ -125,14 +159,11 @@ class CountryCountryProductYear(_AtlasCleaning):
         # TODO: reivew if any initial repetitive country code cleaning
         # drop commodity code totals
         self.df = self.df[self.df.commodity_code != "TOTAL"]
-        drop_values = ["WLD", "NAN", "nan"]
-        self.df = self.df[
-            ~self.df.apply(
-                lambda row: row["reporter_iso"] in drop_values
-                or row["partner_iso"] in drop_values,
-                axis=1,
-            )
-        ]
+        drop_values = ["WLD", "NAN", "nan"]        
+        columns = ['reporter_iso', 'partner_iso']
+        mask = ~df[columns].isin(values_to_drop).any(axis=1)
+        self.df = self.df[mask]
+
 
     def setup_trade_analysis_framework(self, accuracy):
         """
@@ -183,26 +214,29 @@ class CountryCountryProductYear(_AtlasCleaning):
                 - Columns: commodity codes
                 - Values: trade values for the specified flow
         """
+        trade_value_df = self.df[["reporter_iso", "partner_iso", "commodity_code", "trade_value"]]
         if trade_flow == "exports":
-            reporter = "exporter"
-            partner = "importer"
-            df = self.df[self.df["trade_flow"] == 2][
-                ["reporter_iso", "partner_iso", "commodity_code", "trade_value"]
-            ]
+            reporter, partner = "exporter", "importer"
+            trade_value_df = trade_value_df[trade_value_df["trade_flow"] == 2]
         elif trade_flow == "imports":
-            reporter = "importer"
-            partner = "exporter"
-            df = self.df[self.df["trade_flow"] == 1][
-                ["reporter_iso", "partner_iso", "commodity_code", "trade_value"]
-            ]
+            reporter, partner = "importer", "exporter"
+            trade_value_df = trade_value_df[trade_value_df["trade_flow"] == 1]
 
-        df.columns = [reporter, partner, "commodity_code", f"{trade_flow}_value"]
+        trade_value_df = trade_value_df.rename(columns={"reporter_iso": reporter, 
+                                                        "partner_iso": partner, 
+                                                        "trade_value": f"{trade_flow}_value"
+                                                       }
+                                              )
         #  all products and all country pairs
-        df = self.all_ccpy.merge(
-            df, on=[reporter, partner, "commodity_code"], how="left"
-        )
-        df = df.fillna(0.0)
-        return df.pivot(
+        trade_value_df = trade_value_df.set_index(["exporter", "importer", "commodity_code"])
+        trade_value_df = all_ccpy.join(trade_value_df, how="left")
+        trade_value_df = trade_value_df.reset_index()
+
+        # trade_value_df = self.all_ccpy.merge(
+        #     trade_value_df, on=[reporter, partner, "commodity_code"], how="left"
+        # )
+        trade_value_df = trade_value_df.fillna(0.0)
+        return trade_value_df.pivot(
             index=[reporter, partner],
             columns="commodity_code",
             values=f"{trade_flow}_value",

@@ -94,7 +94,7 @@ def run_atlas_cleaning(ingestion_attrs):
         # cProfile.run('CountryCountryProductYear(year, **ingestion_attrs)')
         # logging.info("finished running cprofile")
         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
-        ccpy.save_parquet(ccpy.df, 'processed', f'country_country_product_{year}')
+        ccpy.save_parquet(ccpy.df, 'processed', f'country_country_product_year_{year}')
 
         # complexity files
         print(f"end time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
