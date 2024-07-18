@@ -466,29 +466,30 @@ class CountryCountryProductYear(_AtlasCleaning):
         not_specified_val = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[
             self.product_classification
         ][self.NOT_SPECIFIED]
-
-        # not_specified_df = self.df.copy(deep=True)
-        self.df["not_specified"] = self.df.apply(
-            lambda x: (
-                x["final_value"]
-                if x["commodity_code"] == not_specified_val and x["importer"] == "ANS"
-                else 0
-            ),
-            axis=1,
+        
+        self.df.loc[:, 'not_specified'] = np.where(
+            (self.df.importer == "ANS") & (self.df.commodity_code == not_specified_val),
+            self.df['final_value'],
+            0,
         )
+        
+        self.df.loc[:, 'final_value'] = np.where(
+            (self.df.importer == "ANS") & (self.df.commodity_code == not_specified_val),
+            np.nan,
+            self.df['final_value'],
+        )
+
 
         # stata VR translated to final_value
         # need to confirm if ANS should be filtered from earlier
-        self.df.loc[
-            (self.df["commodity_code"] == not_specified_val)
-            & (self.df["importer"] == "ANS"),
-            "final_value",
-        ] = None
+        # self.df.loc[
+        #     (self.df["commodity_code"] == not_specified_val)
+        #     & (self.df["importer"] == "ANS"),
+        #     "final_value",
+        # ] = np.nan
 
         # TODO group by may become an issue, memory?
-        grouped = self.df.groupby("exporter", as_index=False).agg(
-            {"not_specified": "sum", "final_value": "sum"}
-        )
+        grouped = self.df.groupby("exporter", as_index=False).agg({"not_specified": "sum", "final_value": "sum"})
         grouped["not_specified_trade_ratio"] = (
             grouped["not_specified"] / grouped["final_value"]
         )
