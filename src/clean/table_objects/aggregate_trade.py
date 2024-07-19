@@ -48,7 +48,7 @@ class AggregateTrade(_AtlasCleaning):
         self.product_class = product_class
         # load data
         self.df = self.load_comtrade_downloader_file()
-        
+
         logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
         # filter and clean data
         self.filter_data()
@@ -61,13 +61,15 @@ class AggregateTrade(_AtlasCleaning):
         logging.info(f"Size after unspecified products dataframe {self.df.shape}")
         self.handle_germany_reunification()
 
-        self.save_parquet(self.df, "intermediate", f"cleaned_{self.product_class}_{self.year}")
+        self.save_parquet(
+            self.df, "intermediate", f"cleaned_{self.product_class}_{self.year}"
+        )
 
         # returns bilateral data
         df_0 = self.aggregate_data(0)
         df_4 = self.aggregate_data(4)
         self.df = df_0.merge(df_4, on=["importer", "exporter"])
-        
+
         # Process and integrate world trade data into the main dataset.
         self.aggregate_to_world_level()
         self.remove_outliers()
