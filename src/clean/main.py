@@ -47,15 +47,15 @@ def run_atlas_cleaning(ingestion_attrs):
     dist = pd.read_stata(os.path.join('data', 'raw', "dist_cepii.dta"))
     
     for year in range(start_year - 1, end_year + 2):
-        # file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
-        # if not os.path.isfile(file_name):
+        file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
+        if not os.path.isfile(file_name):
         
-        # get possible classifications based on year
-        logging.info("removing classifications step until can confirm with Seba")
-        classifications = [product_classification]
-        # classifications = get_classifications(year)
-        logging.info(f"Aggregating data for {year} and these classifications {classifications}")
-        [AggregateTrade(year, product_class, **ingestion_attrs) for product_class in classifications]
+            # get possible classifications based on year
+            logging.info("removing classifications step until can confirm with Seba")
+            classifications = [product_classification]
+            # classifications = get_classifications(year)
+            logging.info(f"Aggregating data for {year} and these classifications {classifications}")
+            [AggregateTrade(year, product_class, **ingestion_attrs) for product_class in classifications]
     
     logging.info("Completed data aggregations, starting next loop")
     for year in range(start_year, end_year + 1):

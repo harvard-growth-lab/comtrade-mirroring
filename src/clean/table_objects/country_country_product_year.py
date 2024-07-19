@@ -2,6 +2,8 @@ import pandas as pd
 from clean.table_objects.base import _AtlasCleaning
 import os
 import numpy as np
+from time import gmtime, strftime, localtime
+
 
 import logging
 import dask.dataframe as dd
@@ -46,13 +48,9 @@ class CountryCountryProductYear(_AtlasCleaning):
             (accuracy.exporter.isin(["USA", "BEL","SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]))
             & (accuracy.importer.isin(["USA", "BEL","SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]))
         ]
-        import pdb
-        pdb.set_trace()
         # prepare the data
         self.filter_and_clean_data()
         logging.info("check after filter for WLD, nan, NAN")
-        import pdb
-        pdb.set_trace()
 
         logging.info("ccpy: filtered and cleaned data")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
@@ -74,33 +72,28 @@ class CountryCountryProductYear(_AtlasCleaning):
             how="left",
         )
         
-        import pdb
-        pdb.set_trace()
         # account for cif 
         cif_factor = (1 - self.imports_matrix['cif_ratio'])
         self.imports_matrix = self.imports_matrix.set_index(['importer', 'exporter'])
         self.imports_matrix = self.imports_matrix.drop(columns=['cif_ratio'])
+        # import pdb
+        # pdb.set_trace()
         self.imports_matrix = self.imports_matrix.multiply(np.array(cif_factor).reshape(-1,1), axis=0)
         logging.info("ccpy: accounted for cif")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
-        import pdb
-        pdb.set_trace()
-
         # swap importer, exporter to exporter, importer to merge with exports matrix
         self.imports_matrix = self.imports_matrix.swaplevel()
-        import pdb
-        pdb.set_trace()
 
         self.trade_score = self.assign_trade_scores()
+        
+        country_pairs_index = self.exports_matrix.index
+        accuracy = accuracy[accuracy.importer!=accuracy.exporter]
+        accuracy = accuracy.set_index(["exporter", "importer"]) #.reindex(country_pairs_index)
+
         cc_trade_totals, self.accuracy_scores = self.assign_accuracy_scores(accuracy)
-        # import pdb
-        # pdb.set_trace()
         logging.info("ccpy: assigned accuracy scores")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-        import pdb
-        pdb.set_trace()
-
 
         # prep matrices for trade value logic
         self.prepare_for_matrix_multiplication(accuracy)
@@ -159,9 +152,9 @@ class CountryCountryProductYear(_AtlasCleaning):
         # TODO: reivew if any initial repetitive country code cleaning
         # drop commodity code totals
         self.df = self.df[self.df.commodity_code != "TOTAL"]
-        drop_values = ["WLD", "NAN", "nan"]        
+        values_to_drop = ["WLD", "NAN", "nan"]        
         columns = ['reporter_iso', 'partner_iso']
-        mask = ~df[columns].isin(values_to_drop).any(axis=1)
+        mask = ~self.df[columns].isin(values_to_drop).any(axis=1)
         self.df = self.df[mask]
 
 
@@ -214,7 +207,7 @@ class CountryCountryProductYear(_AtlasCleaning):
                 - Columns: commodity codes
                 - Values: trade values for the specified flow
         """
-        trade_value_df = self.df[["reporter_iso", "partner_iso", "commodity_code", "trade_value"]]
+        trade_value_df = self.df[["trade_flow", "reporter_iso", "partner_iso", "commodity_code", "trade_value"]]
         if trade_flow == "exports":
             reporter, partner = "exporter", "importer"
             trade_value_df = trade_value_df[trade_value_df["trade_flow"] == 2]
@@ -226,10 +219,10 @@ class CountryCountryProductYear(_AtlasCleaning):
                                                         "partner_iso": partner, 
                                                         "trade_value": f"{trade_flow}_value"
                                                        }
-                                              )
+                                              ).drop(columns=['trade_flow'])
         #  all products and all country pairs
         trade_value_df = trade_value_df.set_index(["exporter", "importer", "commodity_code"])
-        trade_value_df = all_ccpy.join(trade_value_df, how="left")
+        trade_value_df = self.all_ccpy.set_index(["exporter", "importer", "commodity_code"]).join(trade_value_df, how="left")
         trade_value_df = trade_value_df.reset_index()
 
         # trade_value_df = self.all_ccpy.merge(
@@ -257,28 +250,29 @@ class CountryCountryProductYear(_AtlasCleaning):
 
     def assign_accuracy_scores(self, accuracy):
         """ """
-        country_pairs_index = self.exports_matrix.index
-        accuracy = (
-            accuracy.set_index(["exporter", "importer"]).reindex(country_pairs_index)
-            # .reset_index()
-        )
+        # function to unravel, need to remove importer==exporter
+        cc_trade_total = accuracy[['final_trade_value']].unstack().unstack()
+        exporter_weight = accuracy[['exporter_weight']].unstack().unstack()
+        importer_weight = accuracy[['importer_weight']].unstack().unstack()
 
-        cc_trade_total = np.array(accuracy["final_trade_value"].values.reshape(-1, 1))
+
+
+        # cc_trade_total = np.array(accuracy["final_trade_value"].values.reshape(-1, 1))
 
         # country pair weighted accuracy
-        exporter_weight = np.array(accuracy["exporter_weight"].values.reshape(-1, 1))
-        importer_weight = np.array(accuracy["importer_weight"].values.reshape(-1, 1))
+        # exporter_weight = np.array(accuracy["exporter_weight"].values.reshape(-1, 1))
+        # importer_weight = np.array(accuracy["importer_weight"].values.reshape(-1, 1))
         # .swaplevel().sort_index().values.reshape(-1, 1))
 
         # score of 4 if exporter and importer weight both > 0
         # score of 2 if importer weight only > 0
         # score of 1 if exporter weight only > 0
         accuracy_scores = (
-            1 * ((1 * (exporter_weight > 0) + 1 * (importer_weight > 0)) > 1)
-            + 1 * ((exporter_weight > 0))
-            + 2 * ((importer_weight > 0))
+            1 * ((1 * (exporter_weight['exporter_weight'] > 0) + 1 * (importer_weight['importer_weight'] > 0)) > 1)
+            + 1 * ((exporter_weight['exporter_weight'] > 0))
+            + 2 * ((importer_weight['importer_weight'] > 0))
         )
-        accuracy_scores = np.ones((self.npairs, self.nprod)) * accuracy_scores
+        # accuracy_scores = np.ones((self.npairs, self.nprod)) * accuracy_scores
         return cc_trade_total, accuracy_scores
 
     def prepare_for_matrix_multiplication(self, accuracy):
@@ -286,8 +280,9 @@ class CountryCountryProductYear(_AtlasCleaning):
         Prepare data for matrix multiplication by reshaping and melting dataframes,
         merging trade data, and handling NaN values.
         """
-        self.weight_matrix = np.array(accuracy["weight"].values.reshape(-1, 1))
-        self.weight_matrix = np.ones((self.npairs, self.nprod)) * self.weight_matrix
+        # self.weight_matrix = np.array(accuracy["weight"].values.reshape(-1, 1))
+        # self.weight_matrix = np.ones((self.npairs, self.nprod)) * self.weight_matrix
+        self.weight_matrix = accuracy[['weight']].unstack().unstack()
 
         # melt the dataframes
         self.imports_matrix = pd.melt(
@@ -310,9 +305,12 @@ class CountryCountryProductYear(_AtlasCleaning):
             how="left",
         )
 
-        self.weight_matrix = self.weight_matrix.reshape(-1, 1)
-        self.export_values = self.df["export_value"].values.reshape(-1, 1)
-        self.import_values = self.df["import_value"].values.reshape(-1, 1)
+        # self.weight_matrix = self.weight_matrix.reshape(-1, 1)
+        # self.export_values = self.df["export_value"].values.reshape(-1, 1)
+        # self.import_values = self.df["import_value"].values.reshape(-1, 1)
+        self.import_values = self.imports_matrix.T.unstack().unstack().set_index(['exporter', 'importer', 'commodity_code'])
+        self.export_values = self.exports_matrix.T.unstack().unstack().set_index(['exporter', 'importer', 'commodity_code'])
+
 
         self.trade_score = pd.melt(
             self.trade_score.reset_index(),
@@ -320,18 +318,25 @@ class CountryCountryProductYear(_AtlasCleaning):
             var_name="commodity_code",
             value_name="trade_score",
         )
-        self.trade_score = self.trade_score["trade_score"].values.reshape(-1, 1)
+        self.trade_score = self.trade_score.T.unstack().unstack().set_index(['exporter', 'importer', 'commodity_code'])
+
+        # self.trade_score = self.trade_score["trade_score"].values.reshape(-1, 1)
 
         # Replace NaN with 0.0 for numerical stability
-        for array in [
-            self.trade_score,
-            self.export_values,
-            self.import_values,
-            self.weight_matrix,
-        ]:
-            np.nan_to_num(array, copy=False, nan=0.0)
+        self.trade_score = self.trade_score.fillna(0.0)
+        self.export_values = self.export_values.fillna(0.0)
+        self.import_values = self.import_values.fillna(0.0)
+        self.weight_matrix = self.weight_matrix.fillna(0.0)
+        # for df in [
+        #     self.trade_score,
+        #     self.export_values,
+        #     self.import_values,
+        #     self.weight_matrix,
+        # ]:
+        #     df.fillna(0.0)
+            # np.nan_to_num(array, copy=False, nan=0.0)
 
-        self.accuracy_scores = self.accuracy_scores.reshape(-1, 1)
+        # self.accuracy_scores = self.accuracy_scores.reshape(-1, 1)
 
     def calculate_final_trade_value(self):
         """
@@ -347,60 +352,63 @@ class CountryCountryProductYear(_AtlasCleaning):
             - When trade score is 4 but accuracy score is 0, use the average of export and import values
             - When either score is 0, use the available value (import or export) based on the non-zero score
         """
-        self.df["final_value"] = (
+        
+        final_value = (
             (
                 (
-                    (self.weight_matrix * self.export_values)
-                    + ((1 - self.weight_matrix) * self.import_values)
+                    (self.weight_matrix['weight'] * self.export_values['export_value'])
+                    + ((1 - self.weight_matrix['weight']) * self.import_values['import_value'])
                 )
-                * ((self.trade_score == 4) * (self.accuracy_scores == 4))
+                * ((self.trade_score['trade_score'] == 4) * (self.accuracy_scores == 4))
             )
             + (
-                self.import_values
-                * ((self.trade_score == 2) * (self.accuracy_scores == 2))
+                self.import_values['import_value']
+                * ((self.trade_score['trade_score'] == 2) * (self.accuracy_scores == 2))
             )
             + (
-                self.import_values
-                * ((self.trade_score == 2) * (self.accuracy_scores == 4))
+                self.import_values['import_value']
+                * ((self.trade_score['trade_score'] == 2) * (self.accuracy_scores == 4))
             )
             + (
-                self.export_values
-                * ((self.trade_score == 1) * (self.accuracy_scores == 1))
+                self.export_values['export_value']
+                * ((self.trade_score['trade_score'] == 1) * (self.accuracy_scores == 1))
             )
             + (
-                self.export_values
-                * ((self.trade_score == 1) * (self.accuracy_scores == 4))
+                self.export_values['export_value']
+                * ((self.trade_score['trade_score'] == 1) * (self.accuracy_scores == 4))
             )
             + (
-                self.import_values
-                * ((self.trade_score == 4) * (self.accuracy_scores == 2))
+                self.import_values['import_value']
+                * ((self.trade_score['trade_score'] == 4) * (self.accuracy_scores == 2))
             )
             + (
-                self.export_values
-                * ((self.trade_score == 4) * (self.accuracy_scores == 1))
+                self.export_values['export_value']
+                * ((self.trade_score['trade_score'] == 4) * (self.accuracy_scores == 1))
             )
             + (
                 0.5
-                * (self.export_values + self.import_values)
-                * ((self.trade_score == 4) * (self.accuracy_scores == 0))
+                * (self.export_values['export_value'] + self.import_values['import_value'])
+                * ((self.trade_score['trade_score'] == 4) * (self.accuracy_scores == 0))
             )
             + (
-                self.import_values
-                * ((self.trade_score == 2) * (self.accuracy_scores == 0))
+                self.import_values['import_value']
+                * ((self.trade_score['trade_score'] == 2) * (self.accuracy_scores == 0))
             )
             + (
-                self.export_values
-                * ((self.trade_score == 1) * (self.accuracy_scores == 0))
+                self.export_values['export_value']
+                * ((self.trade_score['trade_score'] == 1) * (self.accuracy_scores == 0))
             )
             + (
-                self.import_values
-                * ((self.trade_score == 2) * (self.accuracy_scores == 1))
+                self.import_values['import_value']
+                * ((self.trade_score['trade_score'] == 2) * (self.accuracy_scores == 1))
             )
             + (
-                self.export_values
-                * ((self.trade_score == 1) * (self.accuracy_scores == 2))
+                self.export_values['export_value']
+                * ((self.trade_score['trade_score'] == 1) * (self.accuracy_scores == 2))
             )
         )
+        final_value.name = 'final_value'
+        self.df = self.df.set_index(['importer', 'exporter', 'commodity_code']).join(final_value).reset_index()
 
     def reweight_final_trade_value(self, trade_total):
         """
@@ -410,11 +418,9 @@ class CountryCountryProductYear(_AtlasCleaning):
 
         Adds an 'unspecified' category to account for large unexplained differences.
         """
-        cc_scored_value_est = (
-            self.df.groupby(["importer", "exporter"])["final_value"]
-            .sum()
-            .values.reshape(-1, 1)
-        )
+        cc_scored_value_est = self.df.groupby(["importer", "exporter"])["final_value"].sum()
+        #     .values.reshape(-1, 1)
+        # )
 
         # determine if data trade discrepancies
         case_1 = 1 * (
@@ -495,8 +501,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         atio of 'not specified' trade to total trade for each exporter ratio exceeds 1/3 (33.33%)
         unspecified trade.
         """
-        import pdb
-        pdb.set_trace()
         not_specified_val = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[
             self.product_classification
         ][self.NOT_SPECIFIED]
