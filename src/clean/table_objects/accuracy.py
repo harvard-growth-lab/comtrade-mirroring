@@ -29,6 +29,8 @@ class Accuracy(_AtlasCleaning):
 
         # Compute accuracy scores, called temp.dta in stata
         ccy_accuracy = self.compute_accuracy_scores()
+        import pdb
+        pdb.set_trace()
 
         (
             exporter_accuracy_percentiles,
@@ -63,84 +65,53 @@ class Accuracy(_AtlasCleaning):
             6. Optionally applies Principal Component Analysis (PCA) for dimension reduction.
             7. Normalizes the final accuracy score if specified.
         """
-        exporters = self.ccy["exporter"].unique()
-        importers = self.ccy["importer"].unique()
-        # self.ncountries = len(exporters)
-        # exporter_to_idx = {exp: idx for idx, exp in enumerate(exporters)}
+        exporters = pd.DataFrame(self.ccy["exporter"].unique())
+        importers = pd.DataFrame(self.ccy["importer"].unique())
+        self.ncountries = len(exporters)
 
         # prepare matrices to maintain indices
         # stata name: es_ij: exporters, is_ij: importers
-        # reporting_discrepancy = self.ccy.pivot(
-        #     index="exporter", columns="importer", values="reporting_discrepancy"
-        # ).fillna(0)
-        trdiscrep = self.ccy[
-            ["exporter", "importer", "reporting_discrepancy"]
-        ].set_index(["exporter", "importer"])
-
-        # trdiscrep_imp = self.ccy[['exporter', 'importer', 'reporting_discrepancy']].set_index(['importer', 'exporter'])
-
-        # reporting_discrepancy = reporting_discrepancy.reindex(
-        #     # columns=exporters
-        #     index=exporters,
-        #     columns=exporters,
-        #     fill_value=0,
-        # )
-
-        # Convert to numpy arrays
-        # trdiscrep_exp = reporting_discrepancy.values
-        # trdiscrep_imp = trdiscrep_exp.T
+        trdiscrep_exp = self.ccy.pivot(
+            index="exporter", columns="importer", values="reporting_discrepancy"
+        ).fillna(0)
+        trdiscrep_imp = self.ccy.pivot(
+            index="importer", columns="exporter", values="reporting_discrepancy"
+        ).fillna(0)
 
         nflows_exp = self.ccy.groupby("exporter")["exporter_nflows"].first()
         nflows_imp = self.ccy.groupby("importer")["importer_nflows"].first()
-        # nflows_exp = (
-        #     self.ccy.groupby("exporter")["exporter_nflows"]
-        #     .first()
-        #     .reindex(exporters)
-        #     .values.reshape(-1, 1)
-        # )
-        # nflows_imp = (
-        #     self.ccy.groupby("importer")["importer_nflows"]
-        #     .first()
-        #     .reindex(exporters)
-        #     .values.reshape(-1, 1)
-        # )
 
         # initialize accuracy to one
-        exporter_accuracy = pd.DataFrame(index=exporters)
-        exporter_accuracy["accuracy"] = 1
-        importer_accuracy = pd.DataFrame(index=importers)
-        importer_accuracy["accuracy"] = 1
-        # exporter_accuracy = np.ones((self.ncountries, 1))
-        # importer_accuracy = np.ones((self.ncountries, 1))
-
-        import pdb
-
-        pdb.set_trace()
-
-        for _ in range(0, 25):
+        exporter_accuracy = pd.DataFrame(index=nflows_exp.index)
+        exporter_accuracy["exporter_accuracy"] = 1
+        importer_accuracy = pd.DataFrame(index=nflows_imp.index)
+        importer_accuracy["importer_accuracy"] = 1
+        
+        for i in range(0, 25):
             # @ is element-wise multiplication
-            exporter_accuracy_probability = (
-                1
-                / trdiscrep["reporting_discrepancy"].mul(
-                    importer_accuracy["accuracy"], level="importer"
-                )
-                / nflows_exp
-            )
+            exporter_probability = 1/ (trdiscrep_imp @ importer_accuracy['importer_accuracy'])/ nflows_exp
+            importer_probability = 1/ (trdiscrep_exp @ exporter_accuracy['exporter_accuracy'])/ nflows_imp
 
-            importer_accuracy_probability = (
-                1
-                / trdiscrep["reporting_discrepancy"].mul(
-                    exporter_accuracy["accuracy"], level="exporter"
-                )
-                / nflows_imp
-            )
+            importer_accuracy['importer_accuracy'] = importer_probability
+            exporter_accuracy['exporter_accuracy'] = exporter_probability
+        
+        # unstack
+        trdiscrep_exp = trdiscrep_exp.stack().reset_index().groupby('exporter').agg('sum').drop(columns=['importer']) / self.ncountries
+        trdiscrep_exp = trdiscrep_exp.rename(columns={0: 'trdiscrep_exp'})
+        
+        trdiscrep_imp = trdiscrep_imp.stack().reset_index().groupby('importer').agg('sum').drop(columns=['exporter']) / self.ncountries
+        trdiscrep_imp = trdiscrep_imp.rename(columns={0: 'trdiscrep_imp'}, index={"importer":"exporter"})
 
-            importer_accuracy = importer_accuracy_probability
-            exporter_accuracy = exporter_accuracy_probability
-
-        trdiscrep_imp = trdiscrep.reset_index().set_index(["importer", "exporter"])
-        # trdiscrep_exp = (np.sum(trdiscrep_exp, axis=1) / self.ncountries).reshape(-1, 1)
-        # trdiscrep_imp = (np.sum(trdiscrep_imp, axis=1) / self.ncountries).reshape(-1, 1)
+        columns = [nflows_exp,
+                   nflows_imp.rename(index={"importer":"exporter"}),
+                   trdiscrep_exp['trdiscrep_exp'],
+                   trdiscrep_imp['trdiscrep_imp'],
+                   exporter_accuracy['exporter_accuracy'],
+                   importer_accuracy['importer_accuracy'],
+                   # accuracy_score
+                  ]
+        for col in columns:
+            col.index.name = 'iso'
 
         # fix some df has single exporter for year 2015
         if self.alog == 1:
@@ -155,7 +126,9 @@ class Accuracy(_AtlasCleaning):
             ) / importer_accuracy.std()
 
         if self.af == 0:
-            accuracy_score = np.mean([exporter_accuracy, importer_accuracy], axis=0)
+            # this is set to run
+            logging.info('calculating mean of exporter accuracy and importer accuracy')
+            # accuracy_score = pd.DataFrame([exporter_accuracy['exporter_accuracy'] * importer_accuracy['importer_accuracy'] / 2]])
 
         elif self.af == 1:
             accuracy_score = PCA().fit_transform(exporter_accuracy, importer_accuracy)
@@ -165,37 +138,12 @@ class Accuracy(_AtlasCleaning):
                 accuracy_score - accuracy_score.mean()
             ) / accuracy_score.std()
 
-        # combine np arrays into pandas
-        year_array = np.full(self.ncountries, self.year).reshape(-1, 1)
-
-        ccy_accuracy = pd.DataFrame(
-            np.hstack(
-                [
-                    year_array,
-                    exporters.reshape(-1, 1),
-                    nflows_exp,
-                    nflows_imp,
-                    trdiscrep,  # exporters, index sets exporter, importer
-                    trdiscrep_imp,
-                    exporter_accuracy,
-                    importer_accuracy,
-                    accuracy_score,
-                ]
-            ),
-            columns=[
-                "year",
-                "iso",
-                "nflows_exp",
-                "nflows_imp",
-                "trdiscrep_exp",
-                "trdiscrep_imp",
-                "exporter_accuracy",
-                "importer_accuracy",
-                "acc_final",
-            ],
-        )
-        ccy_accuracy = ccy_accuracy.rename(columns={"trdiscrep": "trdiscrep_exp"})
+        
+        ccy_accuracy = pd.concat(columns)
+        ccy_accuracy['year'] = self.year
+        ccy_accuracy = ccy_accuracy.reset_index().rename(columns={"index": "iso"})
         return ccy_accuracy
+    
 
     def calculate_accuracy_percentiles(self, ccy, ccy_accuracy):
         """ """

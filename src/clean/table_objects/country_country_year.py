@@ -214,7 +214,10 @@ class CountryCountryYear(_AtlasCleaning):
         Takes the absolute value of the difference in export and imports
         and divides by sum of imports and exports
         """
-        # in stata s_ij
+        # in stata s_ij, should be fob and 
+        logging.info("***** review why not FOB *******")
+        # import pdb
+        # pdb.set_trace()
         self.df["reporting_discrepancy"] = (
             (abs(self.df["exports_const_usd"] - self.df["imports_const_usd"]))
             / (self.df["exports_const_usd"] + self.df["imports_const_usd"])
