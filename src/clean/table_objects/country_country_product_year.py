@@ -36,34 +36,34 @@ class CountryCountryProductYear(_AtlasCleaning):
         )
         # logging.info(f"number of exporters {len(self.df.exporter.unique())}")
         # leaving filter for quick testing purposes
-        self.df = self.df[
-            (
-                self.df.reporter_iso.isin(
-                    ["USA", "BEL", "SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]
-                )
-            )
-            & (
-                self.df.partner_iso.isin(
-                    ["USA", "BEL", "SAU", "IND", "CHL," "VEN", "ZWE", "ABW", "CAN"]
-                )
-            )
-        ]
+        # self.df = self.df[
+        #     (
+        #         self.df.reporter_iso.isin(
+        #             ["USA", "BEL", "SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]
+        #         )
+        #     )
+        #     & (
+        #         self.df.partner_iso.isin(
+        #             ["USA", "BEL", "SAU", "IND", "CHL," "VEN", "ZWE", "ABW", "CAN"]
+        #         )
+        #     )
+        # ]
         accuracy = self.load_parquet("processed", f"accuracy_{self.year}")
         # accuracy = accuracy[
         #     accuracy.value_final >= 100_000
         # ]
-        accuracy = accuracy[
-            (
-                accuracy.exporter.isin(
-                    ["USA", "BEL", "SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]
-                )
-            )
-            & (
-                accuracy.importer.isin(
-                    ["USA", "BEL", "SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]
-                )
-            )
-        ]
+        # accuracy = accuracy[
+        #     (
+        #         accuracy.exporter.isin(
+        #             ["USA", "BEL", "SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]
+        #         )
+        #     )
+        #     & (
+        #         accuracy.importer.isin(
+        #             ["USA", "BEL", "SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]
+        #         )
+        #     )
+        # ]
         # prepare the data
         self.filter_and_clean_data()
         logging.info("check after filter for WLD, nan, NAN")
@@ -120,41 +120,40 @@ class CountryCountryProductYear(_AtlasCleaning):
         logging.info("ccpy: prepped for matrix multiplication")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
-        import pdb
+#         import pdb
 
-        pdb.set_trace()
+#         pdb.set_trace()
         self.calculate_final_trade_value()
         logging.info("ccpy: calculated final trade val")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
-        import pdb
+#         import pdb
 
-        pdb.set_trace()
+#         pdb.set_trace()
 
         self.reweight_final_trade_value(cc_trade_totals)
         logging.info("ccpy: reweighted")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-        import pdb
+#         import pdb
 
-        pdb.set_trace()
+#         pdb.set_trace()
 
         # final processing
         self.filter_and_handle_trade_data_discrepancies()
         logging.info("ccpy: handle trade data discrepancies")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-        import pdb
+#         import pdb
 
-        pdb.set_trace()
+#         pdb.set_trace()
 
         self.handle_not_specified()
         logging.info("ccpy: handled not specified")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-        import pdb
+#         import pdb
 
-        pdb.set_trace()
+#         pdb.set_trace()
 
         self.df["year"] = self.year
-        self.df = self.df[self.df.dropna()]
         # self.save_parquet(self.df, "processed", f"country_country_product_year_{self.year}")
 
     def filter_and_clean_data(self):
@@ -284,8 +283,8 @@ class CountryCountryProductYear(_AtlasCleaning):
     def assign_accuracy_scores(self, accuracy):
         """ """
         # function to unravel, need to remove importer==exporter
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         cc_trade_total = accuracy["final_trade_value"]
         exporter_weight = accuracy["exporter_weight"]
         importer_weight = accuracy["importer_weight"]
@@ -313,9 +312,9 @@ class CountryCountryProductYear(_AtlasCleaning):
         Prepare data for matrix multiplication by reshaping and melting dataframes,
         merging trade data, and handling NaN values.
         """
-        import pdb
+#         import pdb
 
-        pdb.set_trace()
+#         pdb.set_trace()
         self.weight_matrix = accuracy[["weight"]].unstack().unstack()
 
         # melt the dataframes
@@ -383,9 +382,9 @@ class CountryCountryProductYear(_AtlasCleaning):
             - When either score is 0, use the available value (import or export) based on the non-zero score
         """
 
-        import pdb
+#         import pdb
 
-        pdb.set_trace()
+#         pdb.set_trace()
 
         final_value = (
             (
@@ -508,7 +507,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         """
         # drop rows that don't have data
         self.df = self.df.loc[
-            (self.df[["final_value", "import_value", "export_value"]] != 0.0).any(
+            (self.df[["reweighted_value", "import_value", "export_value"]] != 0.0).any(
                 axis=1
             )
             & self.df.notnull().any(axis=1)
@@ -532,14 +531,14 @@ class CountryCountryProductYear(_AtlasCleaning):
 
         self.df.loc[:, "not_specified"] = np.where(
             (self.df.importer == "ANS") & (self.df.commodity_code == not_specified_val),
-            self.df["final_value"],
+            self.df["reweighted_value"],
             0,
         )
 
-        self.df.loc[:, "final_value"] = np.where(
+        self.df.loc[:, "reweighted_value"] = np.where(
             (self.df.importer == "ANS") & (self.df.commodity_code == not_specified_val),
             np.nan,
-            self.df["final_value"],
+            self.df["reweighted_value"],
         )
 
         # stata VR translated to final_value
@@ -552,10 +551,10 @@ class CountryCountryProductYear(_AtlasCleaning):
 
         # TODO group by may become an issue, memory?
         grouped = self.df.groupby("exporter", as_index=False).agg(
-            {"not_specified": "sum", "final_value": "sum"}
+            {"not_specified": "sum", "reweighted_value": "sum"}
         )
         grouped["not_specified_trade_ratio"] = (
-            grouped["not_specified"] / grouped["final_value"]
+            grouped["not_specified"] / grouped["reweighted_value"].replace(0, np.nan)
         )
 
         countries_with_too_many_ns = (
