@@ -466,6 +466,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         #     .values.reshape(-1, 1)
         # )
 
+        import pdb
+        pdb.set_trace()
         # determine if data trade discrepancies
         case_1 = 1 * (
             (
