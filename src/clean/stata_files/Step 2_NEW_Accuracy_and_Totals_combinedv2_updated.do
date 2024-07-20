@@ -251,7 +251,8 @@ forval y = `start'/`end' {
 									sort exp imp
 									qui sum exp 
 									local N=r(max)
-									noi di `N'
+                                    noi di "THIS IS N!!!! IN PRESERVED EXP IMP"
+									noi di  `N'
 									putmata s_ij nflows_exporter p_e, replace
 									mata mata rename s_ij es_ij 
 									mata mata rename nflows_exporter en_ij

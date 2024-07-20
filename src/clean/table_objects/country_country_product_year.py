@@ -284,9 +284,11 @@ class CountryCountryProductYear(_AtlasCleaning):
     def assign_accuracy_scores(self, accuracy):
         """ """
         # function to unravel, need to remove importer==exporter
-        cc_trade_total = accuracy[["final_trade_value"]].unstack().unstack()
-        exporter_weight = accuracy[["exporter_weight"]].unstack().unstack()
-        importer_weight = accuracy[["importer_weight"]].unstack().unstack()
+        import pdb
+        pdb.set_trace()
+        cc_trade_total = accuracy["final_trade_value"]
+        exporter_weight = accuracy["exporter_weight"]
+        importer_weight = accuracy["importer_weight"]
 
         # score of 4 if exporter and importer weight both > 0
         # score of 2 if importer weight only > 0
@@ -295,13 +297,13 @@ class CountryCountryProductYear(_AtlasCleaning):
             1
             * (
                 (
-                    1 * (exporter_weight["exporter_weight"] > 0)
-                    + 1 * (importer_weight["importer_weight"] > 0)
+                    1 * (exporter_weight > 0)
+                    + 1 * (importer_weight > 0)
                 )
                 > 1
             )
-            + 1 * ((exporter_weight["exporter_weight"] > 0))
-            + 2 * ((importer_weight["importer_weight"] > 0))
+            + 1 * ((exporter_weight > 0))
+            + 2 * ((importer_weight > 0))
         )
         # accuracy_scores = np.ones((self.npairs, self.nprod)) * accuracy_scores
         return cc_trade_total, accuracy_scores
@@ -460,34 +462,36 @@ class CountryCountryProductYear(_AtlasCleaning):
 
         Adds an 'unspecified' category to account for large unexplained differences.
         """
-        cc_scored_value_est = self.df.groupby(["importer", "exporter"])[
-            "final_value"
-        ].sum()
+        by_commodity_code = self.df.pivot(columns=['commodity_code'], index=['importer', 'exporter'], values='final_value')
+        cc_estimated_trade_val = by_commodity_code.sum(axis=1)
+        cc_estimated_trade_val = cc_estimated_trade_val.replace(0, np.nan)
+        # cc_scored_value_est = self.df.groupby(["importer", "exporter"])[
+        #     "final_value"
+        # ].sum()
         #     .values.reshape(-1, 1)
         # )
 
+        # determine if data trade discrepancies
+        case_1 = (
+            (
+                ((trade_total / cc_estimated_trade_val) > 1.20).astype(int)
+                + ((trade_total - cc_estimated_trade_val) > 2.5 * 10**7).astype(int)
+                + (trade_total > 10**8).astype(int)
+            )
+            == 3).astype(int)
+        case_2 = (
+            (
+                (trade_total > 10**8).astype(int)
+                + (cc_estimated_trade_val < 10**5).astype(int)
+            )
+                == 2).astype(int)
+
+        xxxx = ((case_1 + case_2) > 0).astype(int)
+        value_xxxx = (trade_total - cc_estimated_trade_val) * (xxxx == 1)
+        value_reweight = trade_total - value_xxxx
+        
         import pdb
         pdb.set_trace()
-        # determine if data trade discrepancies
-        case_1 = 1 * (
-            (
-                np.where((trade_total / cc_scored_value_est) > 1.20, 1, 0)
-                + np.where((trade_total - cc_scored_value_est) > 2.5 * 10**7, 1, 0)
-                + np.where(trade_total > 10**8, 1, 0)
-            )
-            == 3
-        )
-        case_2 = 1 * (
-            (
-                np.where(trade_total > 10**8, 1, 0)
-                + np.where(cc_scored_value_est < 10**5, 1, 0)
-                == 2
-            )
-        )
-
-        xxxx = 1 * ((case_1 + case_2) > 0)
-        value_xxxx = (trade_total - cc_scored_value_est) * (xxxx == 1)
-        value_reweight = trade_total - value_xxxx
 
         # proportionally reweight products for each country country pair
         self.df["final_value"] = self.df["final_value"].where(
@@ -499,7 +503,7 @@ class CountryCountryProductYear(_AtlasCleaning):
             values="final_value",
         )
 
-        partner_trade = trade_value_matrix.sum(axis=1)
+        partner_trade = trade_value_matrix.sum(axis=1).replace(0, np.nan)
         trade_value_matrix = trade_value_matrix.div(partner_trade, axis=0)
 
         trade_value_matrix = trade_value_matrix * value_reweight.reshape(-1, 1)

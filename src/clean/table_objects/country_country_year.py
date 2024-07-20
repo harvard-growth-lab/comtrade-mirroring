@@ -89,6 +89,8 @@ class CountryCountryYear(_AtlasCleaning):
             self.df[["import_value_fob", "export_value_fob"]].max(axis=1)
             >= self.trade_value_threshold
         ]
+        self.df['import_value_fob'] = self.df['import_value_fob'].fillna(0.0)
+        self.df['export_value_fob'] = self.df['export_value_fob'].fillna(0.0)
 
     def apply_relative_cif_markup(self):
         """ """
@@ -216,8 +218,6 @@ class CountryCountryYear(_AtlasCleaning):
         """
         # in stata s_ij, should be fob and 
         logging.info("***** review why not FOB *******")
-        # import pdb
-        # pdb.set_trace()
         self.df["reporting_discrepancy"] = (
             (abs(self.df["exports_const_usd"] - self.df["imports_const_usd"]))
             / (self.df["exports_const_usd"] + self.df["imports_const_usd"])

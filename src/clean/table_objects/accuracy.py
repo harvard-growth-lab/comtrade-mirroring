@@ -86,15 +86,15 @@ class Accuracy(_AtlasCleaning):
         exporter_accuracy["exporter_accuracy"] = 1
         importer_accuracy = pd.DataFrame(index=iso_index)
         importer_accuracy["importer_accuracy"] = 1
-        
-        for i in range(0, 25):
-            # @ is element-wise multiplication
-            exporter_probability = 1/ (trdiscrep_imp @ importer_accuracy['importer_accuracy'])/ nflows_exp
-            importer_probability = 1/ (trdiscrep_exp @ exporter_accuracy['exporter_accuracy'])/ nflows_imp
 
+        for i in range(0, 25): # 25 try
+            # @ is element-wise multiplication
+            exporter_probability = 1/ ( (trdiscrep_imp @ importer_accuracy['importer_accuracy'])/ nflows_exp )
+            importer_probability = 1/ ( (trdiscrep_exp @ exporter_accuracy['exporter_accuracy'])/ nflows_imp )
+            
             importer_accuracy['importer_accuracy'] = importer_probability
             exporter_accuracy['exporter_accuracy'] = exporter_probability
-        
+                    
         # unstack
         trdiscrep_exp = trdiscrep_exp.stack().reset_index().groupby('exporter').agg('sum').drop(columns=['importer']) / self.ncountries
         trdiscrep_exp = trdiscrep_exp.rename(columns={0: 'trdiscrep_exp'})
@@ -146,9 +146,12 @@ class Accuracy(_AtlasCleaning):
     def calculate_accuracy_percentiles(self, ccy, ccy_accuracy):
         """ """
         self.df = ccy.merge(
+            # merging exporter accuracy scores 
             ccy_accuracy[["iso", "exporter_accuracy", "importer_accuracy"]].rename(
                 columns={
+                    # stata exporter_A_e
                     "exporter_accuracy": "exporter_accuracy_score",
+                    # stata exporter_A_i 
                     "importer_accuracy": "acc_imp_for_exporter",
                 }
             ),
@@ -160,7 +163,9 @@ class Accuracy(_AtlasCleaning):
         self.df = self.df.merge(
             ccy_accuracy[["iso", "exporter_accuracy", "importer_accuracy"]].rename(
                 columns={
+                    # stata importer_A_e
                     "exporter_accuracy": "acc_exp_for_importer",
+                    # stata importer_A_i
                     "importer_accuracy": "importer_accuracy_score",
                 }
             ),
@@ -176,8 +181,8 @@ class Accuracy(_AtlasCleaning):
             self.df[f"tag_{entity[0]}"] = (~self.df[entity].duplicated()).astype(int)
 
         # remove trade values less than 1000, fob
-        self.df.loc[self.df["import_value_fob"] < 1000, "import_value_fob"] = 0.0
-        self.df.loc[self.df["export_value_fob"] < 1000, "export_value_fob"] = 0.0
+        # self.df.loc[self.df["import_value_fob"] < 1000, "import_value_fob"] = 0.0
+        # self.df.loc[self.df["export_value_fob"] < 1000, "export_value_fob"] = 0.0
 
         # calculating percentiles grouped by unique exporter and then importer
         exporter_accuracy_percentiles = (
@@ -197,7 +202,7 @@ class Accuracy(_AtlasCleaning):
             "acc_exp_for_importer",
             "importer_accuracy_score",
         ]
-
+        
         for col in columns_to_cast:
             self.df[col] = pd.to_numeric(self.df[col], errors="coerce")
         return exporter_accuracy_percentiles, importer_accuracy_percentiles
