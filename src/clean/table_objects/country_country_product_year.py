@@ -465,11 +465,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         by_commodity_code = self.df.pivot(columns=['commodity_code'], index=['importer', 'exporter'], values='final_value')
         cc_estimated_trade_val = by_commodity_code.sum(axis=1)
         cc_estimated_trade_val = cc_estimated_trade_val.replace(0, np.nan)
-        # cc_scored_value_est = self.df.groupby(["importer", "exporter"])[
-        #     "final_value"
-        # ].sum()
-        #     .values.reshape(-1, 1)
-        # )
 
         # determine if data trade discrepancies
         case_1 = (
@@ -490,37 +485,17 @@ class CountryCountryProductYear(_AtlasCleaning):
         value_xxxx = (trade_total - cc_estimated_trade_val) * (xxxx == 1)
         value_reweight = trade_total - value_xxxx
         
-        import pdb
-        pdb.set_trace()
-
-        # proportionally reweight products for each country country pair
-        self.df["final_value"] = self.df["final_value"].where(
-            self.df["final_value"] >= 1000, 0
-        )
-        trade_value_matrix = self.df.pivot(
-            index=["exporter", "importer"],
-            columns="commodity_code",
-            values="final_value",
-        )
-
-        partner_trade = trade_value_matrix.sum(axis=1).replace(0, np.nan)
-        trade_value_matrix = trade_value_matrix.div(partner_trade, axis=0)
-
-        trade_value_matrix = trade_value_matrix * value_reweight.reshape(-1, 1)
-        trade_value_matrix.loc[:, "value_xxxx"] = value_xxxx
-
-        trade_value_matrix = pd.melt(
-            trade_value_matrix.reset_index(),
-            id_vars=["exporter", "importer"],
-            var_name="commodity_code",
-            value_name="final_value",
-        )
-
-        self.df = self.df.drop(columns=["final_value"]).merge(
-            trade_value_matrix,
-            on=["exporter", "importer", "commodity_code"],
-            how="left",
-        )
+                
+        reweighted = by_commodity_code - by_commodity_code * ((by_commodity_code < 1000).astype(int))
+        reweighted = reweighted.div(reweighted.sum(axis=1).replace(0, np.nan), axis=0)
+                
+        reweighted = reweighted.reset_index().set_index(['exporter','importer'])
+        reweighted = reweighted.mul(value_reweight, axis=0)
+        reweighted = reweighted.fillna(0)
+        reweighted = reweighted.reset_index().melt(id_vars=['exporter', 'importer'], value_name = 'reweighted_value')
+        
+        self.df = self.df.merge(reweighted, on=['exporter', 'importer', 'commodity_code'], how='left')
+        
 
     def filter_and_handle_trade_data_discrepancies(self):
         """
