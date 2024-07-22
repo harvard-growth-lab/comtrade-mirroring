@@ -255,6 +255,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         trade_value_df = trade_value_df.set_index(
             ["exporter", "importer", "commodity_code"]
         )
+        
         trade_value_df = self.all_ccpy.set_index(
             ["exporter", "importer", "commodity_code"]
         ).join(trade_value_df, how="left")

@@ -198,8 +198,8 @@ def run_stata_code(df, stata_code):
 
 if __name__ == "__main__":
     ingestion_attrs = {
-        "start_year": 2019,
-        "end_year": 2022,
+        "start_year": 2015,
+        "end_year": 2015,
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
