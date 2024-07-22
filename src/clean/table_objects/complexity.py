@@ -64,8 +64,6 @@ class Complexity(_AtlasCleaning):
         # fillin all combinations of exporter and commodity code, all combinations
         # may filter ... 
         
-        import pdb
-        pdb.set_trace()
         aux_stats = aux_stats[aux_stats.year==self.year]
 
         self.df = self.df.merge(
@@ -203,7 +201,8 @@ class Complexity(_AtlasCleaning):
         
         # RELIABLE COUNTRIES: pci, rca, eci 
         df_pci = complexity_df[['exporter', 'commodity_code', 'pci']].pivot(values='pci', index='commodity_code', columns='exporter')
-         # mata eci1 = (rca1:>=1):* pci1'
+        # mata eci1 = (rca1:>=1):* pci1'
+        
         df_eci = (df_rca >= 1).astype(int) * df_pci
         # mata eci1 = eci1 :/ rowsum( (rca1:>=1))
         df_eci = df_eci.div( (df_rca >= 1).astype(int).sum(axis=1), axis=0)
@@ -246,7 +245,7 @@ class Complexity(_AtlasCleaning):
         # mata eci2 = rowsum(eci2) :/ rowsum(mcp)
         df_eci_all = ( df_eci_all.sum(axis = 1) ).div(mcp_all.sum(axis=1) )
         # mata eci2 = J(rows(eci2),rows(kp1d),1) :* eci2
-        df_eci_all = pd.DataFrame(1, index=df_eci_all.index, columns=df_rca.index)
+        df_eci_all = (pd.DataFrame(1, index=df_eci_all.index, columns=df_rca.index)).mul(df_eci_all, axis=0)
         
         # mata expy = rowsum((export_value:/rowsum(export_value))  :* prody)
         expy = (export_value_df.div(export_value_df.sum(axis=1), axis=0 ).mul( prody, axis=0 ) ).sum(axis=1)
@@ -270,7 +269,7 @@ class Complexity(_AtlasCleaning):
         all_products = set(allcp.commodity_code.tolist())
         num_products = len(all_products)
         
-        
+        # package into a function
         # mata export_value = colshape(export_value,`ni')
         export_value_allcp = allcp.pivot(values='export_value', columns='commodity_code', index='exporter')
         # mata `income2use' = colshape(`income2use',`ni')
@@ -278,25 +277,88 @@ class Complexity(_AtlasCleaning):
         # mata export_value[.,`ni'] = J(rows(export_value),1,0)
         export_value_allcp.iloc[:, -1] = 0
         # mata rca3 = (export_value :/ rowsum(export_value)) :/ (colsum(export_value):/sum(export_value))
-        df_rca_allcp = ( export_value_allcp.div(export_value_allcp.sum(axis=1), axis=0) ) / ( export_value_allcp.sum(axis=0) / all_cp.export_value.sum() )
+        df_rca_allcp = ( export_value_allcp.div(export_value_allcp.sum(axis=1), axis=0) ) / ( export_value_allcp.sum(axis=0) / allcp.export_value.sum() )
 
         # mata mcp3 = (rca3:>=1)
         mcp_allcp = (df_rca_allcp >= 1).astype(int)
         
         # mata pci3 = (rca3:>=1) :* eci2[.,1]
-        pci_allcp = (df_rca_allcp >= 1).mul(df_all.iloc[:, -1])
-        pci_allcp = pci_allcp.sum(axis=0)
-        # pci_allcp = pci_allcp.div( ((df_rca_allcp >= 1).astype(int)).sum(axis=0)
-        
-        
-                          
+        pci_allcp = (df_rca_allcp >= 1).mul(df_eci_all.iloc[:, 0], axis = 0)
+        # mata pci3 = colsum(pci3)'
+        # mata pci3 = pci3 :/ colsum(rca3:>=1)'
         import pdb
         pdb.set_trace()
-
+        logging.info("added transpose to pci_allcp and df_rca_allcp")
+        pci_allcp = pci_allcp.sum(axis=0).div( ((df_rca_allcp >= 1).astype(int)).sum(axis = 0) )
+        pci_allcp = pd.DataFrame(1, index=df_rca_allcp.index, columns=df_rca_allcp.columns).mul(pci_allcp.T)
         
-
+        # mata prody3 = (rca3:/colsum(rca3)) :* `income2use'
+        prody_allcp = df_rca_allcp.div( df_rca_allcp.sum(axis = 0), axis = 1 ).mul(gdppc_allcp)
+        # prody_allcp = prody_allcp.sum(axis = 0) 
+        # mata prody3 = colsum(prody3)
+        # mata prody3 = J(rows(export_value),cols(export_value),1) :* prody3
+        prody_allcp = pd.DataFrame(1, index=export_value_allcp.index, columns=export_value_allcp.columns).mul(prody_allcp.sum(axis = 0) )
+                          
+        logging.info("Creating the product space for all countries & all products")
+        # should these have any indices?
         
-        # match reliable to all countries
+        # mata C = M'*M
+        country = mcp_allcp.T @ mcp_allcp 
+        # mata S = J(Nps,Ncs,1)*M
+        space = pd.DataFrame(1, index=mcp_allcp.columns, columns=mcp_allcp.index) @ mcp_allcp
+        product_x = country.div(space)
+        product_y = country.div(space.T)
+        
+        # mata proximity = (P1+P2 - abs(P1-P2))/2 - I(Nps)
+        proximity_allcp = (product_x + product_y - abs(product_x + product_y)/2) - np.identity(mcp_allcp.shape[1])
+        # mata density3 = proximity' :/ (J(Nps,Nps,1) * proximity')
+        proximity_allcp = proximity_allcp.fillna(0)
+        density_allcp = proximity_allcp.T.div( np.dot(np.ones((mcp_allcp.shape[1], mcp_allcp.shape[1]), dtype=int), proximity_allcp.T.values) )    
+        # mata density3 = M * density3
+        density_allcp = mcp_allcp @ density_allcp
+        # mata opportunity_value =  ((density3:*(1 :- M)):*pci3)*J(Nps,Nps,1)
+        opportunity_value = ( ( density_allcp.mul( 1 - mcp_allcp) ) .mul(pci_allcp) ).fillna(0.) @ np.ones((mcp_allcp.shape[1], mcp_allcp.shape[1]), dtype=int)
+        
+        # mata opportunity_gain = (J(Ncs, Nps, 1) - M) :* (
+        #                             (J(Ncs, Nps, 1) - M) * (
+        #                                 proximity :*  (
+        #                                     (pci3[1, .]' :/ (proximity * J(Nps, 1, 1))) * J(1, Nps, 1)
+        #                                 )
+        #                             )
+        #                         )   
+        mcp_rows = mcp_allcp.shape[0]
+        mcp_cols = mcp_allcp.shape[1]
+        
+        num = ( np.ones((mcp_rows, mcp_cols), dtype=int) - mcp_allcp )
+        # (proximity*J(Nps,1,1))
+        prox_dot_ones = (proximity_allcp @ np.ones((mcp_cols,1), dtype=int))
+        
+        import pdb
+        pdb.set_trace()
+        
+        opportunity_gain = ( np.ones((mcp_rows, mcp_cols), dtype=int) - mcp_allcp ).mul(
+        ( np.ones((mcp_rows, mcp_cols), dtype=int) - mcp_allcp ).fillna(0) @ (
+            proximity_allcp * (
+                (pci_allcp.iloc[0,].div
+                 (
+                    (
+                        (proximity_allcp @ np.ones((mcp_cols,1), dtype=int)).iloc[:, 0]
+                    ), axis= 0
+                )
+                ).values.reshape(-1,1) 
+                @
+                np.ones((1,mcp_cols), dtype=int) 
+            )
+        ).fillna(0)
+        )
+        
+        import pdb
+        pdb.set_trace()
+        
+        import pdb
+        pdb.set_trace()
+        
+        # local rca3 pci3 M density3 prody3 opportunity_value 
         
         
         

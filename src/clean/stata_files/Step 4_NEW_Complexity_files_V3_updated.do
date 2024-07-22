@@ -296,6 +296,7 @@ forvalues year = $initial/$end {
 			mata density3 = M * density3
 			//mata coi = ((density3 :*(1 :- M)):* ( J(Ncs,1,1)*pci3[1,.] )  )*J(Nps,Nps,1)
 			mata opportunity_value =  ((density3:*(1 :- M)):*pci3)*J(Nps,Nps,1)
+            
 			mata opportunity_gain = (J(Ncs,Nps,1) - M ):*((J(Ncs,Nps,1) - M ) * (proximity :* ((pci3[1,.]':/(proximity*J(Nps,1,1)))*J(1,Nps,1))))
 			
 			//mata mata des M density3 opportunity_value  opportunity_gain
