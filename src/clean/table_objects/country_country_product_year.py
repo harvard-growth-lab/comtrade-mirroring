@@ -214,7 +214,7 @@ class CountryCountryProductYear(_AtlasCleaning):
 
         npairs = all_ccpy[["exporter", "importer"]].drop_duplicates().shape[0]
         return all_ccpy, npairs, nprod
-
+    
     def generate_trade_value_matrix(self, trade_flow, accuracy):
         """
         Generate a matrix of trade values for either exports or imports.
@@ -237,21 +237,23 @@ class CountryCountryProductYear(_AtlasCleaning):
                 "trade_value",
             ]
         ]
-        if trade_flow == "exports":
-            reporter, partner = "exporter", "importer"
-            trade_value_df = trade_value_df[trade_value_df["trade_flow"] == 2]
-        elif trade_flow == "imports":
-            reporter, partner = "importer", "exporter"
-            trade_value_df = trade_value_df[trade_value_df["trade_flow"] == 1]
+        for trade_flow in ['exports', 'imports']
+            if trade_flow == "exports":
+                reporter, partner = "exporter", "importer"
+                trade_value_df = trade_value_df[trade_value_df["trade_flow"] == 2]
+            elif trade_flow == "imports":
+                reporter, partner = "importer", "exporter"
+                trade_value_df = trade_value_df[trade_value_df["trade_flow"] == 1]
 
-        trade_value_df = trade_value_df.rename(
-            columns={
-                "reporter_iso": reporter,
-                "partner_iso": partner,
-                "trade_value": f"{trade_flow}_value",
-            }
-        ).drop(columns=["trade_flow"])
-        #  all products and all country pairs
+            trade_value_df = trade_value_df.rename(
+                columns={
+                    "reporter_iso": reporter,
+                    "partner_iso": partner,
+                    "trade_value": f"{trade_flow}_value",
+                }
+            ).drop(columns=["trade_flow"])
+            #  all products and all country pairs
+            
         trade_value_df = pd.merge(
             self.all_ccpy,
             trade_value_df,
@@ -259,12 +261,64 @@ class CountryCountryProductYear(_AtlasCleaning):
             how="left",
         )
 
-        trade_value_df = trade_value_df.fillna(0.0)
+            trade_value_df = trade_value_df.fillna(0.0)
         return trade_value_df.pivot(
             index=[reporter, partner],
             columns="commodity_code",
             values=f"{trade_flow}_value",
         )
+
+
+#     def generate_trade_value_matrix(self, trade_flow, accuracy):
+#         """
+#         Generate a matrix of trade values for either exports or imports.
+
+#         Inputs:
+#             trade_flow (str): Either "exports" or "imports" to specify the direction of trade.
+
+#         Returns:
+#             pd.DataFrame: A pivoted DataFrame where:
+#                 - Index: (reporter, partner) country pairs
+#                 - Columns: commodity codes
+#                 - Values: trade values for the specified flow
+#         """
+#         trade_value_df = self.df[
+#             [
+#                 "trade_flow",
+#                 "reporter_iso",
+#                 "partner_iso",
+#                 "commodity_code",
+#                 "trade_value",
+#             ]
+#         ]
+#         if trade_flow == "exports":
+#             reporter, partner = "exporter", "importer"
+#             trade_value_df = trade_value_df[trade_value_df["trade_flow"] == 2]
+#         elif trade_flow == "imports":
+#             reporter, partner = "importer", "exporter"
+#             trade_value_df = trade_value_df[trade_value_df["trade_flow"] == 1]
+
+#         trade_value_df = trade_value_df.rename(
+#             columns={
+#                 "reporter_iso": reporter,
+#                 "partner_iso": partner,
+#                 "trade_value": f"{trade_flow}_value",
+#             }
+#         ).drop(columns=["trade_flow"])
+#         #  all products and all country pairs
+#         trade_value_df = pd.merge(
+#             self.all_ccpy,
+#             trade_value_df,
+#             on=["exporter", "importer", "commodity_code"],
+#             how="left",
+#         )
+
+#         trade_value_df = trade_value_df.fillna(0.0)
+#         return trade_value_df.pivot(
+#             index=[reporter, partner],
+#             columns="commodity_code",
+#             values=f"{trade_flow}_value",
+#         )
 
     def assign_trade_scores(self):
         """
