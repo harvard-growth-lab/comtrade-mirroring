@@ -86,6 +86,7 @@ def run_atlas_cleaning(ingestion_attrs):
         ccy = CountryCountryYear(year, **ingestion_attrs)
         ccy.save_parquet(ccy.df, 'processed', f'country_country_year_{year}')
         
+        
         accuracy = Accuracy(year, **ingestion_attrs)
         logging.info("confirm CIF ratio column is present")
         accuracy.save_parquet(accuracy.df, 'processed', f'accuracy_{year}')
@@ -100,9 +101,6 @@ def run_atlas_cleaning(ingestion_attrs):
         print(f"end time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
         
-def run_ccpy():
-    return CountryCountryProductYear(year, **ingestion_attrs)
-
 
 def compute_distance(df, year, product_classification, dist):
     """

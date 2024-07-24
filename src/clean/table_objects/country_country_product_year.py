@@ -86,9 +86,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         # swap importer, exporter to exporter, importer to merge with exports matrix
         # self.imports_matrix = self.imports_matrix.swaplevel()
         
-        import pdb
-        pdb.set_trace()
-
         self.trade_score = self.assign_trade_scores()
 
         accuracy = accuracy[accuracy.importer != accuracy.exporter]
@@ -329,30 +326,30 @@ class CountryCountryProductYear(_AtlasCleaning):
         Prepare data for matrix multiplication by reshaping and melting dataframes,
         merging trade data, and handling NaN values.
         """
-        if accuracy[["weight"]].index.names == ['exporter', 'importer']:
-            self.weight = accuracy[["weight"]].rename(columns={'weight' : 'exporter_weight'})
-            importer_weight = self.weight.swaplevel().rename(columns={'exporter_weight': 'importer_weight'})
-            self.weight = self.weight.reset_index().merge(importer_weight.reset_index(), 
-                                            left_on=['exporter', 'importer'],
-                                            right_on=['importer', 'exporter'],
-                                            how='left', suffixes=('_exp','_imp')
-                                           ).drop(columns=['importer_imp', 'exporter_imp'])
-            self.weight = self.weight.rename(columns={'exporter_exp': 'reporter_iso',
-                                                      'importer_exp': 'partner_iso'
-                                                     }).set_index(['reporter_iso', 'partner_iso'])
-        else:
-            raise ValueError("Expected exporter, importer multiindex")
-        
+        self.trade_values_matrix = self.trade_values_matrix.reset_index()
+
+        self.accuracy_scores.name = 'accuracy'
+        for metric, df in [('accuracy', self.accuracy_scores.to_frame()), ('weight', accuracy[['weight']])]:
+            if df.index.names == ['exporter', 'importer']:
+                exporter_df = df.rename(columns={metric : f'exporter_{metric}'})
+                importer_df = df.swaplevel().rename(columns={f'{metric}': f'importer_{metric}'})
+
+                self.trade_values_matrix = self.trade_values_matrix.merge(exporter_df.reset_index().rename(columns={"exporter":"reporter_iso", "importer":"partner_iso"}), on=['reporter_iso', 'partner_iso'], how='left')
+
+                self.trade_values_matrix = self.trade_values_matrix.merge(importer_df.reset_index().rename(columns={"importer":"reporter_iso", "exporter":"partner_iso"}), on=['reporter_iso', 'partner_iso'], how='left')
+
+            else:
+                raise ValueError("Expected exporter, importer multiindex")
+               
+        self.trade_score = self.trade_score.rename(columns={0: 'trade_score'})
         import pdb
         pdb.set_trace()
-       
-        self.trade_score = self.trade_score.rename(columns={0: 'trade_score'})
+        self.trade_values_matrix = self.trade_values_matrix.merge(self.trade_score.reset_index(), on=['reporter_iso', 'partner_iso', 'commodity_code'], how='left')
+                
         # Replace NaN with 0.0 for numerical stability
-        self.trade_score = self.trade_score.fillna(0.0)
-        self.trade_values_matrix = self.trade_values_matrix.fillna(0.0)
-        self.weight = self.weight.fillna(0.0)
-        self.accuracy_scores.index.names = 'reporter_iso', 'partner_iso'
-
+        self.trade_values_matrix = self.trade_values_matrix.fillna(0)
+        self.trade_values_matrix = self.trade_values_matrix.set_index(['reporter_iso', 'partner_iso', 'commodity_code'])
+        
                                             
     
 #         # melt the dataframes
@@ -414,84 +411,81 @@ class CountryCountryProductYear(_AtlasCleaning):
             - When trade score is 4 but accuracy score is 0, use the average of export and import values
             - When either score is 0, use the available value (import or export) based on the non-zero score
         """
-
-        import pdb
-
-        pdb.set_trace()
         
+        # make into one data frame...
         final_value = (
             (
                 (
-                    (self.weight["exporter_weight"] * self.trade_values_matrix["export_value"])
+                    (self.trade_values_matrix["exporter_weight"] * self.trade_values_matrix["export_value"])
                     + (
-                        (1 - self.weight["importer_weight"])
+                        (1 - self.trade_values_matrix["importer_weight"])
                         * self.trade_values_matrix["import_value"]
                     )
                 )
-                * ((self.trade_score["trade_score"] == 4) * (self.accuracy_scores == 4))
+                * ((self.trade_values_matrix["trade_score"] == 4) * (self.trade_values_matrix['exporter_accuracy'] == 4))
             )
             + (
                 self.trade_values_matrix["import_value"]
-                * ((self.trade_score["trade_score"] == 2) * (self.accuracy_scores == 2))
+                * ((self.trade_values_matrix["trade_score"] == 2) * (self.trade_values_matrix['exporter_accuracy'] == 2))
             )
             + (
                 self.trade_values_matrix["import_value"]
-                * ((self.trade_score["trade_score"] == 2) * (self.accuracy_scores == 4))
+                * ((self.trade_values_matrix["trade_score"] == 2) * (self.trade_values_matrix['exporter_accuracy'] == 4))
             )
             + (
                 self.trade_values_matrix["export_value"]
-                * ((self.trade_score["trade_score"] == 1) * (self.accuracy_scores == 1))
+                * ((self.trade_values_matrix["trade_score"] == 1) * (self.trade_values_matrix['exporter_accuracy'] == 1))
             )
             + (
                 self.trade_values_matrix["export_value"]
-                * ((self.trade_score["trade_score"] == 1) * (self.accuracy_scores == 4))
+                * ((self.trade_values_matrix["trade_score"] == 1) * (self.trade_values_matrix['exporter_accuracy'] == 4))
             )
             + (
                 self.trade_values_matrix["import_value"]
-                * ((self.trade_score["trade_score"] == 4) * (self.accuracy_scores == 2))
+                * ((self.trade_values_matrix["trade_score"] == 4) * (self.trade_values_matrix['exporter_accuracy'] == 2))
             )
             + (
                 self.trade_values_matrix["export_value"]
-                * ((self.trade_score["trade_score"] == 4) * (self.accuracy_scores == 1))
+                * ((self.trade_values_matrix["trade_score"] == 4) * (self.trade_values_matrix['exporter_accuracy'] == 1))
             )
             + (
                 0.5
                 * (
                     self.trade_values_matrix["export_value"]
-                    + self.imports_matrix["import_value"]
+                    + self.trade_values_matrix["import_value"]
                 )
-                * ((self.trade_score["trade_score"] == 4) * (self.accuracy_scores == 0))
+                * ((self.trade_values_matrix["trade_score"] == 4) * (self.trade_values_matrix['exporter_accuracy'] == 0))
             )
             + (
                 self.trade_values_matrix["import_value"]
-                * ((self.trade_score["trade_score"] == 2) * (self.accuracy_scores == 0))
+                * ((self.trade_values_matrix["trade_score"] == 2) * (self.trade_values_matrix['exporter_accuracy'] == 0))
             )
             + (
                 self.trade_values_matrix["export_value"]
-                * ((self.trade_score["trade_score"] == 1) * (self.accuracy_scores == 0))
+                * ((self.trade_values_matrix["trade_score"] == 1) * (self.trade_values_matrix['exporter_accuracy']== 0))
             )
             + (
                 self.trade_values_matrix["import_value"]
-                * ((self.trade_score["trade_score"] == 2) * (self.accuracy_scores == 1))
+                * ((self.trade_values_matrix["trade_score"] == 2) * (self.trade_values_matrix['exporter_accuracy'] == 1))
             )
             + (
                 self.trade_values_matrix["export_value"]
-                * ((self.trade_score["trade_score"] == 1) * (self.accuracy_scores == 2))
+                * ((self.trade_values_matrix["trade_score"] == 1) * (self.trade_values_matrix['exporter_accuracy'] == 2))
             )
         )
     
         # clean up memory
-        del self.exports_matrix
-        del self.imports_matrix
-        del self.trade_score
-        del self.accuracy_scores
+        # try:
+        #     del self.trade_score
+        #     del self.accuracy_scores
+        # except:
+        #     logging.error("can't delete object")
         
         final_value.name = "final_value"
-        self.df = (
-            self.df.set_index(["importer", "exporter", "commodity_code"])
-            .join(final_value)
-            .reset_index()
-        )
+        return self.trade_values_matrix.reset_index().merge(final_value.to_frame(),
+                                                         on=['reporter_iso', 'partner_iso', 'commodity_code'],
+                                                         how='left'
+                                                        )
 
     def reweight_final_trade_value(self, trade_total):
         """

@@ -33,14 +33,14 @@ class CountryCountryYear(_AtlasCleaning):
             os.path.join(f"intermediate", self.product_classification),
             f"{self.product_classification}_{self.year}",
         )
-
+        
         # Prepare economic indicators
         cpi, population = self.add_economic_indicators()
         cpi = self.inflation_adjustment(cpi)
 
         # Clean and filter data
         self.clean_data()
-
+        
         # merge data to have all possible combinations for exporter, importer
         all_combinations_ccy_index = pd.MultiIndex.from_product(
             [
@@ -61,6 +61,7 @@ class CountryCountryYear(_AtlasCleaning):
             self.df, on=["year", "exporter", "importer"], how="left"
         )
         self.df = self.df.drop(columns=["year"])
+
         # temp_accuracy in stata
         self.apply_relative_cif_markup()
         # save intermediate ccy file (saved as temp_accuracy.dta in stata file)
@@ -79,10 +80,11 @@ class CountryCountryYear(_AtlasCleaning):
         self.df = self.df.dropna(subset=["exporter", "importer"])
         self.df = self.df[
             ~(
-                (self.df.exporter.isin(["WLD", "ANS"]))
-                | (self.df.importer.isin(["WLD", "ANS"]))
+                (self.df.exporter.isin(["WLD", "nan"]))
+                | (self.df.importer.isin(["WLD", "nan"]))
             )
         ]
+        self.df = self.df[~((self.df.exporter=="ANS") & (self.df.importer=="ANS"))]
         self.df = self.df[self.df.exporter != self.df.importer]
         # drop trade values less than trade value threshold
         self.df = self.df[
