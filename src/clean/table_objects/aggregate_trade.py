@@ -51,7 +51,7 @@ class AggregateTrade(_AtlasCleaning):
         # load data
         self.df = self.load_comtrade_downloader_file()
         # conditional incase df is empty
-        
+
         logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
         # filter and clean data
         self.filter_data()

@@ -33,21 +33,19 @@ class CountryCountryYear(_AtlasCleaning):
             os.path.join(f"intermediate", self.product_classification),
             f"{self.product_classification}_{self.year}",
         )
-        
+
         # Clean and filter data
         self.clean_data()
-        
+
         # temp_accuracy in stata
         nominal_dollars_df = pd.DataFrame()
         df = self.apply_relative_cif_markup(nominal_dollars_df)
         # save intermediate ccy file (saved as temp_accuracy.dta in stata file)
         self.save_parquet(df, "intermediate", "ccy_nominal_dollars")
 
-
         # Prepare economic indicators
         cpi, population = self.add_economic_indicators()
         cpi = self.inflation_adjustment(cpi)
-
 
         # merge data to have all possible combinations for exporter, importer
         all_combinations_ccy_index = pd.MultiIndex.from_product(
@@ -101,9 +99,7 @@ class CountryCountryYear(_AtlasCleaning):
         """ """
         # ensures cif_ratio is never greater than .20
         df = self.df.copy(deep=True)
-        df["cif_ratio"] = (
-            df["import_value_cif"] / self.df["import_value_fob"]
-        ) - 1
+        df["cif_ratio"] = (df["import_value_cif"] / self.df["import_value_fob"]) - 1
         logging.info("review CIF ratio from compute distance")
         df["cif_ratio"] = df["cif_ratio"].apply(
             lambda val: min(val, 0.20) if pd.notnull(val) else val

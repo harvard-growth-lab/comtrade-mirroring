@@ -91,17 +91,35 @@ def run_atlas_cleaning(ingestion_attrs):
             index=False,
         )
         ccy = CountryCountryYear(year, **ingestion_attrs)
-        ccy.save_parquet(ccy.df, "intermediate", f"{product_classification}_{year}_country_country_year")
+        ccy.save_parquet(
+            ccy.df,
+            "intermediate",
+            f"{product_classification}_{year}_country_country_year",
+        )
 
         accuracy = Accuracy(year, **ingestion_attrs)
         logging.info("confirm CIF ratio column is present")
-        accuracy.save_parquet(accuracy.df, "intermediate", f"{product_classification}_{year}_accuracy")
+        accuracy.save_parquet(
+            accuracy.df, "intermediate", f"{product_classification}_{year}_accuracy"
+        )
 
         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
-        ccpy.save_parquet(ccpy.df, "final", f"{product_classification}_{year}_country_country_product_year")
-        ccpy.save_parquet(ccpy.df, "processed", f"{product_classification}_{year}_country_country_product_year_{year}")
+        ccpy.save_parquet(
+            ccpy.df,
+            "final",
+            f"{product_classification}_{year}_country_country_product_year",
+        )
+        ccpy.save_parquet(
+            ccpy.df,
+            "processed",
+            f"{product_classification}_{year}_country_country_product_year_{year}",
+        )
         try:
-            ccpy.df.to_stata(os.path.join(ccpy.final_output_path, f"{product_classification}_{year}.dta"))
+            ccpy.df.to_stata(
+                os.path.join(
+                    ccpy.final_output_path, f"{product_classification}_{year}.dta"
+                )
+            )
         except Exception as e:
             print(f"failed to write to stata: {e}")
 
@@ -235,7 +253,7 @@ if __name__ == "__main__":
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H0",
     }
-    
+
     ingestion_attrs_H4 = {
         "start_year": 2012,
         "end_year": 2022,
@@ -247,7 +265,6 @@ if __name__ == "__main__":
         "product_classification": "H4",
     }
 
-    
     ingestion_attrs_S2 = {
         "start_year": 1962,
         "end_year": 2022,

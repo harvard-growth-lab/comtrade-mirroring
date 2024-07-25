@@ -49,7 +49,9 @@ class CountryCountryProductYear(_AtlasCleaning):
         #         )
         #     )
         # ]
-        accuracy = self.load_parquet("intermediate", f"{self.product_classification}_{self.year}_accuracy")
+        accuracy = self.load_parquet(
+            "intermediate", f"{self.product_classification}_{self.year}_accuracy"
+        )
         # accuracy = accuracy[
         #     accuracy.value_final >= 100_000
         # ]
@@ -116,10 +118,25 @@ class CountryCountryProductYear(_AtlasCleaning):
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
         self.df["year"] = self.year
-        self.df = self.df.rename(columns={"final_value": "value_final", "export_value" : "value_exporter", "import_value" : "value_importer"})
-        self.df = self.df[['year', 'exporter', 'importer', 'commodity_code', 'value_final', 'value_exporter', 'value_importer']]
+        self.df = self.df.rename(
+            columns={
+                "final_value": "value_final",
+                "export_value": "value_exporter",
+                "import_value": "value_importer",
+            }
+        )
+        self.df = self.df[
+            [
+                "year",
+                "exporter",
+                "importer",
+                "commodity_code",
+                "value_final",
+                "value_exporter",
+                "value_importer",
+            ]
+        ]
 
-        
     def filter_and_clean_data(self):
         """
         Filter trade data to include only level 6 products and remove invalid entries.
@@ -141,7 +158,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         columns = ["reporter_iso", "partner_iso"]
         mask = ~self.df[columns].isin(values_to_drop).any(axis=1)
         self.df = self.df[mask]
-        self.df = self.df[~(self.df.reporter_iso==self.df.partner_iso)]
+        self.df = self.df[~(self.df.reporter_iso == self.df.partner_iso)]
 
     def setup_trade_analysis_framework(self, accuracy):
         """
@@ -167,7 +184,7 @@ class CountryCountryProductYear(_AtlasCleaning):
                 country_pairs["importer"].unique(),
                 # products["commodity_code"].unique(),
             ],
-            names=["reporter_iso", "partner_iso"] #, "commodity_code"],
+            names=["reporter_iso", "partner_iso"],  # , "commodity_code"],
         )
 
         all_ccpy = (
@@ -179,7 +196,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         npairs = all_ccpy[["reporter_iso", "partner_iso"]].drop_duplicates().shape[0]
         return all_ccpy, npairs, nprod
 
-    
     def generate_trade_value_matrix(self, accuracy, all_ccpy):
         """
         Generate a matrix of trade values for either exports or imports.
@@ -193,26 +209,62 @@ class CountryCountryProductYear(_AtlasCleaning):
                 - Columns: commodity codes
                 - Values: trade values for the specified flow
         """
-        self.df = self.df[['trade_flow', 'reporter_iso', 'partner_iso', 'commodity_code', 'trade_value']]
-        self.df = self.df.groupby(['reporter_iso', 'partner_iso', 'commodity_code', 'trade_flow']).agg('sum').reset_index()
-        re = self.df[self.df.trade_flow==2]
-        ri = self.df[self.df.trade_flow==1]
-        
-        self.df = re.merge(ri, on=['reporter_iso', 'partner_iso', 'commodity_code'], how='outer', suffixes=('_reporting_exp', '_reporting_imp'))
-        self.df = self.df.drop(columns=["trade_flow_reporting_exp", "trade_flow_reporting_imp"])
-        self.df = self.df.rename(columns={"trade_value_reporting_exp": "export_value", "trade_value_reporting_imp": "import_value", "reporter_iso": "exporter", "partner_iso": "importer"})
-        
-        # add all country country pairs 
+        self.df = self.df[
+            [
+                "trade_flow",
+                "reporter_iso",
+                "partner_iso",
+                "commodity_code",
+                "trade_value",
+            ]
+        ]
+        self.df = (
+            self.df.groupby(
+                ["reporter_iso", "partner_iso", "commodity_code", "trade_flow"]
+            )
+            .agg("sum")
+            .reset_index()
+        )
+        re = self.df[self.df.trade_flow == 2]
+        ri = self.df[self.df.trade_flow == 1]
+
+        self.df = re.merge(
+            ri,
+            on=["reporter_iso", "partner_iso", "commodity_code"],
+            how="outer",
+            suffixes=("_reporting_exp", "_reporting_imp"),
+        )
+        self.df = self.df.drop(
+            columns=["trade_flow_reporting_exp", "trade_flow_reporting_imp"]
+        )
+        self.df = self.df.rename(
+            columns={
+                "trade_value_reporting_exp": "export_value",
+                "trade_value_reporting_imp": "import_value",
+                "reporter_iso": "exporter",
+                "partner_iso": "importer",
+            }
+        )
+
+        # add all country country pairs
         # self.df = all_ccpy.merge(self.df, on=['exporter', 'importer'], how="left")
-        
+
         self.df = self.df.merge(
-            accuracy[["importer", "exporter", "cif_ratio", 'exporter_weight', 'importer_weight']],
+            accuracy[
+                [
+                    "importer",
+                    "exporter",
+                    "cif_ratio",
+                    "exporter_weight",
+                    "importer_weight",
+                ]
+            ],
             on=["importer", "exporter"],
             how="left",
         )
         self.df["import_value"] = self.df["import_value"] * (1 - self.df["cif_ratio"])
-        self.df = self.df.drop(columns=['cif_ratio'])
-        self.df = self.df.fillna(0.)
+        self.df = self.df.drop(columns=["cif_ratio"])
+        self.df = self.df.fillna(0.0)
 
     def assign_trade_scores(self):
         """
@@ -221,13 +273,10 @@ class CountryCountryProductYear(_AtlasCleaning):
         score of 2 if reporter only provides positive imports
         score of 1 if reporter only provides positive exports
         """
-        self.df['trade_score'] = (
+        self.df["trade_score"] = (
             1
             * (
-                (
-                    1 * (self.df["export_value"] > 0)
-                    + 1 * (self.df["import_value"] > 0)
-                )
+                (1 * (self.df["export_value"] > 0) + 1 * (self.df["import_value"] > 0))
                 > 1
             )
             + 1 * (self.df["export_value"] > 0)
@@ -242,14 +291,20 @@ class CountryCountryProductYear(_AtlasCleaning):
         # score of 4 if exporter and importer weight both > 0
         # score of 2 if importer weight only > 0
         # score of 1 if exporter weight only > 0
-        self.df['accuracy'] = (
-            1 * ((1 * (self.df['exporter_weight'] > 0) + 1 * (self.df['importer_weight'] > 0)) > 1)
-            + 1 * ((self.df['exporter_weight'] > 0))
-            + 2 * ((self.df['importer_weight'] > 0))
+        self.df["accuracy"] = (
+            1
+            * (
+                (
+                    1 * (self.df["exporter_weight"] > 0)
+                    + 1 * (self.df["importer_weight"] > 0)
+                )
+                > 1
+            )
+            + 1 * ((self.df["exporter_weight"] > 0))
+            + 2 * ((self.df["importer_weight"] > 0))
         )
         return cc_trade_total
 
-    
     def calculate_final_trade_value(self):
         """
         Calculate the final trade value based on a set of conditions that consider
@@ -264,109 +319,63 @@ class CountryCountryProductYear(_AtlasCleaning):
             - When trade score is 4 but accuracy score is 0, use the average of export and import values
             - When either score is 0, use the available value (import or export) based on the non-zero score
         """
-        self.df['final_value'] = (
+        self.df["final_value"] = (
             (
                 (
-                    (
-                        self.df["exporter_weight"]
-                        * self.df["export_value"]
-                    )
-                    + (
-                        (1 - self.df["importer_weight"])
-                        * self.df["import_value"]
-                    )
+                    (self.df["exporter_weight"] * self.df["export_value"])
+                    + ((1 - self.df["importer_weight"]) * self.df["import_value"])
                 )
-                * (
-                    (self.df["trade_score"] == 4)
-                    * (self.df["accuracy"] == 4)
-                )
+                * ((self.df["trade_score"] == 4) * (self.df["accuracy"] == 4))
             )
             + (
                 self.df["import_value"]
-                * (
-                    (self.df["trade_score"] == 2)
-                    * (self.df["accuracy"] == 2)
-                )
+                * ((self.df["trade_score"] == 2) * (self.df["accuracy"] == 2))
             )
             + (
                 self.df["import_value"]
-                * (
-                    (self.df["trade_score"] == 2)
-                    * (self.df["accuracy"] == 4)
-                )
+                * ((self.df["trade_score"] == 2) * (self.df["accuracy"] == 4))
             )
             + (
                 self.df["export_value"]
-                * (
-                    (self.df["trade_score"] == 1)
-                    * (self.df["accuracy"] == 1)
-                )
+                * ((self.df["trade_score"] == 1) * (self.df["accuracy"] == 1))
             )
             + (
                 self.df["export_value"]
-                * (
-                    (self.df["trade_score"] == 1)
-                    * (self.df["accuracy"] == 4)
-                )
+                * ((self.df["trade_score"] == 1) * (self.df["accuracy"] == 4))
             )
             + (
                 self.df["import_value"]
-                * (
-                    (self.df["trade_score"] == 4)
-                    * (self.df["accuracy"] == 2)
-                )
+                * ((self.df["trade_score"] == 4) * (self.df["accuracy"] == 2))
             )
             + (
                 self.df["export_value"]
-                * (
-                    (self.df["trade_score"] == 4)
-                    * (self.df["accuracy"] == 1)
-                )
+                * ((self.df["trade_score"] == 4) * (self.df["accuracy"] == 1))
             )
             + (
                 0.5
-                * (
-                    self.df["export_value"]
-                    + self.df["import_value"]
-                )
-                * (
-                    (self.df["trade_score"] == 4)
-                    * (self.df["accuracy"] == 0)
-                )
+                * (self.df["export_value"] + self.df["import_value"])
+                * ((self.df["trade_score"] == 4) * (self.df["accuracy"] == 0))
             )
             + (
                 self.df["import_value"]
-                * (
-                    (self.df["trade_score"] == 2)
-                    * (self.df["accuracy"] == 0)
-                )
+                * ((self.df["trade_score"] == 2) * (self.df["accuracy"] == 0))
             )
             + (
                 self.df["export_value"]
-                * (
-                    (self.df["trade_score"] == 1)
-                    * (self.df["accuracy"] == 0)
-                )
+                * ((self.df["trade_score"] == 1) * (self.df["accuracy"] == 0))
             )
             + (
                 self.df["import_value"]
-                * (
-                    (self.df["trade_score"] == 2)
-                    * (self.df["accuracy"] == 1)
-                )
+                * ((self.df["trade_score"] == 2) * (self.df["accuracy"] == 1))
             )
             + (
                 self.df["export_value"]
-                * (
-                    (self.df["trade_score"] == 1)
-                    * (self.df["accuracy"] == 2)
-                )
+                * ((self.df["trade_score"] == 1) * (self.df["accuracy"] == 2))
             )
         )
         # import pdb
         # pdb.set_trace()
-        self.df = self.df.drop(columns=['trade_score', 'accuracy'])
-
+        self.df = self.df.drop(columns=["trade_score", "accuracy"])
 
     def reweight_final_trade_value(self, trade_total):
         """
@@ -378,7 +387,9 @@ class CountryCountryProductYear(_AtlasCleaning):
         """
 
         # self.df = self.df.set_index(['exporter', 'importer', 'commodity_code')]
-        cc_estimated_trade_val = self.df.groupby(['exporter', 'importer']).agg('sum')['final_value']
+        cc_estimated_trade_val = self.df.groupby(["exporter", "importer"]).agg("sum")[
+            "final_value"
+        ]
         cc_estimated_trade_val = cc_estimated_trade_val.replace(0, np.nan)
 
         # determine if data trade discrepancies
@@ -401,12 +412,16 @@ class CountryCountryProductYear(_AtlasCleaning):
         xxxx = ((case_1 + case_2) > 0).astype(int)
         value_xxxx = (trade_total - cc_estimated_trade_val) * (xxxx == 1).astype(int)
         value_reweight = trade_total - value_xxxx
-        
-        cc_each_product = self.df.pivot(columns=['commodity_code'], index=['exporter', 'importer'], values='final_value')
+
+        cc_each_product = self.df.pivot(
+            columns=["commodity_code"],
+            index=["exporter", "importer"],
+            values="final_value",
+        )
         reweighted = cc_each_product - cc_each_product * (
             (cc_each_product < 1000).astype(int)
         )
-        
+
         reweighted = reweighted.div(reweighted.sum(axis=1).replace(0, np.nan), axis=0)
 
         # reweighted = reweighted.reset_index().set_index(["exporter", "importer"])
@@ -415,10 +430,14 @@ class CountryCountryProductYear(_AtlasCleaning):
         # reweighted = reweighted.reset_index().melt(
         #     id_vars=["exporter", "importer"], value_name="reweighted_value"
         # )
-        reweighted = reweighted.rename(columns={'final_value': 'reweighted_value'})
-        reweighted = reweighted.melt(ignore_index=False, var_name='commodity_code', value_name='reweighted_value').reset_index()
+        reweighted = reweighted.rename(columns={"final_value": "reweighted_value"})
+        reweighted = reweighted.melt(
+            ignore_index=False, var_name="commodity_code", value_name="reweighted_value"
+        ).reset_index()
         self.df = self.df.reset_index().merge(
-            reweighted.reset_index(), on=["exporter", "importer", "commodity_code"], how="left"
+            reweighted.reset_index(),
+            on=["exporter", "importer", "commodity_code"],
+            how="left",
         )
 
     def filter_and_handle_trade_data_discrepancies(self):
@@ -432,9 +451,12 @@ class CountryCountryProductYear(_AtlasCleaning):
         """
         # drop rows that don't have data
         self.df = self.df.loc[
-            (self.df[["final_value", "reweighted_value", "import_value", "export_value"]] != 0.0).any(
-                axis=1
-            )
+            (
+                self.df[
+                    ["final_value", "reweighted_value", "import_value", "export_value"]
+                ]
+                != 0.0
+            ).any(axis=1)
             & self.df.notnull().any(axis=1)
         ]
 
