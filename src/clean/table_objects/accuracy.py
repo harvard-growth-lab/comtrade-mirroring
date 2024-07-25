@@ -25,7 +25,7 @@ class Accuracy(_AtlasCleaning):
 
         # load data
         nominal_dollars_df = self.load_parquet("intermediate", "ccy_nominal_dollars")
-        self.ccy = self.load_parquet(f"processed", f"country_country_year_{year}")
+        self.ccy = self.load_parquet(f"intermediate", f"{self.product_classification}_{self.year}_country_country_year")
 
         # Compute accuracy scores, called temp.dta in stata
         ccy_accuracy = self.compute_accuracy_scores()

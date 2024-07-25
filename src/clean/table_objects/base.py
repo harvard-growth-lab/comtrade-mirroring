@@ -13,6 +13,7 @@ class _AtlasCleaning(object):
     HIERARCHY_LEVELS = {
         "H0": (0, 2, 4, 6),
         "HS": (0, 2, 4, 6),
+        "H4": (0, 2, 4, 6),
         "S1": (0, 2, 4),
         "S2": (0, 2, 4),
         "ST": (0, 2, 4),
@@ -28,6 +29,7 @@ class _AtlasCleaning(object):
         end_year,
         downloaded_files_path,
         root_dir,
+        final_output_path,
         product_classification,
     ):
         # INPUTS
@@ -36,6 +38,7 @@ class _AtlasCleaning(object):
         self.downloaded_files_path = downloaded_files_path
         self.root_dir = root_dir
         self.data_path = os.path.join(self.root_dir, "data")
+        self.final_output_path = os.path.join(final_output_path)
         self.raw_data_path = os.path.join(self.data_path, "raw")
         self.intermediate_data_path = os.path.join(self.data_path, "intermediate")
         self.processed_data_path = os.path.join(self.data_path, "processed")
@@ -60,6 +63,9 @@ class _AtlasCleaning(object):
         return df
 
     def save_parquet(self, df, data_folder, table_name: str):
-        save_dir = os.path.join(self.data_path, data_folder)
+        if data_folder == "final":
+            save_dir = os.path.join(self.final_output_path, f"{self.product_classification}_parquet")
+        else:
+            save_dir = os.path.join(self.data_path, data_folder)
         save_path = os.path.join(save_dir, f"{table_name}.parquet")
         df.to_parquet(save_path, index=False)

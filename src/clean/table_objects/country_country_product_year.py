@@ -18,6 +18,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         "H4": ["XXXXXX", "999999"],
         "S1": ["XXXX", "9999"],
         "S2": ["XXXX", "9999"],
+        "SITC": ["XXXX", "9999"],
     }
     TRADE_DATA_DISCREPANCIES = 0
     NOT_SPECIFIED = 1
@@ -48,7 +49,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         #         )
         #     )
         # ]
-        accuracy = self.load_parquet("processed", f"accuracy_{self.year}")
+        accuracy = self.load_parquet("intermediate", f"{self.product_classification}_{self.year}_accuracy")
         # accuracy = accuracy[
         #     accuracy.value_final >= 100_000
         # ]
@@ -70,21 +71,18 @@ class CountryCountryProductYear(_AtlasCleaning):
 
         logging.info("ccpy: filtered and cleaned data")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-        self.all_ccpy, self.npairs, self.nprod = self.setup_trade_analysis_framework(
+        all_ccpy, self.npairs, self.nprod = self.setup_trade_analysis_framework(
             accuracy
         )
         logging.info("ccpy: set up trade analysis framework")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
         # calculate the value of exports for each country pair and product
-        self.generate_trade_value_matrix(accuracy)
+        self.generate_trade_value_matrix(accuracy, all_ccpy)
         # self.imports_matrix = self.generate_trade_value_matrix("imports", accuracy)
         # merge in cif ratio
-        logging.info("ccpy: genered trade vals matrix with cif ratio applied")
+        logging.info("ccpy: generated trade vals matrix with cif ratio applied")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-
-        # swap importer, exporter to exporter, importer to merge with exports matrix
-        # self.imports_matrix = self.imports_matrix.swaplevel()
 
         self.trade_score = self.assign_trade_scores()
 
@@ -100,14 +98,9 @@ class CountryCountryProductYear(_AtlasCleaning):
         logging.info("ccpy: prepped for matrix multiplication")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
-        #         import pdb
-        #         pdb.set_trace()
         self.calculate_final_trade_value()
         logging.info("ccpy: calculated final trade val")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-
-        #         import pdb
-        #         pdb.set_trace()
 
         self.reweight_final_trade_value(cc_trade_totals)
         logging.info("ccpy: reweighted")
@@ -117,18 +110,16 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.filter_and_handle_trade_data_discrepancies()
         logging.info("ccpy: handle trade data discrepancies")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-        import pdb
-        pdb.set_trace()
 
         self.handle_not_specified()
         logging.info("ccpy: handled not specified")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-        import pdb
-        pdb.set_trace()
 
         self.df["year"] = self.year
-        # self.save_parquet(self.df, "processed", f"country_country_product_year_{self.year}")
+        self.df = self.df.rename(columns={"final_value": "value_final", "export_value" : "value_exporter", "import_value" : "value_importer"})
+        self.df = self.df[['year', 'exporter', 'importer', 'commodity_code', 'value_final', 'value_exporter', 'value_importer']]
 
+        
     def filter_and_clean_data(self):
         """
         Filter trade data to include only level 6 products and remove invalid entries.
@@ -174,9 +165,9 @@ class CountryCountryProductYear(_AtlasCleaning):
             [
                 country_pairs["exporter"].unique(),
                 country_pairs["importer"].unique(),
-                products["commodity_code"].unique(),
+                # products["commodity_code"].unique(),
             ],
-            names=["reporter_iso", "partner_iso", "commodity_code"],
+            names=["reporter_iso", "partner_iso"] #, "commodity_code"],
         )
 
         all_ccpy = (
@@ -189,7 +180,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         return all_ccpy, npairs, nprod
 
     
-    def generate_trade_value_matrix(self, accuracy):
+    def generate_trade_value_matrix(self, accuracy, all_ccpy):
         """
         Generate a matrix of trade values for either exports or imports.
 
@@ -210,6 +201,9 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.df = re.merge(ri, on=['reporter_iso', 'partner_iso', 'commodity_code'], how='outer', suffixes=('_reporting_exp', '_reporting_imp'))
         self.df = self.df.drop(columns=["trade_flow_reporting_exp", "trade_flow_reporting_imp"])
         self.df = self.df.rename(columns={"trade_value_reporting_exp": "export_value", "trade_value_reporting_imp": "import_value", "reporter_iso": "exporter", "partner_iso": "importer"})
+        
+        # add all country country pairs 
+        # self.df = all_ccpy.merge(self.df, on=['exporter', 'importer'], how="left")
         
         self.df = self.df.merge(
             accuracy[["importer", "exporter", "cif_ratio", 'exporter_weight', 'importer_weight']],
@@ -255,56 +249,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         )
         return cc_trade_total
 
-    def prepare_for_matrix_multiplication(self, accuracy):
-        """
-        Prepare data for matrix multiplication by reshaping and melting dataframes,
-        merging trade data, and handling NaN values.
-        """
-        self.trade_values_matrix = self.trade_values_matrix.reset_index()
-        self.accuracy_scores.name = "accuracy"
-        for metric, df in [
-            ("accuracy", self.accuracy_scores.to_frame()),
-            ("weight", accuracy[["weight"]]),
-        ]:
-            if df.index.names == ["exporter", "importer"]:
-                exporter_df = df.rename(columns={metric: f"exporter_{metric}"})
-                importer_df = df.swaplevel().rename(
-                    columns={f"{metric}": f"importer_{metric}"}
-                )
-
-                self.trade_values_matrix = self.trade_values_matrix.merge(
-                    exporter_df.reset_index().rename(
-                        columns={"exporter": "reporter_iso", "importer": "partner_iso"}
-                    ),
-                    on=["reporter_iso", "partner_iso"],
-                    how="left",
-                )
-
-                self.trade_values_matrix = self.trade_values_matrix.merge(
-                    importer_df.reset_index().rename(
-                        columns={"importer": "reporter_iso", "exporter": "partner_iso"}
-                    ),
-                    on=["reporter_iso", "partner_iso"],
-                    how="left",
-                )
-
-            else:
-                raise ValueError("Expected exporter, importer multiindex")
-
-        self.trade_score = self.trade_score.rename(columns={0: "trade_score"})
-        self.trade_values_matrix = self.trade_values_matrix.merge(
-            self.trade_score.reset_index(),
-            on=["reporter_iso", "partner_iso", "commodity_code"],
-            how="left",
-        )
-
-        # Replace NaN with 0.0 for numerical stability
-        self.trade_values_matrix = self.trade_values_matrix.fillna(0)
-        # self.trade_values_matrix = self.trade_values_matrix.groupby('
-        self.trade_values_matrix = self.trade_values_matrix.set_index(
-            ["reporter_iso", "partner_iso", "commodity_code"]
-        )
-        
+    
     def calculate_final_trade_value(self):
         """
         Calculate the final trade value based on a set of conditions that consider
@@ -418,6 +363,9 @@ class CountryCountryProductYear(_AtlasCleaning):
                 )
             )
         )
+        # import pdb
+        # pdb.set_trace()
+        self.df = self.df.drop(columns=['trade_score', 'accuracy'])
 
 
     def reweight_final_trade_value(self, trade_total):
@@ -454,8 +402,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         value_xxxx = (trade_total - cc_estimated_trade_val) * (xxxx == 1).astype(int)
         value_reweight = trade_total - value_xxxx
         
-        import pdb
-        pdb.set_trace()
         cc_each_product = self.df.pivot(columns=['commodity_code'], index=['exporter', 'importer'], values='final_value')
         reweighted = cc_each_product - cc_each_product * (
             (cc_each_product < 1000).astype(int)

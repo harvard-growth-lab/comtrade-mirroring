@@ -224,7 +224,6 @@ class CountryCountryYear(_AtlasCleaning):
         and divides by sum of imports and exports
         """
         # in stata s_ij, should be fob and
-        logging.info("***** review why not FOB *******")
         self.df["reporting_discrepancy"] = (
             (abs(self.df["exports_const_usd"] - self.df["imports_const_usd"]))
             / (self.df["exports_const_usd"] + self.df["imports_const_usd"])

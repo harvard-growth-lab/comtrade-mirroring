@@ -41,6 +41,8 @@ class AggregateTrade(_AtlasCleaning):
         self.unspecified_by_class = {
             "HS": "9999",
             "H0": "9999",
+            "H4": "9999",
+            "SITC": "9310",
             "S1": "9310",
             "S2": "9310",
             "ST": "9310",
@@ -48,7 +50,8 @@ class AggregateTrade(_AtlasCleaning):
         self.product_class = product_class
         # load data
         self.df = self.load_comtrade_downloader_file()
-
+        # conditional incase df is empty
+        
         logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
         # filter and clean data
         self.filter_data()
@@ -87,11 +90,12 @@ class AggregateTrade(_AtlasCleaning):
         """
         outputs a dataframe for one year of Comtrade data from Comtrade Downloader script
         """
+        df = pd.DataFrame()
         try:
             columns = self.COLUMNS_DICT
             df = pd.read_csv(
                 os.path.join(
-                    self.raw_data_path, f"{self.product_class}_{self.year}.zip"
+                    self.raw_data_path, f"{self.product_class}_{self.year}.gzip"
                 ),
                 usecols=self.COLUMNS_DICT.keys(),
                 dtype={
@@ -122,7 +126,7 @@ class AggregateTrade(_AtlasCleaning):
                 )
             except:
                 error_message = f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate"
-                raise ValueError(error_message)
+                # raise ValueError(error_message)
         return df.rename(columns=columns)
 
     def filter_data(self):

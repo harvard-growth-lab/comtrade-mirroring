@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.INFO)
 # complexity table
 class Complexity(_AtlasCleaning):
     NOISY_TRADE = {
+        "SITC": ["9310", "9610", "9710", "9999", "XXXX"],
         "S2": ["9310", "9610", "9710", "9999", "XXXX"],
         "H0": ["7108", "9999", "XXXX"],
         "H4": ["7108", "9999", "XXXX"],

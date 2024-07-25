@@ -46,7 +46,7 @@ def run_atlas_cleaning(ingestion_attrs):
     # load data
     dist = pd.read_stata(os.path.join("data", "raw", "dist_cepii.dta"))
 
-    for year in range(start_year - 1, end_year + 2):
+    for year in range(start_year, end_year + 1):
         file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
         if not os.path.isfile(file_name):
             # get possible classifications based on year
@@ -91,17 +91,19 @@ def run_atlas_cleaning(ingestion_attrs):
             index=False,
         )
         ccy = CountryCountryYear(year, **ingestion_attrs)
-        ccy.save_parquet(ccy.df, "processed", f"country_country_year_{year}")
+        ccy.save_parquet(ccy.df, "intermediate", f"{product_classification}_{year}_country_country_year")
 
         accuracy = Accuracy(year, **ingestion_attrs)
         logging.info("confirm CIF ratio column is present")
-        accuracy.save_parquet(accuracy.df, "processed", f"accuracy_{year}")
+        accuracy.save_parquet(accuracy.df, "intermediate", f"{product_classification}_{year}_accuracy")
 
-        # cProfile.run('run_ccpy()')
-        # cProfile.run('CountryCountryProductYear(year, **ingestion_attrs)')
-        # logging.info("finished running cprofile")
         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
-        ccpy.save_parquet(ccpy.df, "processed", f"country_country_product_year_{year}")
+        ccpy.save_parquet(ccpy.df, "final", f"{product_classification}_{year}_country_country_product_year")
+        ccpy.save_parquet(ccpy.df, "processed", f"{product_classification}_{year}_country_country_product_year_{year}")
+        try:
+            ccpy.df.to_stata(os.path.join(ccpy.final_output_path, f"{product_classification}_{year}.dta"))
+        except Exception as e:
+            print(f"failed to write to stata: {e}")
 
         # complexity files
         print(f"end time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
@@ -223,13 +225,40 @@ def run_stata_code(df, stata_code):
 
 
 if __name__ == "__main__":
-    ingestion_attrs = {
-        "start_year": 2015,
-        "end_year": 2015,
+    ingestion_attrs_H0 = {
+        "start_year": 2021,
+        "end_year": 2022,
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_07_24/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H0",
     }
-    run_atlas_cleaning(ingestion_attrs)
+    
+    ingestion_attrs_H4 = {
+        "start_year": 2012,
+        "end_year": 2022,
+        "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
+        # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
+        "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_07_24/input",
+        # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
+        "product_classification": "H4",
+    }
+
+    
+    ingestion_attrs_S2 = {
+        "start_year": 1962,
+        "end_year": 2022,
+        "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
+        # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
+        "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_07_24/input",
+        # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
+        "product_classification": "SITC",
+    }
+
+    # run_atlas_cleaning(ingestion_attrs_H0)
+    run_atlas_cleaning(ingestion_attrs_H4)
+    run_atlas_cleaning(ingestion_attrs_SITC)
