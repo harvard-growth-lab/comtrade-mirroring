@@ -41,22 +41,26 @@ def run_atlas_cleaning(ingestion_attrs):
     start_year = ingestion_attrs["start_year"]
     end_year = ingestion_attrs["end_year"]
     product_classification = ingestion_attrs["product_classification"]
-    downloaded_files_path = ingestion_attrs['downloaded_files_path']
-    
-    # load data 
-    dist = pd.read_stata(os.path.join('data', 'raw', "dist_cepii.dta"))
-    
+    downloaded_files_path = ingestion_attrs["downloaded_files_path"]
+
+    # load data
+    dist = pd.read_stata(os.path.join("data", "raw", "dist_cepii.dta"))
+
     for year in range(start_year - 1, end_year + 2):
         file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
         if not os.path.isfile(file_name):
-        
             # get possible classifications based on year
             logging.info("removing classifications step until can confirm with Seba")
             classifications = [product_classification]
             # classifications = get_classifications(year)
-            logging.info(f"Aggregating data for {year} and these classifications {classifications}")
-            [AggregateTrade(year, product_class, **ingestion_attrs) for product_class in classifications]
-    
+            logging.info(
+                f"Aggregating data for {year} and these classifications {classifications}"
+            )
+            [
+                AggregateTrade(year, product_class, **ingestion_attrs)
+                for product_class in classifications
+            ]
+
     logging.info("Completed data aggregations, starting next loop")
     for year in range(start_year, end_year + 1):
         # depending on year, merge multiple classifications, take median of values
@@ -64,11 +68,14 @@ def run_atlas_cleaning(ingestion_attrs):
         # compute distance requires three years of aggregated data
         logging.info(f"Beginning compute distance for year {year}")
         df = compute_distance(df, year, product_classification, dist)
-        
+
         os.makedirs(
             os.path.join(
                 # Totals_RAW_trade.dta
-                ingestion_attrs["root_dir"], "data", "intermediate", product_classification
+                ingestion_attrs["root_dir"],
+                "data",
+                "intermediate",
+                product_classification,
             ),
             exist_ok=True,
         )
@@ -84,23 +91,21 @@ def run_atlas_cleaning(ingestion_attrs):
             index=False,
         )
         ccy = CountryCountryYear(year, **ingestion_attrs)
-        ccy.save_parquet(ccy.df, 'processed', f'country_country_year_{year}')
-        
-        
+        ccy.save_parquet(ccy.df, "processed", f"country_country_year_{year}")
+
         accuracy = Accuracy(year, **ingestion_attrs)
         logging.info("confirm CIF ratio column is present")
-        accuracy.save_parquet(accuracy.df, 'processed', f'accuracy_{year}')
-        
+        accuracy.save_parquet(accuracy.df, "processed", f"accuracy_{year}")
+
         # cProfile.run('run_ccpy()')
         # cProfile.run('CountryCountryProductYear(year, **ingestion_attrs)')
         # logging.info("finished running cprofile")
         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
-        ccpy.save_parquet(ccpy.df, 'processed', f'country_country_product_year_{year}')
+        ccpy.save_parquet(ccpy.df, "processed", f"country_country_product_year_{year}")
 
         # complexity files
         print(f"end time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
-        
 
 def compute_distance(df, year, product_classification, dist):
     """
@@ -110,7 +115,9 @@ def compute_distance(df, year, product_classification, dist):
     df_lag_lead = pd.DataFrame()
     for wrap_year in [year - 1, year + 1]:
         try:
-            df_lag_lead = pd.read_parquet(f"data/intermediate/aggregated_{product_classification}_{wrap_year}.parquet")
+            df_lag_lead = pd.read_parquet(
+                f"data/intermediate/aggregated_{product_classification}_{wrap_year}.parquet"
+            )
         except FileNotFoundError:
             logging.error(f"Didn't download year: {wrap_year}")
 
@@ -120,28 +127,33 @@ def compute_distance(df, year, product_classification, dist):
     dist.loc[dist["importer"] == "ROU", "exporter"] = "ROM"
 
     df = df.merge(dist, on=["exporter", "importer"], how="left")
-    
+
     df.loc[df["exporter"] == "ROM", "exporter"] = "ROU"
     df.loc[df["importer"] == "ROM", "exporter"] = "ROU"
 
     df["lndist"] = np.log(df["distwces"])
-    df.loc[(df['lndist'].isna()) & (df['dist'].notna()), 'lndist'] = np.log(df['dist'])
+    df.loc[(df["lndist"].isna()) & (df["dist"].notna()), "lndist"] = np.log(df["dist"])
     df["oneplust"] = df["import_value_cif"] / df["export_value_fob"]
     df["lnoneplust"] = np.log(df["import_value_cif"] / df["export_value_fob"])
     df["tau"] = np.nan
-    
+
     compute_dist_df = df.copy(deep=True)
     # select the greater of the two, either the top 1% or 1,000,000
     exp_p1 = max(compute_dist_df["export_value_fob"].quantile(0.01), 10**6)
     imp_p1 = max(compute_dist_df["import_value_cif"].quantile(0.01), 10**6)
     # use to set min boundaries
-    compute_dist_df = compute_dist_df[~
-        (compute_dist_df["export_value_fob"] < exp_p1) | (compute_dist_df["import_value_cif"] < imp_p1)
+    compute_dist_df = compute_dist_df[
+        ~(compute_dist_df["export_value_fob"] < exp_p1)
+        | (compute_dist_df["import_value_cif"] < imp_p1)
     ]
-    compute_dist_df['lnoneplust'] = winsorize(compute_dist_df['lnoneplust'], limits=[0.1, 0.1])
-    compute_dist_df[['lnoneplust', 'lndist', 'contig']] = compute_dist_df[['lnoneplust', 'lndist', 'contig']].fillna(0.0)
+    compute_dist_df["lnoneplust"] = winsorize(
+        compute_dist_df["lnoneplust"], limits=[0.1, 0.1]
+    )
+    compute_dist_df[["lnoneplust", "lndist", "contig"]] = compute_dist_df[
+        ["lnoneplust", "lndist", "contig"]
+    ].fillna(0.0)
 
-    stata_code = '''
+    stata_code = """
         egen int idc_o = group(exporter)
         egen int idc_d = group(importer)
         reghdfe lnoneplust lndist contig, abs(year#idc_o year#idc_d)
@@ -151,42 +163,58 @@ def compute_distance(df, year, product_classification, dist):
         loc beta_dist = _coef[lndist]
         loc se_dist = _se[lndist]
         loc beta_contig = _coef[contig]
-        '''
+        """
     output = run_stata_code(compute_dist_df, stata_code)
     # Extract the coefficients and standard errors
-    coefficients = output['e(b)'][0]
-    std_errors = np.sqrt(np.diag(output['e(V)']))
+    coefficients = output["e(b)"][0]
+    std_errors = np.sqrt(np.diag(output["e(V)"]))
 
     res = {
-        'c': coefficients[2],
-        'c_se': std_errors[2],
-        'beta_dist': coefficients[0],
-        'se_dist': std_errors[0],
-        'beta_contig': coefficients[1]
+        "c": coefficients[2],
+        "c_se": std_errors[2],
+        "beta_dist": coefficients[0],
+        "se_dist": std_errors[0],
+        "beta_contig": coefficients[1],
     }
-    
-    tau_replace = res['c'] + (res['beta_dist'] * df['lndist']) + (res['beta_contig'] * df['contig'])
-    
+
+    tau_replace = (
+        res["c"]
+        + (res["beta_dist"] * df["lndist"])
+        + (res["beta_contig"] * df["contig"])
+    )
+
     # clean up compute dist df
     del compute_dist_df
 
-    df.loc[df['year'] == year, 'tau'] = tau_replace
-    df.loc[(df['year'] == year) & (df['tau'] < 0) & (df['tau'].notna()), 'tau'] = 0
-    df.loc[(df['year'] == year) & (df['tau'] > .2) & (df['tau'].notna()), 'tau'] = 0.2
-    tau_mean = df[df['year']==year]['tau'].mean()
-    df.loc[(df['year'] == year) & (df['tau'].isna()), 'tau'] = tau_mean
+    df.loc[df["year"] == year, "tau"] = tau_replace
+    df.loc[(df["year"] == year) & (df["tau"] < 0) & (df["tau"].notna()), "tau"] = 0
+    df.loc[(df["year"] == year) & (df["tau"] > 0.2) & (df["tau"].notna()), "tau"] = 0.2
+    tau_mean = df[df["year"] == year]["tau"].mean()
+    df.loc[(df["year"] == year) & (df["tau"].isna()), "tau"] = tau_mean
 
-    df = df[df.year==year]
-    df.loc[df['lnoneplust'] > 0, 'import_value_fob'] = df['import_value_cif']*(1 - df['tau'])
-    df.loc[df['lnoneplust'] < 0, 'import_value_fob'] = df['import_value_cif']
-    return df[['year', 'exporter', 'importer', 'export_value_fob', 'import_value_cif', 'import_value_fob']]
+    df = df[df.year == year]
+    df.loc[df["lnoneplust"] > 0, "import_value_fob"] = df["import_value_cif"] * (
+        1 - df["tau"]
+    )
+    df.loc[df["lnoneplust"] < 0, "import_value_fob"] = df["import_value_cif"]
+    return df[
+        [
+            "year",
+            "exporter",
+            "importer",
+            "export_value_fob",
+            "import_value_cif",
+            "import_value_fob",
+        ]
+    ]
 
 
 def run_stata_code(df, stata_code):
     # Initialize Stata
-    sys.path.append('/n/sw/stata-17/utilities')
+    sys.path.append("/n/sw/stata-17/utilities")
     from pystata import config
-    config.init('se')
+
+    config.init("se")
     from pystata import stata
 
     stata.pdataframe_to_data(df, force=True)

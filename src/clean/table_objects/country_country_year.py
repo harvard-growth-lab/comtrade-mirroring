@@ -34,13 +34,21 @@ class CountryCountryYear(_AtlasCleaning):
             f"{self.product_classification}_{self.year}",
         )
         
+        # Clean and filter data
+        self.clean_data()
+        
+        # temp_accuracy in stata
+        nominal_dollars_df = pd.DataFrame()
+        df = self.apply_relative_cif_markup(nominal_dollars_df)
+        # save intermediate ccy file (saved as temp_accuracy.dta in stata file)
+        self.save_parquet(df, "intermediate", "ccy_nominal_dollars")
+
+
         # Prepare economic indicators
         cpi, population = self.add_economic_indicators()
         cpi = self.inflation_adjustment(cpi)
 
-        # Clean and filter data
-        self.clean_data()
-        
+
         # merge data to have all possible combinations for exporter, importer
         all_combinations_ccy_index = pd.MultiIndex.from_product(
             [
@@ -62,11 +70,6 @@ class CountryCountryYear(_AtlasCleaning):
         )
         self.df = self.df.drop(columns=["year"])
 
-        # temp_accuracy in stata
-        self.apply_relative_cif_markup()
-        # save intermediate ccy file (saved as temp_accuracy.dta in stata file)
-        self.save_parquet(self.df, "intermediate", "ccy_cif_markup")
-
         self.filter_by_population_threshold(population)
         self.compare_base_year_trade_values()
 
@@ -84,26 +87,28 @@ class CountryCountryYear(_AtlasCleaning):
                 | (self.df.importer.isin(["WLD", "nan"]))
             )
         ]
-        self.df = self.df[~((self.df.exporter=="ANS") & (self.df.importer=="ANS"))]
+        self.df = self.df[~((self.df.exporter == "ANS") & (self.df.importer == "ANS"))]
         self.df = self.df[self.df.exporter != self.df.importer]
         # drop trade values less than trade value threshold
         self.df = self.df[
             self.df[["import_value_fob", "export_value_fob"]].max(axis=1)
             >= self.trade_value_threshold
         ]
-        self.df['import_value_fob'] = self.df['import_value_fob'].fillna(0.0)
-        self.df['export_value_fob'] = self.df['export_value_fob'].fillna(0.0)
+        self.df["import_value_fob"] = self.df["import_value_fob"].fillna(0.0)
+        self.df["export_value_fob"] = self.df["export_value_fob"].fillna(0.0)
 
-    def apply_relative_cif_markup(self):
+    def apply_relative_cif_markup(self, df):
         """ """
         # ensures cif_ratio is never greater than .20
-        self.df["cif_ratio"] = (
-            self.df["import_value_cif"] / self.df["import_value_fob"]
+        df = self.df.copy(deep=True)
+        df["cif_ratio"] = (
+            df["import_value_cif"] / self.df["import_value_fob"]
         ) - 1
         logging.info("review CIF ratio from compute distance")
-        self.df["cif_ratio"] = self.df["cif_ratio"].apply(
+        df["cif_ratio"] = df["cif_ratio"].apply(
             lambda val: min(val, 0.20) if pd.notnull(val) else val
         )
+        return df
 
     def filter_by_population_threshold(self, population: pd.DataFrame()):
         """
@@ -218,7 +223,7 @@ class CountryCountryYear(_AtlasCleaning):
         Takes the absolute value of the difference in export and imports
         and divides by sum of imports and exports
         """
-        # in stata s_ij, should be fob and 
+        # in stata s_ij, should be fob and
         logging.info("***** review why not FOB *******")
         self.df["reporting_discrepancy"] = (
             (abs(self.df["exports_const_usd"] - self.df["imports_const_usd"]))
