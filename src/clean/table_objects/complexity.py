@@ -20,6 +20,7 @@ class Complexity(_AtlasCleaning):
         "S2": ["9310", "9610", "9710", "9999", "XXXX"],
         "H0": ["7108", "9999", "XXXX"],
         "H4": ["7108", "9999", "XXXX"],
+        "H5": ["7108", "9999", "XXXX"],
     }
 
     def __init__(self, year, **kwargs):
@@ -37,10 +38,10 @@ class Complexity(_AtlasCleaning):
         # Import trade data from CID Atlas
 
         self.df = pd.read_parquet(
-            f"data/processed/country_country_product_{self.year}.parquet"
+            f"data/processed/{self.product_class}_{self.year}_country_country_product_year.parquet"
         )
-        self.df = self.df[["exporter", "importer", "commodity_code", "final_value"]]
-        self.df = self.df.rename(columns={"final_value": "export_value"})
+        self.df = self.df[["exporter", "importer", "commodity_code", "value_final"]]
+        self.df = self.df.rename(columns={"value_final": "export_value"})
         # aggregate to four digit level
         self.df["commodity_code"] = self.df["commodity_code"].astype(str).str[:4]
 
@@ -102,7 +103,7 @@ class Complexity(_AtlasCleaning):
             self.df = self.df[~self.df.commodity_code.isin(drop_commodities)]
 
         # save all countries, 207 countries, stata fulldata
-        self.save_parquet(self.df, "intermediate", "complexity_all_countries")
+        self.save_parquet(self.df, "intermediate", f"{self.product_classification}_{self.year}_complexity_all_countries")
 
         # only reliable countries, subset of 123 countries
         self.df = self.df[self.df.reliable == True]
@@ -357,7 +358,7 @@ class Complexity(_AtlasCleaning):
         # mata pci3 = colsum(pci3)'
         # mata pci3 = pci3 :/ colsum(rca3:>=1)'
         pci_allcp = pci_allcp.sum(axis=0).div(
-            ((df_rca_allcp >= 1).astype(int)).sum(axis=0)
+            ((df_rca_allcp >= 1).astype(int)).sum(axis=0).replace(0, np.nan)
         )
         pci_allcp = pd.DataFrame(
             1, index=df_rca_allcp.index, columns=df_rca_allcp.columns
@@ -420,7 +421,7 @@ class Complexity(_AtlasCleaning):
                                 (
                                     proximity_allcp @ np.ones((mcp_cols, 1), dtype=int)
                                 ).iloc[:, 0]
-                            ),
+                            ).replace(0, np.nan),
                             axis=0,
                         )
                     ).values.reshape(-1, 1)
@@ -474,10 +475,6 @@ class Complexity(_AtlasCleaning):
         ].transform(
             lambda x: x.fillna(x.mean())
         )
-
-        import pdb
-
-        pdb.set_trace()
 
         # replace pci3 = (pci3 - r(mean))/r(sd) if pci3!=.
         mean_pci = np.mean(
@@ -549,11 +546,8 @@ class Complexity(_AtlasCleaning):
         self.save_parquet(
             complexity_df,
             "processed",
-            f"complexity_{self.product_classification}_{self.year}",
+            f"{self.product_classification}_{self.year}_complexity",
         )
-        import pdb
-
-        pdb.set_trace()
 
         # impute for all countries with product restrictions
         # presence of each country across products (m matrix for all countries)

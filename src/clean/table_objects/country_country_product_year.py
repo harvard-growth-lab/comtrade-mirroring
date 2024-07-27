@@ -16,6 +16,7 @@ class CountryCountryProductYear(_AtlasCleaning):
     SPECIALIZED_COMMODITY_CODES_BY_CLASS = {
         "H0": ["XXXXXX", "999999"],
         "H4": ["XXXXXX", "999999"],
+        "H5": ["XXXXXX", "999999"],
         "S1": ["XXXX", "9999"],
         "S2": ["XXXX", "9999"],
         "SITC": ["XXXX", "9999"],
@@ -35,6 +36,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.df = self.load_parquet(
             f"intermediate", f"cleaned_{self.product_classification}_{self.year}"
         )
+        if self.product_classification[:1] == "H":
+            self.df.loc[self.df["commodity_code"].str[:4] == "9999", "commodity_code"] = "999999"
         # logging.info(f"number of exporters {len(self.df.exporter.unique())}")
         # leaving filter for quick testing purposes
         # self.df = self.df[
@@ -142,7 +145,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         Filter trade data to include only level 6 products and remove invalid entries.
 
         This function:
-        1. Keeps only products at level 6
+        1. Keeps only products at level 6 for HS and 4 for SITC
         2. Removes entries with commodity code "TOTAL"
         3. Removes entries where reporter_iso or partner_iso is in ["WLD", "NAN", "nan"]
 
@@ -150,14 +153,15 @@ class CountryCountryProductYear(_AtlasCleaning):
         - Repetitive country code cleaning done by base
         - ie: Handle Germany/Russia unification
         """
-        self.df = self.df[self.df.product_level == 6]
+        if self.product_classification not in ["SITC"]:
+            self.df = self.df[self.df.product_level == 6]
+        else:
+            self.df = self.df[self.df.product_level == 4]
 
-        # drop commodity code totals
+        # drop commodity code totals, WLD, na
         self.df = self.df[self.df.commodity_code != "TOTAL"]
-        values_to_drop = ["WLD", "NAN", "nan"]
-        columns = ["reporter_iso", "partner_iso"]
-        mask = ~self.df[columns].isin(values_to_drop).any(axis=1)
-        self.df = self.df[mask]
+        self.df = self.df[~((self.df.partner_iso.isna()) | (self.df.reporter_iso.isna()))]
+        self.df = self.df[~((self.df.partner_iso=="WLD") | (self.df.reporter_iso=="WLD"))]
         self.df = self.df[~(self.df.reporter_iso == self.df.partner_iso)]
 
     def setup_trade_analysis_framework(self, accuracy):

@@ -47,27 +47,28 @@ def run_atlas_cleaning(ingestion_attrs):
     dist = pd.read_stata(os.path.join("data", "raw", "dist_cepii.dta"))
 
     for year in range(start_year, end_year + 1):
-        file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
-        if not os.path.isfile(file_name):
-            # get possible classifications based on year
-            logging.info("removing classifications step until can confirm with Seba")
-            classifications = [product_classification]
-            # classifications = get_classifications(year)
-            logging.info(
-                f"Aggregating data for {year} and these classifications {classifications}"
-            )
-            [
-                AggregateTrade(year, product_class, **ingestion_attrs)
-                for product_class in classifications
-            ]
+        # file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
+        # if not os.path.isfile(file_name):
+        # get possible classifications based on year
+        logging.info("removing classifications step until can confirm with Seba")
+        classifications = [product_classification]
+        # classifications = get_classifications(year)
+        logging.info(
+            f"Aggregating data for {year} and these classifications {classifications}"
+        )
+        [
+            AggregateTrade(year, product_class, **ingestion_attrs)
+            for product_class in classifications
+        ]
 
     logging.info("Completed data aggregations, starting next loop")
+    
     for year in range(start_year, end_year + 1):
         # depending on year, merge multiple classifications, take median of values
-        df = merge_classifications(year, ingestion_attrs["root_dir"])
+        # df = merge_classifications(year, ingestion_attrs["root_dir"])
         # compute distance requires three years of aggregated data
         logging.info(f"Beginning compute distance for year {year}")
-        df = compute_distance(df, year, product_classification, dist)
+        df = compute_distance(year, product_classification, dist)
 
         os.makedirs(
             os.path.join(
@@ -91,6 +92,7 @@ def run_atlas_cleaning(ingestion_attrs):
             index=False,
         )
         ccy = CountryCountryYear(year, **ingestion_attrs)
+
         ccy.save_parquet(
             ccy.df,
             "intermediate",
@@ -99,11 +101,13 @@ def run_atlas_cleaning(ingestion_attrs):
 
         accuracy = Accuracy(year, **ingestion_attrs)
         logging.info("confirm CIF ratio column is present")
+
         accuracy.save_parquet(
             accuracy.df, "intermediate", f"{product_classification}_{year}_accuracy"
         )
 
         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
+
         ccpy.save_parquet(
             ccpy.df,
             "final",
@@ -112,25 +116,47 @@ def run_atlas_cleaning(ingestion_attrs):
         ccpy.save_parquet(
             ccpy.df,
             "processed",
-            f"{product_classification}_{year}_country_country_product_year_{year}",
+            f"{product_classification}_{year}_country_country_product_year",
         )
         try:
             ccpy.df.to_stata(
                 os.path.join(
-                    ccpy.final_output_path, f"{product_classification}_{year}.dta"
+                    ccpy.final_output_path, f"{product_classification}", f"{product_classification}_{year}.dta"
                 )
             )
         except Exception as e:
             print(f"failed to write to stata: {e}")
 
         # complexity files
-        print(f"end time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+        complexity = Complexity(year, **ingestion_attrs)
+        complexity.save_parquet(
+            complexity.df,
+            "processed",
+            f"{product_classification}_{year}_complexity",
+        )        
+    
+    # complexity.save_parquet(
+    #     complexity_df,
+    #     "final",
+    #     f"{product_classification}_{year}_complexity",
+    # )
+    # try:
+    #     complexity_df.to_stata(
+    #         os.path.join(
+    #             ccpy.final_output_path, f"{product_classification}_{year}.dta"
+    #         )
+    #     )
+    # except Exception as e:
+    #     print(f"failed to write to stata: {e}")
+
+    # print(f"end time for {year}: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
 
-def compute_distance(df, year, product_classification, dist):
+def compute_distance(year, product_classification, dist):
     """
     based on distances compute cost of cif as a percentage of import_value_fob
     """
+    df = pd.read_parquet(f"data/intermediate/aggregated_{product_classification}_{year}.parquet")
     # lag and lead
     df_lag_lead = pd.DataFrame()
     for wrap_year in [year - 1, year + 1]:
@@ -244,7 +270,7 @@ def run_stata_code(df, stata_code):
 
 if __name__ == "__main__":
     ingestion_attrs_H0 = {
-        "start_year": 2021,
+        "start_year": 1995,
         "end_year": 2022,
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
@@ -265,8 +291,21 @@ if __name__ == "__main__":
         "product_classification": "H4",
     }
 
-    ingestion_attrs_S2 = {
-        "start_year": 1962,
+    ingestion_attrs_H5 = {
+        "start_year": 2017,
+        "end_year": 2022,
+        "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
+        # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
+        "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_07_24/input",
+        # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
+        "product_classification": "H5",
+    }
+
+    
+    
+    ingestion_attrs_SITC = {
+        "start_year": 1965,
         "end_year": 2022,
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
@@ -276,6 +315,8 @@ if __name__ == "__main__":
         "product_classification": "SITC",
     }
 
-    # run_atlas_cleaning(ingestion_attrs_H0)
+    run_atlas_cleaning(ingestion_attrs_H0)
     run_atlas_cleaning(ingestion_attrs_H4)
     run_atlas_cleaning(ingestion_attrs_SITC)
+    # run_atlas_cleaning(ingestion_attrs_H5)
+    
