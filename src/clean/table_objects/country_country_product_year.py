@@ -81,12 +81,18 @@ class CountryCountryProductYear(_AtlasCleaning):
         # prepare the data
         self.filter_and_clean_data()
         logging.info("check after filter for WLD, nan, NAN")
+        # import pdb
+        # pdb.set_trace()
+
 
         logging.info("ccpy: filtered and cleaned data")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
         all_ccpy, self.npairs, self.nprod = self.setup_trade_analysis_framework(
             accuracy
         )
+        # import pdb
+        # pdb.set_trace()
+
         logging.info("ccpy: set up trade analysis framework")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
@@ -96,6 +102,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         # merge in cif ratio
         logging.info("ccpy: generated trade vals matrix with cif ratio applied")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+        # import pdb
+        # pdb.set_trace()
 
         self.trade_score = self.assign_trade_scores()
 
@@ -110,14 +118,17 @@ class CountryCountryProductYear(_AtlasCleaning):
         # self.prepare_for_matrix_multiplication(accuracy)
         logging.info("ccpy: prepped for matrix multiplication")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+        # import pdb
+        # pdb.set_trace()
 
         self.calculate_final_trade_value()
         logging.info("ccpy: calculated final trade val")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-
+        
         self.reweight_final_trade_value(cc_trade_totals)
         logging.info("ccpy: reweighted")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+        
 
         # final processing
         self.filter_and_handle_trade_data_discrepancies()
@@ -127,7 +138,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.handle_not_specified()
         logging.info("ccpy: handled not specified")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-
+        
         self.df["year"] = self.year
         self.df = self.df.rename(
             columns={

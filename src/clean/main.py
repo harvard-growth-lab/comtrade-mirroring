@@ -48,19 +48,19 @@ def run_atlas_cleaning(ingestion_attrs):
     dist = pd.read_stata(os.path.join("data", "raw", "dist_cepii.dta"))
 
     for year in range(start_year, end_year + 1):
-        # file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
-        # if not os.path.isfile(file_name):
-        # get possible classifications based on year
-        logging.info("removing classifications step until can confirm with Seba")
-        classifications = [product_classification]
-        # classifications = get_classifications(year)
-        logging.info(
-            f"Aggregating data for {year} and these classifications {classifications}"
-        )
-        [
-            AggregateTrade(year, product_class, **ingestion_attrs)
-            for product_class in classifications
-        ]
+        file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
+        if not os.path.isfile(file_name):
+            # get possible classifications based on year
+            logging.info("removing classifications step until can confirm with Seba")
+            classifications = [product_classification]
+            # classifications = get_classifications(year)
+            logging.info(
+                f"Aggregating data for {year} and these classifications {classifications}"
+            )
+            [
+                AggregateTrade(year, product_class, **ingestion_attrs)
+                for product_class in classifications
+            ]
 
     logging.info("Completed data aggregations, starting next loop")
     
@@ -132,12 +132,16 @@ def run_atlas_cleaning(ingestion_attrs):
 
         # complexity files
         complexity = Complexity(year, **ingestion_attrs)
+        
+        import pdb
+        pdb.set_trace()
 
         complexity.save_parquet(
             complexity.df,
             "processed",
             f"{product_classification}_{year}_complexity",
         )        
+        break
     
     complexity_all_years = glob.glob(f"data/processed/{product_classification}_*_complexity.parquet")
     complexity_all = pd.concat([pd.read_parquet(file) for file in complexity_all_years], axis=0)
@@ -151,7 +155,7 @@ def run_atlas_cleaning(ingestion_attrs):
     complexity.save_parquet(
         complexity_all,
         "processed",
-        f"{product_classification}_{start_year}_{end_year}_complexity",
+        f"{product_classification}_{start_year}_{end_year}_complexity_all",
     )
     try:
         complexity_all.to_stata(

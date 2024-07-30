@@ -67,7 +67,7 @@ class _AtlasCleaning(object):
     def save_parquet(self, df, data_folder, table_name: str):
         if data_folder == "final":
             save_dir = os.path.join(
-                self.final_output_path, f"{self.product_classification}_parquet"
+                self.final_output_path, f"parquet_{self.product_classification}"
             )
         else:
             save_dir = os.path.join(self.data_path, data_folder)

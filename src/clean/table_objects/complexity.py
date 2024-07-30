@@ -53,15 +53,17 @@ class Complexity(_AtlasCleaning):
         )
 
         imports = self.df.copy(deep=True)
-        imports = imports.drop(columns=["exporter"]).rename(
-            columns={"export_value": "import_value", "importer": "exporter"}
+        imports = imports[['importer', 'commodity_code', 'export_value']].groupby(['importer', 'commodity_code']).agg('sum').reset_index()
+        imports = imports.rename(
+            columns={"export_value": "import_value", 
+                     "importer": "exporter"}
         )
-        imports = imports.groupby(["exporter", "commodity_code"]).sum().reset_index()
+        
+        self.df = self.df[['exporter', 'commodity_code', 'export_value']].groupby(["exporter", "commodity_code"]).agg('sum').reset_index()
 
-        self.df = self.df.drop(columns=["importer"])
 
-        self.df = self.df.merge(imports, on=["exporter", "commodity_code"], how="left")
-        self.df = self.df.groupby(["exporter", "commodity_code"]).sum().reset_index()
+        self.df = self.df.merge(imports, on=["exporter", "commodity_code"], how="outer")
+        self.df[['import_value', 'export_value']] = self.df[['import_value', 'export_value']].fillna(0.0)
 
         # fillin all combinations of exporter and commodity code, all combinations
         # may filter ...
@@ -71,7 +73,6 @@ class Complexity(_AtlasCleaning):
         self.df = self.df.merge(
             aux_stats[["exporter", "population", "gdp_pc"]], on=["exporter"], how="left"
         )
-        self.df = self.df.fillna(0.0)
 
         self.df["reliable"] = (
             self.df["exporter"].isin(reliable_exporters.exporter).astype(bool)
@@ -109,7 +110,6 @@ class Complexity(_AtlasCleaning):
         self.df = self.df[self.df.reliable == True]
         
         
-
         self.df = (
             self.df.groupby(["exporter", "commodity_code"])
             .agg({"export_value": "sum", "population": "first", "gdp_pc": "first"})
@@ -186,14 +186,17 @@ class Complexity(_AtlasCleaning):
             "val": "mcp_input",
         }
 
+        # import pdb
+        # pdb.set_trace()
         
         # calculate complexity, not mcp matrix
         logging.info("Calculating the complexity of selected countries and products")
         complexity_df = ecomplexity(
-            self.df[["year", "exporter", "commodity_code", "mcp_input", "export_value"]],
+            self.df[["year", "exporter", "commodity_code", "mcp_input"]],
             trade_cols,
             presence_test="manual",
         )
+        complexity_df = complexity_df.drop(columns=['year'])
 
         # calculate proximity
         proximity_df = proximity(self.df, trade_cols)
@@ -239,8 +242,12 @@ class Complexity(_AtlasCleaning):
         logging.info(
             f"shape of complexity df before reliable concat {complexity_df.shape}"
         )
+        
+        
         cols = [df_rca, df_eci_reliable, df_pci_reliable]
         complexity_df = complexity_df.set_index(["exporter", "commodity_code"])
+        
+        
         complexity_df = pd.concat(
             [complexity_df] + [col.unstack() for col in cols], axis=1
         )
@@ -254,7 +261,7 @@ class Complexity(_AtlasCleaning):
 
         # ALL COUNTRIES, drop least traded products
         all_countries = self.load_parquet("intermediate", "complexity_all_countries")[
-            ["exporter", "commodity_code", "export_value"]
+            ["exporter", "commodity_code", "export_value", "import_value"]
         ]
         logging.info(f"all countries {all_countries.shape}")
         all_countries = all_countries[
@@ -325,6 +332,7 @@ class Complexity(_AtlasCleaning):
         # replace eci = eci2-mean / std
         exporter_eci = complexity_df[complexity_df.tag_e == 1]["eci"]
         # is this only if fillna? TODO
+        
         complexity_df["eci_all_countries"] = (
             complexity_df["eci_all_countries"] - np.mean(exporter_eci)
         ) / np.std(exporter_eci)
@@ -446,6 +454,7 @@ class Complexity(_AtlasCleaning):
             opportunity_value,
             opportunity_gain,
         ]
+        
         complexity_df = complexity_df.set_index(["exporter", "commodity_code"])
         logging.info(f"shape of complexity df before all c and p {complexity_df.shape}")
 
@@ -471,6 +480,7 @@ class Complexity(_AtlasCleaning):
         complexity_df = complexity_df.rename(
             columns={"level_0": "exporter", "level_1": "commodity_code"}
         )
+        complexity_df = allcp.merge(complexity_df, on=['exporter', 'commodity_code'])
         logging.info(f"shape of complexity df after all c and p {complexity_df.shape}")
 
         complexity_df[
@@ -521,7 +531,7 @@ class Complexity(_AtlasCleaning):
             complexity_df = complexity_df.drop(columns=replacement_vals)
 
         # rename M mcp
-        complexity_df = complexity_df.drop(columns=["mcp"]).rename(
+        complexity_df = complexity_df.drop(columns=["mcp", "mcp_input"]).rename(
             columns={"mcp_allcp": "mcp"}
         )
 
@@ -542,10 +552,24 @@ class Complexity(_AtlasCleaning):
         complexity_df = complexity_df[~complexity_df.exporter.isin(drop_countries)]
 
         # drop noisy commodity_codes
-        complexity_df = complexity_df[
+        complexity_df =  complexity_df[
             ~complexity_df.commodity_code.isin(
                 self.NOISY_TRADE[self.product_classification]
             )
         ]
         self.df = complexity_df.copy()
-
+        
+        self.df = self.df.rename(columns={'commodity_code': 'commoditycode'})
+        columns_to_keep = ['exporter', 'commoditycode', 'export_value', 'import_value', 'rca', 'mcp', 'eci', 'pci', 'oppval', 'oppgain', 'distance', 'prody', 'expy', 'gdp_pc']
+        self.df = self.df[columns_to_keep]
+        
+        float32_columns = ['export_value', 'rca', 'eci', 'pci', 'oppval', 'oppgain', 'distance', 'prody', 'expy', 'gdp_pc']
+        for col in float32_columns:
+            self.df[col] = self.df[col].astype('float32')
+        self.df['mcp'] = self.df['mcp'].astype('int8')
+        self.df['inatlas'] = 1
+        self.df['year'] = self.year
+        self.df = self.df[['year', 'exporter', 'commoditycode', 'inatlas', 'export_value', 'import_value', 'rca', 'mcp', 'eci', 'pci', 'oppval', 'oppgain', 'distance', 'prody', 'expy', 'gdp_pc']]
+        import pdb
+        pdb.set_trace()
+        i =1

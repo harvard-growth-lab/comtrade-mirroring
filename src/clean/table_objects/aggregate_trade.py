@@ -57,13 +57,16 @@ class AggregateTrade(_AtlasCleaning):
         self.ans_and_recode_other_asia_to_taiwan()
         self.check_commodity_code_length()
         
-        self.save_parquet(
-            self.df, "intermediate", f"cleaned_{self.product_class}_{self.year}"
-        )
 
         logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
         # filter and clean data
         self.filter_data()
+        self.save_parquet(
+            self.df, "intermediate", f"cleaned_{self.product_class}_{self.year}"
+        )
+
+        
+        self.df = self.df[self.df["trade_flow"].isin([1, 2])]
         self.label_unspecified_products()
 
         logging.info(f"Size after unspecified products dataframe {self.df.shape}")
@@ -162,7 +165,7 @@ class AggregateTrade(_AtlasCleaning):
             self.df["trade_flow"] = self.df["trade_flow"].astype(str).astype(int)
         except:
             print("unexpected unique trade_flow and not mapped to an integer")
-        self.df = self.df[self.df["trade_flow"].isin([1, 2])]
+        
 
     def ans_and_recode_other_asia_to_taiwan(self):
         """ 
