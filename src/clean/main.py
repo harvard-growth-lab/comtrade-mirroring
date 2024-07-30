@@ -66,23 +66,23 @@ def run_atlas_cleaning(ingestion_attrs):
     
     for year in range(start_year, end_year + 1):
         # depending on year, merge multiple classifications, take median of values
-        # df = merge_classifications(year, ingestion_attrs["root_dir"])
+        df = merge_classifications(year, ingestion_attrs["root_dir"])
         # compute distance requires three years of aggregated data
         logging.info(f"Beginning compute distance for year {year}")
         df = compute_distance(year, product_classification, dist)
         
 
-        # os.makedirs(
-        #     os.path.join(
-        #         # Totals_RAW_trade.dta
-        #         ingestion_attrs["root_dir"],
-        #         "data",
-        #         "intermediate",
-        #         product_classification,
-        #     ),
-        #     exist_ok=True,
-        # )
-        # # country country year intermediate file, passed into CCY object
+        os.makedirs(
+            os.path.join(
+                # Totals_RAW_trade.dta
+                ingestion_attrs["root_dir"],
+                "data",
+                "intermediate",
+                product_classification,
+            ),
+            exist_ok=True,
+        )
+        # country country year intermediate file, passed into CCY object
         df.to_parquet(
             os.path.join(
                 ingestion_attrs["root_dir"],
@@ -125,7 +125,7 @@ def run_atlas_cleaning(ingestion_attrs):
             ccpy.df.to_stata(
                 os.path.join(
                     ccpy.final_output_path, f"{product_classification}", f"{product_classification}_{year}.dta"
-                )
+                ), write_index=False
             )
         except Exception as e:
             print(f"failed to write to stata: {e}")
@@ -133,15 +133,12 @@ def run_atlas_cleaning(ingestion_attrs):
         # complexity files
         complexity = Complexity(year, **ingestion_attrs)
         
-        import pdb
-        pdb.set_trace()
-
         complexity.save_parquet(
             complexity.df,
             "processed",
             f"{product_classification}_{year}_complexity",
-        )        
-        break
+        )
+        logging.info(f"end time for {year}: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
     
     complexity_all_years = glob.glob(f"data/processed/{product_classification}_*_complexity.parquet")
     complexity_all = pd.concat([pd.read_parquet(file) for file in complexity_all_years], axis=0)
@@ -149,23 +146,23 @@ def run_atlas_cleaning(ingestion_attrs):
     complexity.save_parquet(
             complexity_all,
             "final",
-            f"{product_classification}_{start_year}_{end_year}_complexity",
+            f"{product_classification}_{start_year}_{end_year}_complexity", index=False
         )
 
     complexity.save_parquet(
         complexity_all,
         "processed",
         f"{product_classification}_{start_year}_{end_year}_complexity_all",
+        index=False
     )
     try:
         complexity_all.to_stata(
             os.path.join(
                 complexity.final_output_path, f"{product_classification}_{year}.dta"
-            )
+            ), write_index=False
         )
     except Exception as e:
         print(f"failed to write to stata: {e}")
-    print(f"end time for {year}: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
 
 def compute_distance(year, product_classification, dist):

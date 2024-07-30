@@ -42,8 +42,8 @@ class CountryCountryYear(_AtlasCleaning):
         nominal_dollars_df = self.df.copy(deep=True)
 
         nominal_dollars_df = self.limit_cif_markup(nominal_dollars_df)
-        # save intermediate ccy file (saved as temp_accuracy.dta in stata file)
-        self.save_parquet(nominal_dollars_df, "intermediate", "ccy_nominal_dollars")
+        # # save intermediate ccy file (saved as temp_accuracy.dta in stata file)
+        # self.save_parquet(nominal_dollars_df, "intermediate", "ccy_nominal_dollars")
 
         # read in economic indicators
         cpi, population = self.add_economic_indicators()

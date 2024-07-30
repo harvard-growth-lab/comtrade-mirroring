@@ -145,6 +145,7 @@ class CountryCountryProductYear(_AtlasCleaning):
                 "final_value": "value_final",
                 "export_value": "value_exporter",
                 "import_value": "value_importer",
+                "commodity_code": "commoditycode",
             }
         )
         self.df = self.df[
@@ -152,7 +153,7 @@ class CountryCountryProductYear(_AtlasCleaning):
                 "year",
                 "exporter",
                 "importer",
-                "commodity_code",
+                "commoditycode",
                 "value_final",
                 "value_exporter",
                 "value_importer",
