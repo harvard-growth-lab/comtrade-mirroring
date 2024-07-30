@@ -7,6 +7,7 @@ from scipy.stats.mstats import winsorize
 import numpy as np
 from time import gmtime, strftime, localtime
 import cProfile
+import glob
 
 
 from clean.table_objects.base import _AtlasCleaning
@@ -69,28 +70,30 @@ def run_atlas_cleaning(ingestion_attrs):
         # compute distance requires three years of aggregated data
         logging.info(f"Beginning compute distance for year {year}")
         df = compute_distance(year, product_classification, dist)
+        
 
-        os.makedirs(
-            os.path.join(
-                # Totals_RAW_trade.dta
-                ingestion_attrs["root_dir"],
-                "data",
-                "intermediate",
-                product_classification,
-            ),
-            exist_ok=True,
-        )
-        # country country year intermediate file, passed into CCY object
+        # os.makedirs(
+        #     os.path.join(
+        #         # Totals_RAW_trade.dta
+        #         ingestion_attrs["root_dir"],
+        #         "data",
+        #         "intermediate",
+        #         product_classification,
+        #     ),
+        #     exist_ok=True,
+        # )
+        # # country country year intermediate file, passed into CCY object
         df.to_parquet(
             os.path.join(
                 ingestion_attrs["root_dir"],
                 "data",
                 "intermediate",
-                product_classification,
+                # product_classification,
                 f"{product_classification}_{year}.parquet",
             ),
             index=False,
         )
+
         ccy = CountryCountryYear(year, **ingestion_attrs)
 
         ccy.save_parquet(
@@ -129,27 +132,36 @@ def run_atlas_cleaning(ingestion_attrs):
 
         # complexity files
         complexity = Complexity(year, **ingestion_attrs)
+
         complexity.save_parquet(
             complexity.df,
             "processed",
             f"{product_classification}_{year}_complexity",
         )        
     
-    # complexity.save_parquet(
-    #     complexity_df,
-    #     "final",
-    #     f"{product_classification}_{year}_complexity",
-    # )
-    # try:
-    #     complexity_df.to_stata(
-    #         os.path.join(
-    #             ccpy.final_output_path, f"{product_classification}_{year}.dta"
-    #         )
-    #     )
-    # except Exception as e:
-    #     print(f"failed to write to stata: {e}")
+    complexity_all_years = glob.glob(f"data/processed/{product_classification}_*_complexity.parquet")
+    complexity_all = pd.concat([pd.read_parquet(file) for file in complexity_all_years], axis=0)
+    
+    complexity.save_parquet(
+            complexity_all,
+            "final",
+            f"{product_classification}_{start_year}_{end_year}_complexity",
+        )
 
-    # print(f"end time for {year}: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+    complexity.save_parquet(
+        complexity_all,
+        "processed",
+        f"{product_classification}_{start_year}_{end_year}_complexity",
+    )
+    try:
+        complexity_all.to_stata(
+            os.path.join(
+                complexity.final_output_path, f"{product_classification}_{year}.dta"
+            )
+        )
+    except Exception as e:
+        print(f"failed to write to stata: {e}")
+    print(f"end time for {year}: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
 
 def compute_distance(year, product_classification, dist):

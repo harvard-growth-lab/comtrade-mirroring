@@ -30,20 +30,22 @@ class CountryCountryYear(_AtlasCleaning):
         # Set parameters
         self.year = year
         self.df = self.load_parquet(
-            os.path.join(f"intermediate", self.product_classification),
+            os.path.join(f"intermediate"),
             f"{self.product_classification}_{self.year}",
         )
-
+        
         # Clean and filter data
         self.clean_data()
+        
 
         # temp_accuracy in stata
-        nominal_dollars_df = pd.DataFrame()
-        df = self.apply_relative_cif_markup(nominal_dollars_df)
-        # save intermediate ccy file (saved as temp_accuracy.dta in stata file)
-        self.save_parquet(df, "intermediate", "ccy_nominal_dollars")
+        nominal_dollars_df = self.df.copy(deep=True)
 
-        # Prepare economic indicators
+        nominal_dollars_df = self.limit_cif_markup(nominal_dollars_df)
+        # save intermediate ccy file (saved as temp_accuracy.dta in stata file)
+        self.save_parquet(nominal_dollars_df, "intermediate", "ccy_nominal_dollars")
+
+        # read in economic indicators
         cpi, population = self.add_economic_indicators()
         cpi = self.inflation_adjustment(cpi)
 
@@ -67,7 +69,7 @@ class CountryCountryYear(_AtlasCleaning):
             self.df, on=["year", "exporter", "importer"], how="left"
         )
         self.df = self.df.drop(columns=["year"])
-
+        
         self.filter_by_population_threshold(population)
         self.compare_base_year_trade_values()
 
@@ -76,15 +78,13 @@ class CountryCountryYear(_AtlasCleaning):
         self.filter_by_trade_flows()
         self.calculate_trade_percentages()
         self.normalize_trade_flows()
-
+        
+        
     def clean_data(self):
-        self.df = self.df.dropna(subset=["exporter", "importer"])
-        self.df = self.df[
-            ~(
-                (self.df.exporter.isin(["WLD", "nan"]))
-                | (self.df.importer.isin(["WLD", "nan"]))
-            )
-        ]
+        # self.df = self.df.dropna(subset=["exporter", "importer"])
+        self.df = self.df[~((self.df.exporter=="WLD") | (self.df.importer=="WLD"))]
+        self.df = self.df[~((self.df.exporter=="nan") | (self.df.importer=="nan"))]
+                
         self.df = self.df[~((self.df.exporter == "ANS") & (self.df.importer == "ANS"))]
         self.df = self.df[self.df.exporter != self.df.importer]
         # drop trade values less than trade value threshold
@@ -92,13 +92,11 @@ class CountryCountryYear(_AtlasCleaning):
             self.df[["import_value_fob", "export_value_fob"]].max(axis=1)
             >= self.trade_value_threshold
         ]
-        self.df["import_value_fob"] = self.df["import_value_fob"].fillna(0.0)
-        self.df["export_value_fob"] = self.df["export_value_fob"].fillna(0.0)
 
-    def apply_relative_cif_markup(self, df):
-        """ """
-        # ensures cif_ratio is never greater than .20
-        df = self.df.copy(deep=True)
+    def limit_cif_markup(self, df):
+        """ 
+        ensures cif_ratio is never greater than .20
+        """
         df["cif_ratio"] = (df["import_value_cif"] / self.df["import_value_fob"]) - 1
         logging.info("review CIF ratio from compute distance")
         df["cif_ratio"] = df["cif_ratio"].apply(
@@ -196,7 +194,7 @@ class CountryCountryYear(_AtlasCleaning):
                 "export_value_fob": "exports_const_usd",
                 "import_value_fob": "imports_const_usd",
             }
-        ).fillna(0.0)
+        ) #.fillna(0.0)
 
         # trade below threshold is zeroed
         self.df.loc[
@@ -226,8 +224,10 @@ class CountryCountryYear(_AtlasCleaning):
         ).fillna(0.0)
 
     def calculate_trade_percentages(self):
-        """ """
-        # calculate the mean of each row, exclude import or export value when equal to zero
+        """
+        calculate the mean of each row, exclude import or export value when equal to zero
+        """
+        
         self.df["trade_flow_average"] = pd.DataFrame(
             {
                 "exports": np.where(
@@ -332,7 +332,4 @@ class CountryCountryYear(_AtlasCleaning):
         cpi["cpi_index_base"] = cpi["cpi_index"] / base_year_cpi_index
 
         self.save_parquet(cpi, "intermediate", "inflation_index")
-        # cpi.to_parquet(
-        #     os.path.join(self.intermediate_data_path, "inflation_index.parquet")
-        # )
         return cpi

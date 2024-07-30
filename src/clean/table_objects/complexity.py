@@ -107,6 +107,8 @@ class Complexity(_AtlasCleaning):
 
         # only reliable countries, subset of 123 countries
         self.df = self.df[self.df.reliable == True]
+        
+        
 
         self.df = (
             self.df.groupby(["exporter", "commodity_code"])
@@ -173,26 +175,29 @@ class Complexity(_AtlasCleaning):
         # drop least traded products
         self.df = self.df[~self.df["commodity_code"].isin(drop_products_list)]
         self.df["year"] = self.year
+        
+        self.df = self.df.rename(columns = {"mcp": "mcp_input"})
 
         # pass mcp matrix into Shreyas's ecomplexity package
         trade_cols = {
             "time": "year",
             "loc": "exporter",
             "prod": "commodity_code",
-            "val": "export_value",
+            "val": "mcp_input",
         }
 
+        
         # calculate complexity, not mcp matrix
         logging.info("Calculating the complexity of selected countries and products")
         complexity_df = ecomplexity(
-            self.df[["year", "exporter", "commodity_code", "export_value"]],
+            self.df[["year", "exporter", "commodity_code", "mcp_input", "export_value"]],
             trade_cols,
-            # presence_test="manual",
+            presence_test="manual",
         )
 
         # calculate proximity
         proximity_df = proximity(self.df, trade_cols)
-
+        
         df_gdppc = self.df[["exporter", "gdp_pc"]].groupby("exporter").agg("first").T
 
         df_rca = complexity_df[["exporter", "commodity_code", "rca"]].pivot(
@@ -523,7 +528,7 @@ class Complexity(_AtlasCleaning):
         # cap gen distance = 1 - density
         complexity_df["distance"] = 1 - complexity_df["density"]
         complexity_df = complexity_df.drop(columns=["density"])
-
+        
         # drop any countries with export value == 0
         by_exporter = (
             complexity_df[["exporter", "export_value"]]
@@ -542,14 +547,5 @@ class Complexity(_AtlasCleaning):
                 self.NOISY_TRADE[self.product_classification]
             )
         ]
+        self.df = complexity_df.copy()
 
-        self.save_parquet(
-            complexity_df,
-            "processed",
-            f"{self.product_classification}_{self.year}_complexity",
-        )
-
-        # impute for all countries with product restrictions
-        # presence of each country across products (m matrix for all countries)
-        # calculate avg pci of a countries exports by using previous complexity matrix
-        #

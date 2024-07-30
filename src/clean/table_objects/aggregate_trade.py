@@ -64,20 +64,22 @@ class AggregateTrade(_AtlasCleaning):
         logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
         # filter and clean data
         self.filter_data()
-
         self.label_unspecified_products()
+
         logging.info(f"Size after unspecified products dataframe {self.df.shape}")
         self.handle_germany_reunification()
-
 
         # returns bilateral data
         df_0 = self.aggregate_data(0)
         df_4 = self.aggregate_data(4)
-        self.df = df_0.merge(df_4, on=["importer", "exporter"])
 
+        self.df = df_0.merge(df_4, on=["importer", "exporter"], how='outer')
+        
         # Process and integrate world trade data into the main dataset.
         self.aggregate_to_world_level()
+
         self.remove_outliers()
+
 
         self.df["year"] = self.year
         self.df = self.df[
@@ -208,7 +210,7 @@ class AggregateTrade(_AtlasCleaning):
             )
         )
         self.df.loc[mask, "reporter_ansnoclas"] = self.df.loc[mask, "trade_value"]
-        self.df["reporter_ansnoclas"] = self.df["reporter_ansnoclas"].fillna(0)
+        self.df["reporter_ansnoclas"] = self.df["reporter_ansnoclas"]#.fillna(0)
 
     def handle_germany_reunification(self):
         # drop DEU/DDR trade because within country trade
@@ -260,7 +262,7 @@ class AggregateTrade(_AtlasCleaning):
             index=["reporter_iso", "partner_iso"],
             columns="trade_flow",
             values=["trade_value", "reporter_ansnoclas"],
-            fill_value=0,
+            #fill_value=0,
         ).reset_index()
         
         df.columns = [
@@ -312,26 +314,6 @@ class AggregateTrade(_AtlasCleaning):
             reporting_exporter, on=["importer", "exporter"], how="outer"
         )
 
-        df[
-            [
-                f"imports_{level}",
-                f"imp2ansnoclas_{level}",
-                f"exports_{level}",
-                f"exp2ansnoclas_{level}",
-            ]
-        ] = (
-            df[
-                [
-                    f"imports_{level}",
-                    f"imp2ansnoclas_{level}",
-                    f"exports_{level}",
-                    f"exp2ansnoclas_{level}",
-                ]
-            ]
-            .astype(float)
-            .fillna(0.0)
-        )
-
         # drops data where all rows are zero
         df = df[
             ~(
@@ -374,12 +356,12 @@ class AggregateTrade(_AtlasCleaning):
         self.df["ratio_exp"] = (
             (self.df[f"exp2ansnoclas_4"] / self.df["total_exports"])
             .astype(float)
-            .fillna(0.0)
+            #.fillna(0.0)
         )
         self.df["ratio_imp"] = (
             (self.df[f"imp2ansnoclas_4"] / self.df["total_imports"])
             .astype(float)
-            .fillna(0.0)
+            #.fillna(0.0)
         )
 
         for direction in ["exports", "imports"]:
