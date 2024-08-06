@@ -26,6 +26,8 @@ class AggregateTrade(_AtlasCleaning):
         "Year": "year",
         "Aggregate Level": "product_level",
         "Trade Flow Code": "trade_flow",
+        "Reporter": "reporter",
+        "Partner": "partner",
         "Reporter ISO": "reporter_iso",
         "Partner ISO": "partner_iso",
         "Commodity Code": "commodity_code",
@@ -119,6 +121,10 @@ class AggregateTrade(_AtlasCleaning):
                 },
             )
             logging.info("using original csv file not from compactor")
+            df.loc[df["Reporter"] == "Other Asia, nes", "Reporter ISO"] = "TWN"
+            df.loc[df["Partner"]  == "Other Asia, nes", "Partner ISO"]  = "TWN"
+            df = df.drop(columns=['Reporter', 'Partner'])
+
         except FileNotFoundError:
             try:
                 columns = self.COLUMNS_DICT_COMPACTOR
@@ -181,6 +187,7 @@ class AggregateTrade(_AtlasCleaning):
         except:
              logging.info("Countries did not report Taiwan as a partner")
         
+        # from comtrade reads. py
         self.df.loc[self.df["reporter_iso"] == "nan", "reporter_iso"] = "ANS"
         self.df.loc[self.df["reporter_iso"].isna(), "reporter_iso"] = "ANS"
         self.df.loc[self.df["partner_iso"] == "nan", "partner_iso"] = "ANS"

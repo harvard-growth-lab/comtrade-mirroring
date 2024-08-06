@@ -92,8 +92,8 @@ class Accuracy(_AtlasCleaning):
         importer_accuracy = pd.DataFrame(index=iso_index)
         importer_accuracy["importer_accuracy"] = 1
         
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         for i in range(0, 25):  # 25 try
             # @ is element-wise multiplication
             exporter_probability = 1 / (
@@ -146,13 +146,11 @@ class Accuracy(_AtlasCleaning):
             # this is set to run
             logging.info("calculating mean of exporter accuracy and importer accuracy")
             
-            import pdb
-            pdb.set_trace()
+            # import pdb
+            # pdb.set_trace()
 # accuracy_scores = exporter_accuracy.merge(importer_accuracy, on = ['iso'], how = 'outer')
             # accuracy_scores['accuracy_score'] = accuracy_scores.mean(axis=1)
             accuracy_score = (exporter_accuracy["exporter_accuracy"] + importer_accuracy["importer_accuracy"]) / 2
-            import pdb
-            pdb.set_trace()
 
 
         elif self.af == 1:
@@ -222,8 +220,8 @@ class Accuracy(_AtlasCleaning):
             self.df[f"tag_{entity[0]}"] = (~self.df[entity].duplicated()).astype(int)
 
         # remove trade values less than 1000, fob
-        # self.df.loc[self.df["import_value_fob"] < 1000, "import_value_fob"] = 0.0
-        # self.df.loc[self.df["export_value_fob"] < 1000, "export_value_fob"] = 0.0
+        self.df.loc[self.df["import_value_fob"] < 1000, "import_value_fob"] = np.nan
+        self.df.loc[self.df["export_value_fob"] < 1000, "export_value_fob"] = np.nan
 
         # calculating percentiles grouped by unique exporter and then importer
         exporter_accuracy_percentiles = (

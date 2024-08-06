@@ -34,14 +34,14 @@ class CountryCountryYear(_AtlasCleaning):
             f"{self.product_classification}_{self.year}",
         )
         
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         
         # Clean and filter data
         self.clean_data()
         
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         
         # temp_accuracy in stata
         nominal_dollars_df = self.df.copy(deep=True)
@@ -53,8 +53,8 @@ class CountryCountryYear(_AtlasCleaning):
         # read in economic indicators
         cpi, population = self.add_economic_indicators()
         cpi = self.inflation_adjustment(cpi)
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
 
         
         # merge data to have all possible combinations for exporter, importer
@@ -102,8 +102,8 @@ class CountryCountryYear(_AtlasCleaning):
         self.df = self.df[~((self.df.exporter == "ANS") & (self.df.importer == "ANS"))]
         self.df = self.df[self.df.exporter != self.df.importer]
         # drop trade values less than trade value threshold
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         self.df = self.df[
             self.df[["import_value_fob", "export_value_fob"]].max(axis=1, skipna=True)
             >= self.trade_value_threshold
@@ -240,8 +240,8 @@ class CountryCountryYear(_AtlasCleaning):
         and divides by sum of imports and exports replaces nans with 0
         """
         # in stata s_ij, should be fob and
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         self.df["reporting_discrepancy"] = (
             (abs(self.df["exports_const_usd"] - self.df["imports_const_usd"]))
             / (self.df["exports_const_usd"] + self.df["imports_const_usd"])
