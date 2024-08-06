@@ -34,21 +34,29 @@ class CountryCountryYear(_AtlasCleaning):
             f"{self.product_classification}_{self.year}",
         )
         
+        import pdb
+        pdb.set_trace()
+        
         # Clean and filter data
         self.clean_data()
         
-
+        import pdb
+        pdb.set_trace()
+        
         # temp_accuracy in stata
         nominal_dollars_df = self.df.copy(deep=True)
 
         nominal_dollars_df = self.limit_cif_markup(nominal_dollars_df)
         # # save intermediate ccy file (saved as temp_accuracy.dta in stata file)
-        # self.save_parquet(nominal_dollars_df, "intermediate", "ccy_nominal_dollars")
+        self.save_parquet(nominal_dollars_df, "intermediate", "ccy_nominal_dollars")
 
         # read in economic indicators
         cpi, population = self.add_economic_indicators()
         cpi = self.inflation_adjustment(cpi)
+        import pdb
+        pdb.set_trace()
 
+        
         # merge data to have all possible combinations for exporter, importer
         all_combinations_ccy_index = pd.MultiIndex.from_product(
             [
@@ -70,14 +78,20 @@ class CountryCountryYear(_AtlasCleaning):
         )
         self.df = self.df.drop(columns=["year"])
         
+        
         self.filter_by_population_threshold(population)
+
         self.compare_base_year_trade_values()
 
         # Calculate trade statistics
         self.calculate_trade_reporting_discrepancy()
+
         self.filter_by_trade_flows()
+
         self.calculate_trade_percentages()
+
         self.normalize_trade_flows()
+
         
         
     def clean_data(self):
@@ -88,8 +102,10 @@ class CountryCountryYear(_AtlasCleaning):
         self.df = self.df[~((self.df.exporter == "ANS") & (self.df.importer == "ANS"))]
         self.df = self.df[self.df.exporter != self.df.importer]
         # drop trade values less than trade value threshold
+        import pdb
+        pdb.set_trace()
         self.df = self.df[
-            self.df[["import_value_fob", "export_value_fob"]].max(axis=1)
+            self.df[["import_value_fob", "export_value_fob"]].max(axis=1, skipna=True)
             >= self.trade_value_threshold
         ]
 
@@ -184,6 +200,13 @@ class CountryCountryYear(_AtlasCleaning):
         # converts exports, import values to constant dollar values
         for col in ["export_value_fob", "import_value_fob"]:
             self.df[col] = self.df[col] / self.df.cpi_index_base
+            
+            # fill na here verified
+									# foreach j in exportvalue_fob importvalue_fob importvalue_cif {
+									# 	replace `j' = `j' / (index) 
+									# 	replace `j' = 0 if `j' == .
+									# }		
+        self.df[['export_value_fob', 'import_value_fob', 'import_value_cif']] = self.df[['export_value_fob', 'import_value_fob', 'import_value_cif']].fillna(0)
 
         self.df = self.df.drop(
             columns=["cpi_index_base", "import_value_cif"]  # , "cif_ratio"]
@@ -194,8 +217,8 @@ class CountryCountryYear(_AtlasCleaning):
                 "export_value_fob": "exports_const_usd",
                 "import_value_fob": "imports_const_usd",
             }
-        ) #.fillna(0.0)
-
+        )
+        
         # trade below threshold is zeroed
         self.df.loc[
             self.df.exports_const_usd < self.flow_limit, "exports_const_usd"
@@ -203,8 +226,7 @@ class CountryCountryYear(_AtlasCleaning):
         self.df.loc[
             self.df.imports_const_usd < self.flow_limit, "imports_const_usd"
         ] = 0.0
-
-        # Filter rows
+        
         self.df = self.df.groupby("exporter").filter(
             lambda row: (row["exports_const_usd"] > 0).sum() > 0
         )
@@ -215,13 +237,15 @@ class CountryCountryYear(_AtlasCleaning):
     def calculate_trade_reporting_discrepancy(self):
         """
         Takes the absolute value of the difference in export and imports
-        and divides by sum of imports and exports
+        and divides by sum of imports and exports replaces nans with 0
         """
         # in stata s_ij, should be fob and
+        import pdb
+        pdb.set_trace()
         self.df["reporting_discrepancy"] = (
             (abs(self.df["exports_const_usd"] - self.df["imports_const_usd"]))
             / (self.df["exports_const_usd"] + self.df["imports_const_usd"])
-        ).fillna(0.0)
+        ).fillna(0)
 
     def calculate_trade_percentages(self):
         """

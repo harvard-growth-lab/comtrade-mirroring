@@ -52,16 +52,16 @@ class CountryCountryProductYear(_AtlasCleaning):
         #         )
         #     )
         # ]
-        # accuracy_cif_ratio = self.load_parquet(
-        #     "intermediate", f"{self.product_classification}_{self.year}_accuracy"
-        # )
+        accuracy = self.load_parquet(
+            "intermediate", f"{self.product_classification}_{self.year}_accuracy"
+        )
         
-        accuracy = pd.read_stata("data/raw/weights_2015.dta")
-        accuracy = accuracy.rename(columns={"value_exporter": "export_value", "value_importer": "import_value", "value_final": "final_trade_value",
-                                            "w_e": "weight", "w_e_0": "exporter_weight", 
-                                            "w_i_0": "importer_weight", 
-                                            "exporter_A_e": "exporter_accuracy_score", 
-                                            "importer_A_i": "importer_accuracy_score"})
+        # accuracy = pd.read_stata("data/raw/weights_2015.dta")
+        # accuracy = accuracy.rename(columns={"value_exporter": "export_value", "value_importer": "import_value", "value_final": "final_trade_value",
+        #                                     "w_e": "weight", "w_e_0": "exporter_weight", 
+        #                                     "w_i_0": "importer_weight", 
+        #                                     "exporter_A_e": "exporter_accuracy_score", 
+        #                                     "importer_A_i": "importer_accuracy_score"})
         
         # accuracy = accuracy[
         #     accuracy.value_final >= 100_000

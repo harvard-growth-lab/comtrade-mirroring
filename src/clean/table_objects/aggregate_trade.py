@@ -52,7 +52,6 @@ class AggregateTrade(_AtlasCleaning):
         # load data
         self.df = self.load_comtrade_downloader_file()
         # conditional incase df is empty
-
         # moved to compactor
         self.ans_and_recode_other_asia_to_taiwan()
         self.check_commodity_code_length()

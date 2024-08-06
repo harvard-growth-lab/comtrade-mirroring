@@ -48,30 +48,30 @@ def run_atlas_cleaning(ingestion_attrs):
     dist = pd.read_stata(os.path.join("data", "raw", "dist_cepii.dta"))
 
     for year in range(start_year, end_year + 1):
-        file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
-        if not os.path.isfile(file_name):
-            # get possible classifications based on year
-            logging.info("removing classifications step until can confirm with Seba")
-            classifications = [product_classification]
-            # classifications = get_classifications(year)
-            logging.info(
-                f"Aggregating data for {year} and these classifications {classifications}"
-            )
-            [
-                AggregateTrade(year, product_class, **ingestion_attrs)
-                for product_class in classifications
-            ]
+        # file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
+        # if not os.path.isfile(file_name):
+        # get possible classifications based on year
+        logging.info("removing classifications step until can confirm with Seba")
+        classifications = [product_classification]
+        # classifications = get_classifications(year)
+        logging.info(
+            f"Aggregating data for {year} and these classifications {classifications}"
+        )
+        [
+            AggregateTrade(year, product_class, **ingestion_attrs)
+            for product_class in classifications
+        ]
 
     logging.info("Completed data aggregations, starting next loop")
     
     for year in range(start_year, end_year + 1):
         # depending on year, merge multiple classifications, take median of values
-        df = merge_classifications(year, ingestion_attrs["root_dir"])
+        # df = merge_classifications(year, ingestion_attrs["root_dir"])
         # compute distance requires three years of aggregated data
         logging.info(f"Beginning compute distance for year {year}")
         df = compute_distance(year, product_classification, dist)
         
-
+        
         os.makedirs(
             os.path.join(
                 # Totals_RAW_trade.dta
@@ -93,7 +93,9 @@ def run_atlas_cleaning(ingestion_attrs):
             ),
             index=False,
         )
-
+        import pdb
+        pdb.set_trace()
+        
         ccy = CountryCountryYear(year, **ingestion_attrs)
 
         ccy.save_parquet(
@@ -101,6 +103,8 @@ def run_atlas_cleaning(ingestion_attrs):
             "intermediate",
             f"{product_classification}_{year}_country_country_year",
         )
+        import pdb
+        pdb.set_trace()
 
         accuracy = Accuracy(year, **ingestion_attrs)
         logging.info("confirm CIF ratio column is present")
@@ -146,19 +150,18 @@ def run_atlas_cleaning(ingestion_attrs):
     complexity.save_parquet(
             complexity_all,
             "final",
-            f"{product_classification}_{start_year}_{end_year}_complexity", index=False
+            f"{product_classification}_{start_year}_{end_year}_complexity",
         )
 
     complexity.save_parquet(
         complexity_all,
         "processed",
-        f"{product_classification}_{start_year}_{end_year}_complexity_all",
-        index=False
+        f"{product_classification}_complexity_all",
     )
     try:
         complexity_all.to_stata(
             os.path.join(
-                complexity.final_output_path, f"{product_classification}_{year}.dta"
+                complexity.final_output_path, "CPY", f"{product_classification}_cpy_all.dta"
             ), write_index=False
         )
     except Exception as e:
@@ -252,10 +255,13 @@ def compute_distance(year, product_classification, dist):
     df.loc[(df["year"] == year) & (df["tau"].isna()), "tau"] = tau_mean
 
     df = df[df.year == year]
-    df.loc[df["lnoneplust"] > 0, "import_value_fob"] = df["import_value_cif"] * (
-        1 - df["tau"]
-    )
-    df.loc[df["lnoneplust"] < 0, "import_value_fob"] = df["import_value_cif"]
+    
+    df.loc[abs(df["lnoneplust"]) < 0.05, "import_value_fob"] = df["import_value_cif"]
+
+    df.loc[((df["lnoneplust"] > 0) | (df["lnoneplust"].isna())) & (df["import_value_fob"].isna()) , "import_value_fob"] = df["import_value_cif"] * (1 - df["tau"])
+    
+    df.loc[(df["lnoneplust"] < 0) & (df["import_value_fob"].isna()), "import_value_fob"] = df["import_value_cif"]
+    
     return df[
         [
             "year",

@@ -50,7 +50,7 @@ class _AtlasCleaning(object):
             os.path.join(self.raw_data_path, "dist_cepii.dta")
         )
         self.inflation = pd.read_parquet(
-            os.path.join("data", "intermediate", "inflation_index.parquet")
+            os.path.join("data", "raw", "inflation_index.parquet")
         )
 
         self.df = None
