@@ -110,29 +110,27 @@ def run_atlas_cleaning(ingestion_attrs):
         accuracy.save_parquet(
             accuracy.df, "intermediate", f"{product_classification}_{year}_accuracy"
         )
-        import pdb
-        pdb.set_trace()
 
         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
 
-        ccpy.save_parquet(
-            ccpy.df,
-            "final",
-            f"{product_classification}_{year}_country_country_product_year",
-        )
+        # ccpy.save_parquet(
+        #     ccpy.df,
+        #     "final",
+        #     f"{product_classification}_{year}_country_country_product_year",
+        # )
         ccpy.save_parquet(
             ccpy.df,
             "processed",
             f"{product_classification}_{year}_country_country_product_year",
         )
         try:
-            ccpy.df.to_stata(
+            ccpy.df.to_parquet(
                 os.path.join(
-                    ccpy.final_output_path, f"{product_classification}", f"{product_classification}_{year}.dta"
-                ), write_index=False
+                    ccpy.final_output_path, f"{product_classification}", f"{product_classification}_{year}.parquet"
+                ), index=False
             )
         except Exception as e:
-            print(f"failed to write to stata: {e}")
+            print(f"failed to write ccpy to parquet: {e}")
 
         # complexity files
         complexity = Complexity(year, **ingestion_attrs)
@@ -148,24 +146,18 @@ def run_atlas_cleaning(ingestion_attrs):
     complexity_all = pd.concat([pd.read_parquet(file) for file in complexity_all_years], axis=0)
     
     complexity.save_parquet(
-            complexity_all,
-            "final",
-            f"{product_classification}_{start_year}_{end_year}_complexity",
-        )
-
-    complexity.save_parquet(
         complexity_all,
         "processed",
         f"{product_classification}_complexity_all",
     )
     try:
-        complexity_all.to_stata(
+        complexity_all.to_parquet(
             os.path.join(
-                complexity.final_output_path, "CPY", f"{product_classification}_cpy_all.dta"
-            ), write_index=False
+                complexity.final_output_path, "CPY", f"{product_classification}_cpy_all.parquet"
+            ), index=False
         )
     except Exception as e:
-        print(f"failed to write to stata: {e}")
+        print(f"failed to write complexity to parquet: {e}")
 
 
 def compute_distance(year, product_classification, dist):
@@ -294,7 +286,7 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_07_24/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_08/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H0",
     }
@@ -305,7 +297,7 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_07_24/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_08/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H4",
     }
@@ -316,7 +308,7 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_07_24/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_08/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H5",
     }
@@ -329,7 +321,7 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_07_24/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_08/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "SITC",
     }

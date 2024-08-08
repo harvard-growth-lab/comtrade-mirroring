@@ -47,8 +47,6 @@ class Accuracy(_AtlasCleaning):
         self.calculate_estimated_value(
             exporter_accuracy_percentiles, importer_accuracy_percentiles
         )
-        import pdb
-        pdb.set_trace()
         
         self.finalize_output()
 
@@ -355,8 +353,6 @@ class Accuracy(_AtlasCleaning):
         
         
         self.df = self.df.combine_first(filtered_df)
-        import pdb
-        pdb.set_trace()
         
 
         self.df.loc[((self.df["est_trade_value"].isna()) & (self.df['importer_weight']==1)), 'est_trade_value'] = self.df['import_value_fob']
@@ -364,10 +360,6 @@ class Accuracy(_AtlasCleaning):
         self.df.loc[((self.df["est_trade_value"].isna()) & (self.df['exporter_weight']==1)), 'est_trade_value'] = self.df['export_value_fob']
 
         self.df.loc[(self.df["est_trade_value"].isna()), 'est_trade_value'] = self.df['import_value_fob']
-
-        import pdb
-        pdb.set_trace()
-        i = 0
 
         
     def finalize_output(self):
@@ -396,5 +388,3 @@ class Accuracy(_AtlasCleaning):
             "importer_accuracy_score",
         ]
         self.df = self.df[columns_to_keep]
-        import pdb
-        pdb.set_trace()
