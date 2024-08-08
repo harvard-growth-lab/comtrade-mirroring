@@ -77,18 +77,30 @@ class CountryCountryYear(_AtlasCleaning):
             self.df, on=["year", "exporter", "importer"], how="left"
         )
         self.df = self.df.drop(columns=["year"])
-        
+        # import pdb
+        # pdb.set_trace()
+
         
         self.filter_by_population_threshold(population)
+        # import pdb
+        # pdb.set_trace()
 
         self.compare_base_year_trade_values()
+        # import pdb
+        # pdb.set_trace()
 
         # Calculate trade statistics
         self.calculate_trade_reporting_discrepancy()
+        # import pdb
+        # pdb.set_trace()
 
         self.filter_by_trade_flows()
+        # import pdb
+        # pdb.set_trace()
 
         self.calculate_trade_percentages()
+        # import pdb
+        # pdb.set_trace()
 
         self.normalize_trade_flows()
 
@@ -125,8 +137,10 @@ class CountryCountryYear(_AtlasCleaning):
         Drop all exporter and importers with populations below the population limit
         """
         population = population[population.year == self.year].drop(columns=["year"])
+        population.loc[population['imf_pop'].isna(), "imf_pop"] = population['sp_pop_totl']
+        population = population.rename(columns={'imf_pop' : 'imf_wdi_pop'})
         countries_under_threshold = population[
-            population.imf_pop < self.population_threshold
+            population.imf_wdi_pop < self.population_threshold
         ]["iso"].tolist()
         self.df = self.df[
             ~(

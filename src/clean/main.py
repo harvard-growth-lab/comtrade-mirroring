@@ -93,8 +93,8 @@ def run_atlas_cleaning(ingestion_attrs):
             ),
             index=False,
         )
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         
         ccy = CountryCountryYear(year, **ingestion_attrs)
 
@@ -103,8 +103,6 @@ def run_atlas_cleaning(ingestion_attrs):
             "intermediate",
             f"{product_classification}_{year}_country_country_year",
         )
-        import pdb
-        pdb.set_trace()
 
         accuracy = Accuracy(year, **ingestion_attrs)
         logging.info("confirm CIF ratio column is present")
@@ -112,6 +110,8 @@ def run_atlas_cleaning(ingestion_attrs):
         accuracy.save_parquet(
             accuracy.df, "intermediate", f"{product_classification}_{year}_accuracy"
         )
+        import pdb
+        pdb.set_trace()
 
         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
 
