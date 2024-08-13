@@ -53,6 +53,8 @@ class AggregateTrade(_AtlasCleaning):
         self.product_class = product_class
         # load data
         self.df = self.load_comtrade_downloader_file()
+        # import pdb
+        # pdb.set_trace()
         # conditional incase df is empty
         # moved to compactor
         self.ans_and_recode_other_asia_to_taiwan()
@@ -62,6 +64,7 @@ class AggregateTrade(_AtlasCleaning):
         logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
         # filter and clean data
         self.filter_data()
+        
         self.save_parquet(
             self.df, "intermediate", f"cleaned_{self.product_class}_{self.year}"
         )
@@ -151,6 +154,7 @@ class AggregateTrade(_AtlasCleaning):
                 except: 
                     error_message = f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate"
                     # raise ValueError(error_message)
+        df = df.dropna(axis = 0, how = 'all')
         return df.rename(columns=columns)
 
     def filter_data(self):

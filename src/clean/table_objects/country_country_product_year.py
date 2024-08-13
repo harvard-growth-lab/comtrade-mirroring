@@ -79,6 +79,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         #     )
         # ]
         # prepare the data
+        # import pdb
+        # pdb.set_trace()
         self.filter_and_clean_data()
         logging.info("check after filter for WLD, nan, NAN")
         # import pdb
@@ -98,15 +100,14 @@ class CountryCountryProductYear(_AtlasCleaning):
 
         # calculate the value of exports for each country pair and product
         self.generate_trade_value_matrix(accuracy, all_ccpy)
-        # self.imports_matrix = self.generate_trade_value_matrix("imports", accuracy)
-        # merge in cif ratio
         logging.info("ccpy: generated trade vals matrix with cif ratio applied")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
         # import pdb
         # pdb.set_trace()
 
         self.trade_score = self.assign_trade_scores()
-
+        # import pdb
+        # pdb.set_trace()
         accuracy = accuracy[accuracy.importer != accuracy.exporter]
         accuracy = accuracy.set_index(["exporter", "importer"])
 
@@ -114,9 +115,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         logging.info("ccpy: assigned accuracy scores")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
 
-        # prep matrices for trade value logic
-        # self.prepare_for_matrix_multiplication(accuracy)
-        logging.info("ccpy: prepped for matrix multiplication")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
         # import pdb
         # pdb.set_trace()
@@ -124,6 +122,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.calculate_final_trade_value()
         logging.info("ccpy: calculated final trade val")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+        # import pdb
+        # pdb.set_trace()
         
         self.reweight_final_trade_value(cc_trade_totals)
         logging.info("ccpy: reweighted")
@@ -134,20 +134,26 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.filter_and_handle_trade_data_discrepancies()
         logging.info("ccpy: handle trade data discrepancies")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+        # import pdb
+        # pdb.set_trace()
 
         self.handle_not_specified()
         logging.info("ccpy: handled not specified")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
         
         self.df["year"] = self.year
+        # import pdb
+        # pdb.set_trace()
         self.df = self.df.rename(
             columns={
-                "final_value": "value_final",
+                "reweighted_value": "value_final",
                 "export_value": "value_exporter",
                 "import_value": "value_importer",
                 "commodity_code": "commoditycode",
             }
         )
+        # import pdb
+        # pdb.set_trace()
         self.df = self.df[
             [
                 "year",
@@ -242,36 +248,53 @@ class CountryCountryProductYear(_AtlasCleaning):
                 "trade_value",
             ]
         ]
+        
+        self.df = self.df[~(self.df.trade_value < 1_000)]
+
         self.df = (
             self.df.groupby(
-                ["reporter_iso", "partner_iso", "commodity_code", "trade_flow"]
+                ["trade_flow", "reporter_iso", "partner_iso", "commodity_code"]
             )
             .agg("sum")
             .reset_index()
         )
+        
         re = self.df[self.df.trade_flow == 2]
         ri = self.df[self.df.trade_flow == 1]
+        
+        # import pdb
+        # pdb.set_trace()
 
         self.df = re.merge(
             ri,
-            on=["reporter_iso", "partner_iso", "commodity_code"],
+            left_on=["reporter_iso", "partner_iso", "commodity_code"], 
+            right_on=["partner_iso", "reporter_iso", "commodity_code"],
             how="outer",
             suffixes=("_reporting_exp", "_reporting_imp"),
         )
+        # import pdb
+        # pdb.set_trace()
+        
+        # Handle asymmetrical imports/exports
+        self.df["reporter_iso_reporting_exp"] = self.df["reporter_iso_reporting_exp"].combine_first(self.df["partner_iso_reporting_imp"])
+        self.df['partner_iso_reporting_exp'] = self.df['partner_iso_reporting_exp'].combine_first(self.df['reporter_iso_reporting_imp'])
+        
+        # import pdb
+        # pdb.set_trace()
+        
         self.df = self.df.drop(
-            columns=["trade_flow_reporting_exp", "trade_flow_reporting_imp"]
+            columns=["trade_flow_reporting_exp", "trade_flow_reporting_imp", "reporter_iso_reporting_imp", "partner_iso_reporting_imp"]
         )
         self.df = self.df.rename(
             columns={
                 "trade_value_reporting_exp": "export_value",
                 "trade_value_reporting_imp": "import_value",
-                "reporter_iso": "exporter",
-                "partner_iso": "importer",
+                "reporter_iso_reporting_exp": "exporter",
+                "partner_iso_reporting_exp": "importer",
             }
         )
-
-        # add all country country pairs
-        # self.df = all_ccpy.merge(self.df, on=['exporter', 'importer'], how="left")
+        
+        self.df[['export_value', 'import_value']] = self.df[['export_value', 'import_value']].fillna(0)
 
         self.df = self.df.merge(
             accuracy[
@@ -286,6 +309,8 @@ class CountryCountryProductYear(_AtlasCleaning):
             on=["importer", "exporter"],
             how="left",
         )
+        # import pdb
+        # pdb.set_trace()
         self.df["import_value"] = self.df["import_value"] * (1 - self.df["cif_ratio"])
         self.df = self.df.drop(columns=["cif_ratio"])
         self.df = self.df.fillna(0.0)
@@ -293,7 +318,7 @@ class CountryCountryProductYear(_AtlasCleaning):
     def assign_trade_scores(self):
         """
         at commodity bilateral level
-        score of 4 if reporter provides positive imports and exports
+        score of 4 if reporters provides positive imports and exports
         score of 2 if reporter only provides positive imports
         score of 1 if reporter only provides positive exports
         """
@@ -343,6 +368,8 @@ class CountryCountryProductYear(_AtlasCleaning):
             - When trade score is 4 but accuracy score is 0, use the average of export and import values
             - When either score is 0, use the available value (import or export) based on the non-zero score
         """
+        # import pdb
+        # pdb.set_trace()
         self.df["final_value"] = (
             (
                 (
@@ -401,7 +428,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         # pdb.set_trace()
         self.df = self.df.drop(columns=["trade_score", "accuracy"])
 
-    def reweight_final_trade_value(self, trade_total):
+    def reweight_final_trade_value(self, accuracy_trade_total):
         """
         Adjusts final trade values to reconcile discrepancies with reported total trade figures
 
@@ -409,42 +436,43 @@ class CountryCountryProductYear(_AtlasCleaning):
 
         Adds an 'unspecified' category to account for large unexplained differences.
         """
-
+        # import pdb
+        # pdb.set_trace()
         # self.df = self.df.set_index(['exporter', 'importer', 'commodity_code')]
-        cc_estimated_trade_val = self.df.groupby(["exporter", "importer"]).agg("sum")[
+        ccpy_trade_sum = self.df.groupby(["exporter", "importer"]).agg("sum")[
             "final_value"
         ]
-        cc_estimated_trade_val = cc_estimated_trade_val.replace(0, np.nan)
+        # ccpy_trade_sum = ccpy_trade_sum.replace(0, np.nan)
 
         # determine if data trade discrepancies
         case_1 = (
             (
-                ((trade_total / cc_estimated_trade_val) > 1.20).astype(int)
-                + ((trade_total - cc_estimated_trade_val) > 2.5 * 10**7).astype(int)
-                + (trade_total > 10**8).astype(int)
+                ((accuracy_trade_total / ccpy_trade_sum) > 1.20).astype(int)
+                + ((accuracy_trade_total - ccpy_trade_sum) > (2.5 * 10**7)).astype(int)
+                + (accuracy_trade_total > 10**8).astype(int)
             )
             == 3
         ).astype(int)
         case_2 = (
             (
-                (trade_total > 10**8).astype(int)
-                + (cc_estimated_trade_val < 10**5).astype(int)
+                (accuracy_trade_total > 10**8).astype(int)
+                + (ccpy_trade_sum < 10**5).astype(int)
             )
             == 2
         ).astype(int)
 
         xxxx = ((case_1 + case_2) > 0).astype(int)
-        value_xxxx = (trade_total - cc_estimated_trade_val) * (xxxx == 1).astype(int)
-        value_reweight = trade_total - value_xxxx
+        value_xxxx = (accuracy_trade_total - ccpy_trade_sum) * (xxxx == 1).astype(int)
+        value_reweight = accuracy_trade_total - value_xxxx
 
         cc_each_product = self.df.pivot(
             columns=["commodity_code"],
             index=["exporter", "importer"],
             values="final_value",
         )
-        reweighted = cc_each_product - cc_each_product * (
+        reweighted = cc_each_product - (cc_each_product * (
             (cc_each_product < 1000).astype(int)
-        )
+        ))
 
         reweighted = reweighted.div(reweighted.sum(axis=1).replace(0, np.nan), axis=0)
 

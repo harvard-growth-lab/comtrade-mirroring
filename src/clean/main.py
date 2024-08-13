@@ -124,6 +124,9 @@ def run_atlas_cleaning(ingestion_attrs):
             f"{product_classification}_{year}_country_country_product_year",
         )
         try:
+            os.makedirs(ccpy.final_output_path, exist_ok=True)
+            os.makedirs(os.path.join(ccpy.final_output_path, f"{product_classification}"), exist_ok=True)
+
             ccpy.df.to_parquet(
                 os.path.join(
                     ccpy.final_output_path, f"{product_classification}", f"{product_classification}_{year}.parquet"
@@ -151,6 +154,7 @@ def run_atlas_cleaning(ingestion_attrs):
         f"{product_classification}_complexity_all",
     )
     try:
+        os.makedirs(os.path.join(ccpy.final_output_path, "CPY"), exist_ok=True)
         complexity_all.to_parquet(
             os.path.join(
                 complexity.final_output_path, "CPY", f"{product_classification}_cpy_all.parquet"
