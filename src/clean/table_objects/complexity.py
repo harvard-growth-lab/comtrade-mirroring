@@ -217,6 +217,13 @@ class Complexity(_AtlasCleaning):
             trade_cols,
             # presence_test="manual",
         )
+        # complexity matrix
+        logging.info("save complexity matrix")
+        self.save_parquet(complexity_df, "intermediate", f"{self.product_classification}_{self.year}_complexitytest")
+        
+        import pdb
+        pdb.set_trace()
+
         
         # ecomplexity output
         complexity_df = complexity_df.drop(columns=['year'])
