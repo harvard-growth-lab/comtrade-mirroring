@@ -124,8 +124,7 @@ class Complexity(_AtlasCleaning):
             self.df = self.df[~self.df.exporter.isin(drop_countries)]
             self.df = self.df[~self.df.commoditycode.isin(drop_commodities)]
 
-        # save all countries, 207 countries, stata fulldata
-        # validated to full data
+        # save all countries, 207 countries, stata fulldata, VALIDATED
         self.save_parquet(self.df, "intermediate", f"{self.product_classification}_{self.year}_complexity_all_countries")
 
         # only reliable countries, subset of 123 countries        
@@ -227,6 +226,11 @@ class Complexity(_AtlasCleaning):
         
         df_gdppc = self.df[["exporter", "gdp_pc"]].groupby("exporter").agg("first").T
 
+        # mata RCA = editmissing(RCA,0)
+        complexity_df['rca'] = complexity_df['rca'].fillna(0.0)
+        complexity_df['prody'] = ( complexity_df['rca'] / complexity_df['rca'].sum(axis=0)
+        
+        
         df_rca = complexity_df[["exporter", "commoditycode", "rca"]].pivot(
             values="rca", index="commoditycode", columns="exporter"
         )
