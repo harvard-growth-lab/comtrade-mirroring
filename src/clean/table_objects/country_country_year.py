@@ -34,8 +34,6 @@ class CountryCountryYear(_AtlasCleaning):
             f"{self.product_classification}_{self.year}",
         )
         
-        # import pdb
-        # pdb.set_trace()
         
         # Clean and filter data
         self.clean_data()

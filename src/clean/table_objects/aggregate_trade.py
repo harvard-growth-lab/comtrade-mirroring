@@ -53,8 +53,6 @@ class AggregateTrade(_AtlasCleaning):
         self.product_class = product_class
         # load data
         self.df = self.load_comtrade_downloader_file()
-        # import pdb
-        # pdb.set_trace()
         # conditional incase df is empty
         # moved to compactor
         self.ans_and_recode_other_asia_to_taiwan()
@@ -106,7 +104,7 @@ class AggregateTrade(_AtlasCleaning):
             columns = self.COLUMNS_DICT
             df = pd.read_csv(
                 os.path.join(
-                    self.raw_data_path, f"{self.product_class}_{self.year}.zip"
+                    self.raw_data_path, f"{self.product_class}_{self.year}_FAIL.zip"
                 ),
                 usecols=self.COLUMNS_DICT.keys(),
                 dtype={
