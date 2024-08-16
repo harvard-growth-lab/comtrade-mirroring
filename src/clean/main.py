@@ -47,93 +47,93 @@ def run_atlas_cleaning(ingestion_attrs):
     # load data
     dist = pd.read_stata(os.path.join("data", "raw", "dist_cepii.dta"))
 
-#     for year in range(start_year, end_year + 1):
-#         # file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
-#         # if not os.path.isfile(file_name):
-#         # get possible classifications based on year
-#         logging.info("removing classifications step until can confirm with Seba")
-#         classifications = [product_classification]
-#         # classifications = get_classifications(year)
-#         logging.info(
-#             f"Aggregating data for {year} and these classifications {classifications}"
-#         )
-#         [
-#             AggregateTrade(year, product_class, **ingestion_attrs)
-#             for product_class in classifications
-#         ]
+    for year in range(start_year, end_year + 1):
+        # file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
+        # if not os.path.isfile(file_name):
+        # get possible classifications based on year
+        logging.info("removing classifications step until can confirm with Seba")
+        classifications = [product_classification]
+        # classifications = get_classifications(year)
+        logging.info(
+            f"Aggregating data for {year} and these classifications {classifications}"
+        )
+        [
+            AggregateTrade(year, product_class, **ingestion_attrs)
+            for product_class in classifications
+        ]
 
-#     logging.info("Completed data aggregations, starting next loop")
+    logging.info("Completed data aggregations, starting next loop")
     
     for year in range(start_year, end_year + 1):
         # depending on year, merge multiple classifications, take median of values
         # df = merge_classifications(year, ingestion_attrs["root_dir"])
         # compute distance requires three years of aggregated data
-#         logging.info(f"Beginning compute distance for year {year}")
-#         df = compute_distance(year, product_classification, dist)
+        logging.info(f"Beginning compute distance for year {year}")
+        df = compute_distance(year, product_classification, dist)
         
         
-#         os.makedirs(
-#             os.path.join(
-#                 # Totals_RAW_trade.dta
-#                 ingestion_attrs["root_dir"],
-#                 "data",
-#                 "intermediate",
-#                 product_classification,
-#             ),
-#             exist_ok=True,
-#         )
-#         # country country year intermediate file, passed into CCY object
-#         df.to_parquet(
-#             os.path.join(
-#                 ingestion_attrs["root_dir"],
-#                 "data",
-#                 "intermediate",
-#                 # product_classification,
-#                 f"{product_classification}_{year}.parquet",
-#             ),
-#             index=False,
-#         )
-#         # import pdb
-#         # pdb.set_trace()
+        # os.makedirs(
+        #     os.path.join(
+        #         # Totals_RAW_trade.dta
+        #         ingestion_attrs["root_dir"],
+        #         "data",
+        #         "intermediate",
+        #         product_classification,
+        #     ),
+        #     exist_ok=True,
+        # )
+        # country country year intermediate file, passed into CCY object
+        df.to_parquet(
+            os.path.join(
+                ingestion_attrs["root_dir"],
+                "data",
+                "intermediate",
+                # product_classification,
+                f"{product_classification}_{year}.parquet",
+            ),
+            index=False,
+        )
+        # import pdb
+        # pdb.set_trace()
         
-#         ccy = CountryCountryYear(year, **ingestion_attrs)
+        ccy = CountryCountryYear(year, **ingestion_attrs)
 
-#         ccy.save_parquet(
-#             ccy.df,
-#             "intermediate",
-#             f"{product_classification}_{year}_country_country_year",
-#         )
+        ccy.save_parquet(
+            ccy.df,
+            "intermediate",
+            f"{product_classification}_{year}_country_country_year",
+        )
 
-#         accuracy = Accuracy(year, **ingestion_attrs)
-#         logging.info("confirm CIF ratio column is present")
+        accuracy = Accuracy(year, **ingestion_attrs)
+        logging.info("confirm CIF ratio column is present")
 
-#         accuracy.save_parquet(
-#             accuracy.df, "intermediate", f"{product_classification}_{year}_accuracy"
-#         )
+        accuracy.save_parquet(
+            accuracy.df, "intermediate", f"{product_classification}_{year}_accuracy"
+        )
 
-#         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
+        ccpy = CountryCountryProductYear(year, **ingestion_attrs)
 
-#         # ccpy.save_parquet(
-#         #     ccpy.df,
-#         #     "final",
-#         #     f"{product_classification}_{year}_country_country_product_year",
-#         # )
-#         ccpy.save_parquet(
-#             ccpy.df,
-#             "processed",
-#             f"{product_classification}_{year}_country_country_product_year",
-#         )
-#         try:
-#             os.makedirs(ccpy.final_output_path, exist_ok=True)
-#             os.makedirs(os.path.join(ccpy.final_output_path, f"{product_classification}"), exist_ok=True)
+        # ccpy.save_parquet(
+        #     ccpy.df,
+        #     "final",
+        #     f"{product_classification}_{year}_country_country_product_year",
+        # )
+        ccpy.save_parquet(
+            ccpy.df,
+            "processed",
+            f"{product_classification}_{year}_country_country_product_year",
+        )
+        try:
+            os.makedirs(ccpy.final_output_path, exist_ok=True)
+            os.makedirs(os.path.join(ccpy.final_output_path, f"{product_classification}"), exist_ok=True)
 
-#             ccpy.df.to_parquet(
-#                 os.path.join(
-#                     ccpy.final_output_path, f"{product_classification}", f"{product_classification}_{year}.parquet"
-#                 ), index=False
-#             )
-#         except Exception as e:
-#             print(f"failed to write ccpy to parquet: {e}")
+            ccpy.df.to_parquet(
+                os.path.join(
+                    ccpy.final_output_path, f"{product_classification}", f"{product_classification}_{year}.parquet"
+                ), index=False
+            )
+        except Exception as e:
+            print(f"failed to write ccpy to parquet: {e}")
 
         # complexity files
         complexity = Complexity(year, **ingestion_attrs)
@@ -290,7 +290,7 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_14/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_15/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H0",
     }
@@ -301,7 +301,7 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_14/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_15/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H4",
     }
@@ -312,7 +312,7 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_14/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_15/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H5",
     }
@@ -325,7 +325,7 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_14/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_15/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "SITC",
     }
