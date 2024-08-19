@@ -193,8 +193,6 @@ class AggregateTrade(_AtlasCleaning):
         ans_partners = self.ans_partners['PartnerCodeIsoAlpha3'].tolist()
         self.df.loc[self.df["partner_iso"].isin(ans_partners), "partner_iso"] = "ANS"
         self.df.loc[self.df["partner_iso"].isna(), "partner_iso"] = "ANS"
-        import pdb
-        pdb.set_trace()
 
 
     def check_commodity_code_length(self):
@@ -323,8 +321,6 @@ class AggregateTrade(_AtlasCleaning):
         ).any(), "reporting importer is not a unique pair"
         # need outer so we don't lose WLD
         
-        import pdb
-        pdb.set_trace()
         
         df = reporting_importer.merge(
             reporting_exporter, on=["importer", "exporter"], how="outer"

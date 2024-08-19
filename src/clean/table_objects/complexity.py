@@ -40,7 +40,7 @@ class Complexity(_AtlasCleaning):
         self.df = pd.read_parquet(
             f"data/processed/{self.product_class}_{self.year}_country_country_product_year.parquet"
         )
-        # logging.info("RUNNING STATA INPUTS")
+        # # logging.info("RUNNING STATA INPUTS")
         # self.df = pd.read_stata("data/raw/H0_ccpy_2015.dta")
         
         try:
@@ -295,10 +295,13 @@ class Complexity(_AtlasCleaning):
 
         eci = all_countries.groupby('exporter')['eci'].agg('first')
         all_countries['eci'] = ( all_countries['eci'] - eci.mean() ) / eci.std()
+        
+        # import pdb
+        # pdb.set_trace()
 
         # FIX PCI with non-normalized value
         # save selecteddata
-        self.save_parquet(self.df, "intermediate", f"{self.product_classification}_{self.year}_all_countries")
+        self.save_parquet(all_countries, "intermediate", f"{self.product_classification}_{self.year}_all_countries")
 
         # All COUNTRIES, ALL PRODUCTS
         all_cp = self.load_parquet("intermediate", f"{self.product_classification}_{self.year}_complexity_all_countries")[
@@ -324,14 +327,14 @@ class Complexity(_AtlasCleaning):
         all_cp['mcp'] = np.where(all_cp['rca'] >= 1, 1, 0)
         
         all_cp = all_cp.merge(all_countries[['exporter', 'eci']].drop_duplicates(), on=['exporter'], how='left')
-        all_cp['pci'] = all_cp['mcp'] * all_cp['eci']
+        all_cp['pci'] = all_cp['mcp'] * all_cp['eci'] #.iloc[:, 0]
         all_cp['pci'] = all_cp.groupby('commoditycode')['pci'].transform('sum') / all_cp.groupby('commoditycode')['mcp'].transform('sum')
         
         all_cp['prody'] = ( all_cp['rca'] / all_cp.groupby('commoditycode')['rca'].transform('sum') ) * all_cp['gdp_pc']
         all_cp['prody'] = all_cp.groupby('commoditycode')['prody'].transform('sum')
         
         # STILL NEED UPDATED PCI, non normalized
-        self.save_parquet(self.df, "intermediate", f"{self.product_classification}_{self.year}_all_countries_all_products")  
+        self.save_parquet(all_cp, "intermediate", f"{self.product_classification}_{self.year}_all_countries_all_products")  
                    
         logging.info("Creating the product space for all countries & all products")
         # mata C = M'*M
@@ -441,6 +444,8 @@ class Complexity(_AtlasCleaning):
         # replace opportunity_value = (opportunity_value-r(mean))/r(sd) if opportunity_value!=. 
         opp_val = self.df.groupby("exporter")["opportunity_value"].agg("first")
         self.df["opportunity_value"] = np.where(self.df["opportunity_value"].isna(), (self.df["opportunity_value"] - np.mean(opp_val)) / np.std(opp_val), self.df["opportunity_value"])
+        
+        
 
         logging.info("combine variables")
         measures = {

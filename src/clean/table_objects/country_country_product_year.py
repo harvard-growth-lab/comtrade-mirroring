@@ -129,6 +129,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         logging.info("ccpy: reweighted")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
         
+        # import pdb
+        # pdb.set_trace()
 
         # final processing
         self.filter_and_handle_trade_data_discrepancies()
@@ -486,8 +488,9 @@ class CountryCountryProductYear(_AtlasCleaning):
         reweighted = reweighted.melt(
             ignore_index=False, var_name="commodity_code", value_name="reweighted_value"
         ).reset_index()
-        self.df = self.df.reset_index().merge(
-            reweighted.reset_index(),
+                
+        self.df = self.df.merge(
+            reweighted,
             on=["exporter", "importer", "commodity_code"],
             how="left",
         )
@@ -502,62 +505,33 @@ class CountryCountryProductYear(_AtlasCleaning):
         3. Fills missing commodity codes with trade data discrepancy code based on the current product classification.
         """
         # drop rows that don't have data
-        self.df = self.df.loc[
-            (
-                self.df[
-                    ["final_value", "reweighted_value", "import_value", "export_value"]
-                ]
-                != 0.0
-            ).any(axis=1)
-            & self.df.notnull().any(axis=1)
-        ]
+        self.df = self.df.dropna(subset=["final_value", "reweighted_value", "import_value", "export_value"], how = 'all')
+        self.df.loc[(self.df[["final_value", "reweighted_value", "import_value", "export_value"]]!=0).any(axis=1)] 
+        
+        self.df.loc[self.df.commodity_code.isna(), 'commodity_code']= self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[self.product_classification][self.TRADE_DATA_DISCREPANCIES] 
 
-        self.df["commodity_code"] = self.df["commodity_code"].fillna(
-            self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[self.product_classification][
-                self.TRADE_DATA_DISCREPANCIES
-            ]
-        )
 
     def handle_not_specified(self):
         """
         Handle trade data with unspecified commodity codes and filter out exporters where
-        atio of 'not specified' trade to total trade for each exporter ratio exceeds 1/3 (33.33%)
+        ratio of 'not specified' trade to total trade for each exporter ratio exceeds 1/3 (33.33%)
         unspecified trade.
         """
+        
         not_specified_val = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[
             self.product_classification
         ][self.NOT_SPECIFIED]
+                
+        self.df.loc[(self.df.importer == "ANS") & (self.df.commodity_code == not_specified_val), "not_specified"] = self.df["reweighted_value"]
+        
+        self.df['reweighted_value_temp'] = self.df['reweighted_value'] 
+        
+        self.df.loc[(self.df.importer == "ANS") & (self.df.commodity_code == not_specified_val), "reweighted_value_temp"] = np.nan
 
-        self.df.loc[:, "not_specified"] = np.where(
-            (self.df.importer == "ANS") & (self.df.commodity_code == not_specified_val),
-            self.df["reweighted_value"],
-            0,
-        )
-
-        self.df.loc[:, "reweighted_value"] = np.where(
-            (self.df.importer == "ANS") & (self.df.commodity_code == not_specified_val),
-            np.nan,
-            self.df["reweighted_value"],
-        )
-
-        # stata VR translated to final_value
-        # self.df.loc[
-        #     (self.df["commodity_code"] == not_specified_val)
-        #     & (self.df["importer"] == "ANS"),
-        #     "final_value",
-        # ] = np.nan
-
-        grouped = self.df.groupby("exporter", as_index=False).agg(
-            {"not_specified": "sum", "reweighted_value": "sum"}
-        )
-        grouped["not_specified_trade_ratio"] = grouped["not_specified"] / grouped[
-            "reweighted_value"
-        ].replace(0, np.nan)
-
-        countries_with_too_many_ns = (
-            grouped.loc[grouped["not_specified_trade_ratio"] > 1 / 3, "exporter"]
-            .unique()
-            .tolist()
-        )
-
-        self.df = self.df[~self.df.exporter.isin(countries_with_too_many_ns)]
+        not_specified_df = self.df[['exporter', 'reweighted_value_temp', 'not_specified']].groupby('exporter').agg('sum').reset_index()
+        
+        drop_exporter = not_specified_df[(not_specified_df['not_specified'] / not_specified_df['reweighted_value_temp'])>(1/3)]['exporter'].unique().tolist()
+        
+        if drop_exporter:
+            self.df[~(self.df.exporter.isin(drop_exporter))]
+       
