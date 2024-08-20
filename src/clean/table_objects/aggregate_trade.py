@@ -220,7 +220,7 @@ class AggregateTrade(_AtlasCleaning):
             )
         )
         self.df.loc[mask, "reporter_ansnoclas"] = self.df.loc[mask, "trade_value"]
-        self.df["reporter_ansnoclas"] = self.df["reporter_ansnoclas"]#.fillna(0)
+        # self.df["reporter_ansnoclas"] = self.df["reporter_ansnoclas"]#.fillna(0)
 
     def handle_germany_reunification(self):
         # drop DEU/DDR trade because within country trade

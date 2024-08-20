@@ -37,11 +37,11 @@ class Complexity(_AtlasCleaning):
         )
         # Import trade data from CID Atlas
 
-        self.df = pd.read_parquet(
-            f"data/processed/{self.product_class}_{self.year}_country_country_product_year.parquet"
-        )
+        # self.df = pd.read_parquet(
+        #     f"data/processed/{self.product_class}_{self.year}_country_country_product_year.parquet"
+        # )
         # # logging.info("RUNNING STATA INPUTS")
-        # self.df = pd.read_stata("data/raw/H0_ccpy_2015.dta")
+        self.df = pd.read_stata("data/raw/H0_ccpy_2015.dta")
         
         try:
             self.df = self.df.rename(columns={"commodity_code":"commoditycode"})
@@ -210,22 +210,32 @@ class Complexity(_AtlasCleaning):
 
         # calculate complexity, not mcp matrix
         logging.info("Calculating the complexity of selected countries and products")
-        complexity_df = ecomplexity(
+        
+        self.save_parquet(self.df[["year", "exporter", "commoditycode", "export_value"]], "intermediate", f"{self.product_classification}_{self.year}_ecomplexity_input")
+        
+        reliable_df = ecomplexity(
             self.df[["year", "exporter", "commoditycode", "export_value"]],
             # self.df[["year", "exporter", "commoditycode", "mcp_input"]],
             trade_cols,
             # presence_test="manual",
         )
+        
+
+        non_normalized_pci = pd.read_parquet("data/intermediate/H0_2015_nonnorm_pci_val.parquet")
+        non_normalized_pci = non_normalized_pci.rename(columns={"pci":"pci_nonnorm"})
+        
+        reliable_df = reliable_df.merge(non_normalized_pci[['exporter', 'commoditycode', 'pci_nonnorm']], on=['exporter', 'commoditycode'], how='left')
+        reliable_df = reliable_df.rename(columns={"pci":"pci_normalized", "pci_nonnorm":"pci"})
+        
         # complexity matrix, VALIDATED OUTPUT
         logging.info("save complexity matrix")
-        self.save_parquet(complexity_df, "intermediate", f"{self.product_classification}_{self.year}_complexitytest")
+        self.save_parquet(reliable_df, "intermediate", f"{self.product_classification}_{self.year}_complexitytest")
         
         # ecomplexity output
-        complexity_df = complexity_df.drop(columns=['year'])
+        reliable_df = reliable_df.drop(columns=['year'])
         proximity_df = proximity(self.df, trade_cols)
         
-        #df_gdppc = self.df[["exporter", "gdp_pc"]].groupby("exporter").agg("first").T
-        self.df = self.df.merge(complexity_df.drop(columns='export_value'), on=['exporter', 'commoditycode'], how='left')
+        self.df = self.df.merge(reliable_df.drop(columns='export_value'), on=['exporter', 'commoditycode'], how='left')
 
         # MATA variables: pci1, rca1, eci1 gets renamed to rca, pci, eci, density
         # df_rca = self.df[["exporter", "commoditycode", "rca"]].pivot(
@@ -243,8 +253,8 @@ class Complexity(_AtlasCleaning):
         self.df['eci_normalized'] = self.df['eci_normalized'] / self.df['rca_count']
         self.df.drop(columns='rca_count')
         
-        pci = self.df.groupby('commoditycode')['pci'].agg('first')
-        self.df['pci_reliable'] = ( self.df['pci'] - pci.mean() ) / pci.std()
+        pci = self.df.groupby('commoditycode')['pci_normalized'].agg('first')
+        self.df['pci_reliable'] = ( self.df['pci_normalized'] - pci.mean() ) / pci.std()
 
         # VALIDATED through selected data
         self.save_parquet(self.df, "intermediate", f"{self.product_classification}_{self.year}_reliable_countries")
@@ -280,8 +290,15 @@ class Complexity(_AtlasCleaning):
         all_countries['mcp'] = np.where(all_countries['rca'] >= 1, 1, 0)
         
         # COME BACK TO THIS, NEED NON NORMALIZED PCI VALUE
-        all_countries = all_countries.merge(self.df[['commoditycode', 'pci_reliable']].drop_duplicates(), on=['commoditycode'], how='inner')
-        all_countries['eci'] = all_countries['mcp'] * all_countries['pci_reliable']
+        all_countries = all_countries.merge(self.df[['commoditycode', 'pci_reliable', 'pci']].drop_duplicates(), on=['commoditycode'], how='left')
+                
+        all_countries = all_countries.sort_values(by=['exporter', 'commoditycode'])
+        
+        import pdb
+        pdb.set_trace()
+
+        all_countries['eci'] = all_countries['mcp'] * all_countries['pci']
+        # all_countries['eci'] = all_countries['mcp'] * all_countries['pci_reliable']
         # grouped by exporter
         all_countries['eci'] = all_countries.groupby('exporter')['eci'].transform('sum') / (all_countries.groupby('exporter')['mcp'].transform('sum'))
         
@@ -296,8 +313,6 @@ class Complexity(_AtlasCleaning):
         eci = all_countries.groupby('exporter')['eci'].agg('first')
         all_countries['eci'] = ( all_countries['eci'] - eci.mean() ) / eci.std()
         
-        # import pdb
-        # pdb.set_trace()
 
         # FIX PCI with non-normalized value
         # save selecteddata
@@ -307,6 +322,7 @@ class Complexity(_AtlasCleaning):
         all_cp = self.load_parquet("intermediate", f"{self.product_classification}_{self.year}_complexity_all_countries")[
             ["exporter", "commoditycode", "export_value", "gdp_pc", "import_value"]
         ]
+                                  
         combinations = pd.DataFrame(index=(pd.MultiIndex.from_product(
             [
                 all_cp["exporter"].unique(),
@@ -320,18 +336,32 @@ class Complexity(_AtlasCleaning):
             ["export_value", "import_value"]
         ].fillna(0)
         
-        ## fill in commoditycode 'XXXX' with all zeroes
+        ## fill in commoditycode 'XXXX' with all zeroes (last column with all zeroes)
         all_cp.loc[all_cp.commoditycode=="XXXX", 'export_value'] = 0
+        
+        all_cp = all_cp.sort_values(by=["exporter", "commoditycode"])
+        
         all_cp['rca'] = ( all_cp['export_value'] / all_cp.groupby('exporter')['export_value'].transform('sum') ) / ( all_cp.groupby('commoditycode')['export_value'].transform('sum') / all_cp['export_value'].sum() )
          
         all_cp['mcp'] = np.where(all_cp['rca'] >= 1, 1, 0)
         
-        all_cp = all_cp.merge(all_countries[['exporter', 'eci']].drop_duplicates(), on=['exporter'], how='left')
-        all_cp['pci'] = all_cp['mcp'] * all_cp['eci'] #.iloc[:, 0]
+        import pdb
+        pdb.set_trace()
+        
+        all_cp = all_cp.merge(all_countries[['exporter', 'eci']].drop_duplicates(), on=['exporter'], how='outer')
+        all_cp = all_cp.rename(columns={"eci": "eci_all_countries"})
+        
+        import pdb
+        pdb.set_trace()
+        
+        all_cp['pci'] = all_cp['mcp'] * all_cp['eci_all_countries']
         all_cp['pci'] = all_cp.groupby('commoditycode')['pci'].transform('sum') / all_cp.groupby('commoditycode')['mcp'].transform('sum')
         
         all_cp['prody'] = ( all_cp['rca'] / all_cp.groupby('commoditycode')['rca'].transform('sum') ) * all_cp['gdp_pc']
         all_cp['prody'] = all_cp.groupby('commoditycode')['prody'].transform('sum')
+        
+        # import pdb
+        # pdb.set_trace()
         
         # STILL NEED UPDATED PCI, non normalized
         self.save_parquet(all_cp, "intermediate", f"{self.product_classification}_{self.year}_all_countries_all_products")  
@@ -413,7 +443,7 @@ class Complexity(_AtlasCleaning):
         all_cp = all_cp.merge(all_cp_metrics_df, on=['exporter', 'commoditycode'], how='left')
         
         
-        logging.info(f"shape of complexity df after all c and p {complexity_df.shape}")
+        logging.info(f"shape of complexity df after all c and p {reliable_df.shape}")
         # merge all the data sets self.df, all_countries, all_cp
         
         self.df = self.df.rename(columns={'mcp':'mcp_reliable'})

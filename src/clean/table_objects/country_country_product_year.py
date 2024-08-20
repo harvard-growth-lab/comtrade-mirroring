@@ -63,9 +63,9 @@ class CountryCountryProductYear(_AtlasCleaning):
         #                                     "exporter_A_e": "exporter_accuracy_score", 
         #                                     "importer_A_i": "importer_accuracy_score"})
         
-        # accuracy = accuracy[
-        #     accuracy.value_final >= 100_000
-        # ]
+        accuracy = accuracy[
+            accuracy.final_trade_value >= 100_000
+        ]
         # accuracy = accuracy[
         #     (
         #         accuracy.exporter.isin(
@@ -125,7 +125,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         # import pdb
         # pdb.set_trace()
         
-        self.reweight_final_trade_value(cc_trade_totals)
+        self.reweight_final_trade_value(accuracy)
         logging.info("ccpy: reweighted")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
         
@@ -335,10 +335,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         )
 
     def assign_accuracy_scores(self, accuracy):
-        """ """
-        # function to unravel, need to remove importer==exporter
-        cc_trade_total = accuracy["final_trade_value"]
-
+        """ """        
         # score of 4 if exporter and importer weight both > 0
         # score of 2 if importer weight only > 0
         # score of 1 if exporter weight only > 0
@@ -354,7 +351,6 @@ class CountryCountryProductYear(_AtlasCleaning):
             + 1 * ((self.df["exporter_weight"] > 0))
             + 2 * ((self.df["importer_weight"] > 0))
         )
-        return cc_trade_total
 
     def calculate_final_trade_value(self):
         """
@@ -430,70 +426,62 @@ class CountryCountryProductYear(_AtlasCleaning):
         # pdb.set_trace()
         self.df = self.df.drop(columns=["trade_score", "accuracy"])
 
-    def reweight_final_trade_value(self, accuracy_trade_total):
+    def reweight_final_trade_value(self, accuracy):
         """
         Adjusts final trade values to reconcile discrepancies with reported total trade figures
 
         Reweights trade values across commodities to match reported totals while preserving relative proportions.
 
-        Adds an 'unspecified' category to account for large unexplained differences.
+        Adds an 'trade data discrepancies' category to account for large unexplained differences.
         """
-        # import pdb
-        # pdb.set_trace()
-        # self.df = self.df.set_index(['exporter', 'importer', 'commodity_code')]
-        ccpy_trade_sum = self.df.groupby(["exporter", "importer"]).agg("sum")[
-            "final_value"
-        ]
-        # ccpy_trade_sum = ccpy_trade_sum.replace(0, np.nan)
+        ccpy_trade_total = self.df.groupby(["exporter", "importer"]).agg({"final_value":"sum"}).reset_index().rename(columns={"final_value":"ccpy_trade"})
+        ccy_trade_total = accuracy.groupby(["exporter", "importer"]).agg({"final_trade_value":"sum"}).reset_index()[['exporter', 'importer', 'final_trade_value']].rename(columns={"final_trade_value":"ccy_trade"})
+        
+        reweight_df = ccpy_trade_total.merge(ccy_trade_total, on=['exporter', 'importer'], how='left')
 
         # determine if data trade discrepancies
-        case_1 = (
+        reweight_df['trade_discrep1'] = (
             (
-                ((accuracy_trade_total / ccpy_trade_sum) > 1.20).astype(int)
-                + ((accuracy_trade_total - ccpy_trade_sum) > (2.5 * 10**7)).astype(int)
-                + (accuracy_trade_total > 10**8).astype(int)
+                ((reweight_df['ccy_trade'] / reweight_df['ccpy_trade']) > 1.20).astype(int)
+                + ((reweight_df['ccy_trade'] - reweight_df['ccpy_trade']) > (2.5 * 10**7)).astype(int)
+                + (reweight_df['ccy_trade'] > 10**8).astype(int)
             )
             == 3
         ).astype(int)
-        case_2 = (
+        reweight_df['trade_discrep2'] = (
             (
-                (accuracy_trade_total > 10**8).astype(int)
-                + (ccpy_trade_sum < 10**5).astype(int)
+                (reweight_df['ccy_trade'] > 10**8).astype(int)
+                + (reweight_df['ccpy_trade'] < 10**5).astype(int)
             )
             == 2
         ).astype(int)
 
-        xxxx = ((case_1 + case_2) > 0).astype(int)
-        value_xxxx = (accuracy_trade_total - ccpy_trade_sum) * (xxxx == 1).astype(int)
-        value_reweight = accuracy_trade_total - value_xxxx
-
-        cc_each_product = self.df.pivot(
-            columns=["commodity_code"],
-            index=["exporter", "importer"],
-            values="final_value",
-        )
-        reweighted = cc_each_product - (cc_each_product * (
-            (cc_each_product < 1000).astype(int)
-        ))
-
-        reweighted = reweighted.div(reweighted.sum(axis=1).replace(0, np.nan), axis=0)
-
-        # reweighted = reweighted.reset_index().set_index(["exporter", "importer"])
-        reweighted = reweighted.mul(value_reweight, axis=0)
-        reweighted = reweighted.fillna(0)
-        # reweighted = reweighted.reset_index().melt(
-        #     id_vars=["exporter", "importer"], value_name="reweighted_value"
-        # )
-        reweighted = reweighted.rename(columns={"final_value": "reweighted_value"})
-        reweighted = reweighted.melt(
-            ignore_index=False, var_name="commodity_code", value_name="reweighted_value"
-        ).reset_index()
-                
-        self.df = self.df.merge(
-            reweighted,
-            on=["exporter", "importer", "commodity_code"],
-            how="left",
-        )
+        # trade data discprepancies present
+        reweight_df['is_discrepancy'] = reweight_df['trade_discrep1'] + reweight_df['trade_discrep2']
+        reweight_df['discrep_val'] = (reweight_df['ccy_trade'] - reweight_df['ccpy_trade']) * reweight_df['is_discrepancy']
+        reweight_df[['ccy_trade', 'discrep_val']] = reweight_df[['ccy_trade', 'discrep_val']].fillna(0)
+        reweight_df['reweight_val'] = reweight_df['ccy_trade'] - reweight_df['discrep_val']
+        
+        self.df = self.df[self.df['final_value']>1000]
+        self.df['trade_total'] = self.df.groupby(['exporter', 'importer'])['final_value'].transform('sum')
+        
+        # import pdb
+        # pdb.set_trace()
+        
+        self.df['ratio'] = self.df['final_value'] / self.df['trade_total']
+        
+        self.df = self.df.merge(reweight_df[['exporter', 'importer', 'reweight_val']], on=['exporter', 'importer'], how='left')
+        self.df['reweighted_value'] = self.df['ratio'] * self.df['reweight_val']
+        
+        self.df['reweighted_value'] = self.df['reweighted_value'].fillna(0)
+        self.df = self.df.drop(columns=['trade_total', 'ratio', 'reweight_val'])
+        
+        discrep_vals = reweight_df.groupby(['exporter','importer']).agg({"discrep_val":"first"}).reset_index()
+        discrep_vals = discrep_vals[discrep_vals.discrep_val>0]
+        discrep_vals['commodity_code'] = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[self.product_classification][self.TRADE_DATA_DISCREPANCIES]
+        discrep_vals = discrep_vals.rename(columns={"discrep_val":"reweighted_value"})
+        self.df = pd.concat([self.df, discrep_vals], axis=0)
+                        
 
     def filter_and_handle_trade_data_discrepancies(self):
         """
@@ -504,7 +492,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         2. Removes rows where all values are null.
         3. Fills missing commodity codes with trade data discrepancy code based on the current product classification.
         """
-        # drop rows that don't have data
+        # drop rows that don't have data        
         self.df = self.df.dropna(subset=["final_value", "reweighted_value", "import_value", "export_value"], how = 'all')
         self.df.loc[(self.df[["final_value", "reweighted_value", "import_value", "export_value"]]!=0).any(axis=1)] 
         
@@ -521,12 +509,11 @@ class CountryCountryProductYear(_AtlasCleaning):
         not_specified_val = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[
             self.product_classification
         ][self.NOT_SPECIFIED]
-                
-        self.df.loc[(self.df.importer == "ANS") & (self.df.commodity_code == not_specified_val), "not_specified"] = self.df["reweighted_value"]
-        
+
+        mask = (self.df['importer'] == "ANS") & (self.df['commodity_code'] == not_specified_val)
+        self.df.loc[mask, 'not_specified'] = self.df.loc[mask, 'reweighted_value']
         self.df['reweighted_value_temp'] = self.df['reweighted_value'] 
-        
-        self.df.loc[(self.df.importer == "ANS") & (self.df.commodity_code == not_specified_val), "reweighted_value_temp"] = np.nan
+        self.df.loc[mask, 'reweighted_value_temp'] = np.nan
 
         not_specified_df = self.df[['exporter', 'reweighted_value_temp', 'not_specified']].groupby('exporter').agg('sum').reset_index()
         
