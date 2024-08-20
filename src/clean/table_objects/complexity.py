@@ -220,11 +220,15 @@ class Complexity(_AtlasCleaning):
             # presence_test="manual",
         )
         
-
-        non_normalized_pci = pd.read_parquet("data/intermediate/H0_2015_nonnorm_pci_val.parquet")
-        non_normalized_pci = non_normalized_pci.rename(columns={"pci":"pci_nonnorm"})
+        pci_df = ecomplexity(
+            self.df[["year", "exporter", "commoditycode", "export_value"]],
+            # self.df[["year", "exporter", "commoditycode", "mcp_input"]],
+            trade_cols,
+            output_normalized_pci=False,
+        )
         
-        reliable_df = reliable_df.merge(non_normalized_pci[['exporter', 'commoditycode', 'pci_nonnorm']], on=['exporter', 'commoditycode'], how='left')
+        pci_df = pci_df.rename(columns={"pci":"pci_nonnorm"})
+        reliable_df = reliable_df.merge(pci_df[['exporter', 'commoditycode', 'pci_nonnorm']], on=['exporter', 'commoditycode'], how='left')
         reliable_df = reliable_df.rename(columns={"pci":"pci_normalized", "pci_nonnorm":"pci"})
         
         # complexity matrix, VALIDATED OUTPUT
