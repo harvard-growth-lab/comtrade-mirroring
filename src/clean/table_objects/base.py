@@ -52,7 +52,9 @@ class _AtlasCleaning(object):
         self.inflation = pd.read_parquet(
             os.path.join("data", "raw", "inflation_index.parquet")
         )
-        self.ans_partners = pd.read_csv(os.path.join(self.raw_data_path, "areas_not_specified.csv"))
+        self.ans_partners = pd.read_csv(
+            os.path.join(self.raw_data_path, "areas_not_specified.csv")
+        )
 
         self.df = None
         self.start_year = start_year

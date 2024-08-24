@@ -57,17 +57,15 @@ class AggregateTrade(_AtlasCleaning):
         # moved to compactor
         self.ans_and_recode_other_asia_to_taiwan()
         self.check_commodity_code_length()
-        
 
         logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
         # filter and clean data
         self.filter_data()
-        
+
         self.save_parquet(
             self.df, "intermediate", f"cleaned_{self.product_class}_{self.year}"
         )
 
-        
         self.df = self.df[self.df["trade_flow"].isin([1, 2])]
         self.label_unspecified_products()
 
@@ -78,13 +76,12 @@ class AggregateTrade(_AtlasCleaning):
         df_0 = self.aggregate_data(0)
         df_4 = self.aggregate_data(4)
 
-        self.df = df_0.merge(df_4, on=["importer", "exporter"], how='outer')
-        
+        self.df = df_0.merge(df_4, on=["importer", "exporter"], how="outer")
+
         # Process and integrate world trade data into the main dataset.
         self.aggregate_to_world_level()
 
         self.remove_outliers()
-
 
         self.df["year"] = self.year
         self.df = self.df[
@@ -123,8 +120,8 @@ class AggregateTrade(_AtlasCleaning):
             )
             logging.info("using original csv file not from compactor")
             df.loc[df["Reporter"] == "Other Asia, nes", "Reporter ISO"] = "TWN"
-            df.loc[df["Partner"]  == "Other Asia, nes", "Partner ISO"]  = "TWN"
-            df = df.drop(columns=['Reporter', 'Partner'])
+            df.loc[df["Partner"] == "Other Asia, nes", "Partner ISO"] = "TWN"
+            df = df.drop(columns=["Reporter", "Partner"])
 
         except FileNotFoundError:
             try:
@@ -149,16 +146,16 @@ class AggregateTrade(_AtlasCleaning):
                         ),
                         columns=self.COLUMNS_DICT_COMPACTOR.keys(),
                     )
-                except: 
+                except:
                     error_message = f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate"
                     # raise ValueError(error_message)
-        df = df.dropna(axis = 0, how = 'all')
+        df = df.dropna(axis=0, how="all")
         return df.rename(columns=columns)
 
     def filter_data(self):
         if self.product_class == "SITC":
             try:
-                self.df['product_level'] = self.df['product_level'].astype(int)
+                self.df["product_level"] = self.df["product_level"].astype(int)
             except:
                 logging.info("failed to cast SITC product level as type int")
         self.df = self.df[
@@ -172,12 +169,11 @@ class AggregateTrade(_AtlasCleaning):
             self.df["trade_flow"] = self.df["trade_flow"].astype(str).astype(int)
         except:
             print("unexpected unique trade_flow and not mapped to an integer")
-        
 
     def ans_and_recode_other_asia_to_taiwan(self):
-        """ 
-        Accounts for Taiwan and Areas Not Specified 
-        
+        """
+        Accounts for Taiwan and Areas Not Specified
+
         //following along with comtrade reads.py
         """
         try:
@@ -187,13 +183,12 @@ class AggregateTrade(_AtlasCleaning):
         try:
             self.df.loc[self.df["partner_iso"] == "S19", "partner_iso"] = "TWN"
         except:
-             logging.info("Countries did not report Taiwan as a partner")
-        
+            logging.info("Countries did not report Taiwan as a partner")
+
         # from comtrade reads. py
-        ans_partners = self.ans_partners['PartnerCodeIsoAlpha3'].tolist()
+        ans_partners = self.ans_partners["PartnerCodeIsoAlpha3"].tolist()
         self.df.loc[self.df["partner_iso"].isin(ans_partners), "partner_iso"] = "ANS"
         self.df.loc[self.df["partner_iso"].isna(), "partner_iso"] = "ANS"
-
 
     def check_commodity_code_length(self):
         mask = (
@@ -272,9 +267,9 @@ class AggregateTrade(_AtlasCleaning):
             index=["reporter_iso", "partner_iso"],
             columns="trade_flow",
             values=["trade_value", "reporter_ansnoclas"],
-            #fill_value=0,
+            # fill_value=0,
         ).reset_index()
-        
+
         df.columns = [
             "_".join(str(i) for i in col).rstrip("_") if col[1] else col[0]
             for col in df.columns.values
@@ -320,8 +315,7 @@ class AggregateTrade(_AtlasCleaning):
             subset=["importer", "exporter"]
         ).any(), "reporting importer is not a unique pair"
         # need outer so we don't lose WLD
-        
-        
+
         df = reporting_importer.merge(
             reporting_exporter, on=["importer", "exporter"], how="outer"
         )
@@ -366,14 +360,12 @@ class AggregateTrade(_AtlasCleaning):
         Removes entries with negligible trade values.
         """
         self.df["ratio_exp"] = (
-            (self.df[f"exp2ansnoclas_4"] / self.df["total_exports"])
-            .astype(float)
-            #.fillna(0.0)
+            (self.df[f"exp2ansnoclas_4"] / self.df["total_exports"]).astype(float)
+            # .fillna(0.0)
         )
         self.df["ratio_imp"] = (
-            (self.df[f"imp2ansnoclas_4"] / self.df["total_imports"])
-            .astype(float)
-            #.fillna(0.0)
+            (self.df[f"imp2ansnoclas_4"] / self.df["total_imports"]).astype(float)
+            # .fillna(0.0)
         )
 
         for direction in ["exports", "imports"]:
@@ -381,14 +373,11 @@ class AggregateTrade(_AtlasCleaning):
                 # subtract if areas not specified is greater than 25% of country trade to world
                 self.df[f"{direction}_{product_level}"] = np.where(
                     self.df[f"ratio_{direction[:3]}"] > 0.25,
-                    self.df[f"{direction}_{product_level}"] - self.df[f"{direction[:3]}2ansnoclas_4"],
+                    self.df[f"{direction}_{product_level}"]
+                    - self.df[f"{direction[:3]}2ansnoclas_4"],
                     self.df[f"{direction}_{product_level}"],
                 )
-        self.df["export_value_fob"] = self.df[
-            ["exports_0", f"exports_4"]
-        ].mean(axis=1)
-        self.df["import_value_cif"] = self.df[
-            ["imports_0", f"imports_4"]
-        ].mean(axis=1)
+        self.df["export_value_fob"] = self.df[["exports_0", f"exports_4"]].mean(axis=1)
+        self.df["import_value_cif"] = self.df[["imports_0", f"imports_4"]].mean(axis=1)
         # evaluate removing this, filtering out less than $1,000
         self.df[self.df[["export_value_fob", "import_value_cif"]].max(axis=1) >= 1_000]

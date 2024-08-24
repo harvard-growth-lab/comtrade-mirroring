@@ -33,14 +33,13 @@ class CountryCountryYear(_AtlasCleaning):
             os.path.join(f"intermediate"),
             f"{self.product_classification}_{self.year}",
         )
-        
-        
+
         # Clean and filter data
         self.clean_data()
-        
+
         # import pdb
         # pdb.set_trace()
-        
+
         # temp_accuracy in stata
         nominal_dollars_df = self.df.copy(deep=True)
 
@@ -54,7 +53,6 @@ class CountryCountryYear(_AtlasCleaning):
         # import pdb
         # pdb.set_trace()
 
-        
         # merge data to have all possible combinations for exporter, importer
         all_combinations_ccy_index = pd.MultiIndex.from_product(
             [
@@ -78,7 +76,6 @@ class CountryCountryYear(_AtlasCleaning):
         # import pdb
         # pdb.set_trace()
 
-        
         self.filter_by_population_threshold(population)
         # import pdb
         # pdb.set_trace()
@@ -102,13 +99,11 @@ class CountryCountryYear(_AtlasCleaning):
 
         self.normalize_trade_flows()
 
-        
-        
     def clean_data(self):
         # self.df = self.df.dropna(subset=["exporter", "importer"])
-        self.df = self.df[~((self.df.exporter=="WLD") | (self.df.importer=="WLD"))]
-        self.df = self.df[~((self.df.exporter=="nan") | (self.df.importer=="nan"))]
-                
+        self.df = self.df[~((self.df.exporter == "WLD") | (self.df.importer == "WLD"))]
+        self.df = self.df[~((self.df.exporter == "nan") | (self.df.importer == "nan"))]
+
         self.df = self.df[~((self.df.exporter == "ANS") & (self.df.importer == "ANS"))]
         self.df = self.df[self.df.exporter != self.df.importer]
         # drop trade values less than trade value threshold
@@ -120,7 +115,7 @@ class CountryCountryYear(_AtlasCleaning):
         ]
 
     def limit_cif_markup(self, df):
-        """ 
+        """
         ensures cif_ratio is never greater than .20
         """
         df["cif_ratio"] = (df["import_value_cif"] / self.df["import_value_fob"]) - 1
@@ -135,8 +130,10 @@ class CountryCountryYear(_AtlasCleaning):
         Drop all exporter and importers with populations below the population limit
         """
         population = population[population.year == self.year].drop(columns=["year"])
-        population.loc[population['imf_pop'].isna(), "imf_pop"] = population['sp_pop_totl']
-        population = population.rename(columns={'imf_pop' : 'imf_wdi_pop'})
+        population.loc[population["imf_pop"].isna(), "imf_pop"] = population[
+            "sp_pop_totl"
+        ]
+        population = population.rename(columns={"imf_pop": "imf_wdi_pop"})
         countries_under_threshold = population[
             population.imf_wdi_pop < self.population_threshold
         ]["iso"].tolist()
@@ -212,13 +209,15 @@ class CountryCountryYear(_AtlasCleaning):
         # converts exports, import values to constant dollar values
         for col in ["export_value_fob", "import_value_fob"]:
             self.df[col] = self.df[col] / self.df.cpi_index_base
-            
+
             # fill na here verified
-									# foreach j in exportvalue_fob importvalue_fob importvalue_cif {
-									# 	replace `j' = `j' / (index) 
-									# 	replace `j' = 0 if `j' == .
-									# }		
-        self.df[['export_value_fob', 'import_value_fob', 'import_value_cif']] = self.df[['export_value_fob', 'import_value_fob', 'import_value_cif']].fillna(0)
+        # foreach j in exportvalue_fob importvalue_fob importvalue_cif {
+        # 	replace `j' = `j' / (index)
+        # 	replace `j' = 0 if `j' == .
+        # }
+        self.df[["export_value_fob", "import_value_fob", "import_value_cif"]] = self.df[
+            ["export_value_fob", "import_value_fob", "import_value_cif"]
+        ].fillna(0)
 
         self.df = self.df.drop(
             columns=["cpi_index_base", "import_value_cif"]  # , "cif_ratio"]
@@ -230,7 +229,7 @@ class CountryCountryYear(_AtlasCleaning):
                 "import_value_fob": "imports_const_usd",
             }
         )
-        
+
         # trade below threshold is zeroed
         self.df.loc[
             self.df.exports_const_usd < self.flow_limit, "exports_const_usd"
@@ -238,7 +237,7 @@ class CountryCountryYear(_AtlasCleaning):
         self.df.loc[
             self.df.imports_const_usd < self.flow_limit, "imports_const_usd"
         ] = 0.0
-        
+
         self.df = self.df.groupby("exporter").filter(
             lambda row: (row["exports_const_usd"] > 0).sum() > 0
         )
@@ -263,7 +262,7 @@ class CountryCountryYear(_AtlasCleaning):
         """
         calculate the mean of each row, exclude import or export value when equal to zero
         """
-        
+
         self.df["trade_flow_average"] = pd.DataFrame(
             {
                 "exports": np.where(

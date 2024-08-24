@@ -63,15 +63,14 @@ def run_atlas_cleaning(ingestion_attrs):
         ]
 
     logging.info("Completed data aggregations, starting next loop")
-    
+
     for year in range(start_year, end_year + 1):
         # depending on year, merge multiple classifications, take median of values
         # df = merge_classifications(year, ingestion_attrs["root_dir"])
         # compute distance requires three years of aggregated data
         logging.info(f"Beginning compute distance for year {year}")
         df = compute_distance(year, product_classification, dist)
-        
-        
+
         # os.makedirs(
         #     os.path.join(
         #         # Totals_RAW_trade.dta
@@ -95,7 +94,7 @@ def run_atlas_cleaning(ingestion_attrs):
         )
         # import pdb
         # pdb.set_trace()
-        
+
         ccy = CountryCountryYear(year, **ingestion_attrs)
 
         ccy.save_parquet(
@@ -125,29 +124,41 @@ def run_atlas_cleaning(ingestion_attrs):
         )
         try:
             os.makedirs(ccpy.final_output_path, exist_ok=True)
-            os.makedirs(os.path.join(ccpy.final_output_path, f"{product_classification}"), exist_ok=True)
+            os.makedirs(
+                os.path.join(ccpy.final_output_path, f"{product_classification}"),
+                exist_ok=True,
+            )
 
             ccpy.df.to_parquet(
                 os.path.join(
-                    ccpy.final_output_path, f"{product_classification}", f"{product_classification}_{year}.parquet"
-                ), index=False
+                    ccpy.final_output_path,
+                    f"{product_classification}",
+                    f"{product_classification}_{year}.parquet",
+                ),
+                index=False,
             )
         except Exception as e:
             print(f"failed to write ccpy to parquet: {e}")
 
         # complexity files
         complexity = Complexity(year, **ingestion_attrs)
-        
+
         complexity.save_parquet(
             complexity.df,
             "processed",
             f"{product_classification}_{year}_complexity",
         )
-        logging.info(f"end time for {year}: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-    
-    complexity_all_years = glob.glob(f"data/processed/{product_classification}_*_complexity.parquet")
-    complexity_all = pd.concat([pd.read_parquet(file) for file in complexity_all_years], axis=0)
-    
+        logging.info(
+            f"end time for {year}: {strftime('%Y-%m-%d %H:%M:%S', localtime())}"
+        )
+
+    complexity_all_years = glob.glob(
+        f"data/processed/{product_classification}_*_complexity.parquet"
+    )
+    complexity_all = pd.concat(
+        [pd.read_parquet(file) for file in complexity_all_years], axis=0
+    )
+
     complexity.save_parquet(
         complexity_all,
         "processed",
@@ -157,8 +168,11 @@ def run_atlas_cleaning(ingestion_attrs):
         os.makedirs(os.path.join(ccpy.final_output_path, "CPY"), exist_ok=True)
         complexity_all.to_parquet(
             os.path.join(
-                complexity.final_output_path, "CPY", f"{product_classification}_cpy_all.parquet"
-            ), index=False
+                complexity.final_output_path,
+                "CPY",
+                f"{product_classification}_cpy_all.parquet",
+            ),
+            index=False,
         )
     except Exception as e:
         print(f"failed to write complexity to parquet: {e}")
@@ -168,7 +182,9 @@ def compute_distance(year, product_classification, dist):
     """
     based on distances compute cost of cif as a percentage of import_value_fob
     """
-    df = pd.read_parquet(f"data/intermediate/aggregated_{product_classification}_{year}.parquet")
+    df = pd.read_parquet(
+        f"data/intermediate/aggregated_{product_classification}_{year}.parquet"
+    )
     # lag and lead
     df_lag_lead = pd.DataFrame()
     for wrap_year in [year - 1, year + 1]:
@@ -251,13 +267,19 @@ def compute_distance(year, product_classification, dist):
     df.loc[(df["year"] == year) & (df["tau"].isna()), "tau"] = tau_mean
 
     df = df[df.year == year]
-    
+
     df.loc[abs(df["lnoneplust"]) < 0.05, "import_value_fob"] = df["import_value_cif"]
 
-    df.loc[((df["lnoneplust"] > 0) | (df["lnoneplust"].isna())) & (df["import_value_fob"].isna()) , "import_value_fob"] = df["import_value_cif"] * (1 - df["tau"])
-    
-    df.loc[(df["lnoneplust"] < 0) & (df["import_value_fob"].isna()), "import_value_fob"] = df["import_value_cif"]
-    
+    df.loc[
+        ((df["lnoneplust"] > 0) | (df["lnoneplust"].isna()))
+        & (df["import_value_fob"].isna()),
+        "import_value_fob",
+    ] = df["import_value_cif"] * (1 - df["tau"])
+
+    df.loc[
+        (df["lnoneplust"] < 0) & (df["import_value_fob"].isna()), "import_value_fob"
+    ] = df["import_value_cif"]
+
     return df[
         [
             "year",
@@ -290,7 +312,7 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_19/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_20/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H0",
     }
@@ -301,7 +323,7 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_19/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_20/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H4",
     }
@@ -312,26 +334,23 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_19/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_20/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H5",
     }
 
-    
-    
     ingestion_attrs_SITC = {
         "start_year": 1962,
         "end_year": 2022,
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_19/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_20/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "SITC",
     }
-    
+
     run_atlas_cleaning(ingestion_attrs_H0)
     run_atlas_cleaning(ingestion_attrs_H4)
     run_atlas_cleaning(ingestion_attrs_SITC)
     # run_atlas_cleaning(ingestion_attrs_H5)
-    

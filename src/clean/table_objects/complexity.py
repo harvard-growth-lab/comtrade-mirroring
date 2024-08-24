@@ -37,14 +37,14 @@ class Complexity(_AtlasCleaning):
         )
         # Import trade data from CID Atlas
 
-        # self.df = pd.read_parquet(
-        #     f"data/processed/{self.product_class}_{self.year}_country_country_product_year.parquet"
-        # )
+        self.df = pd.read_parquet(
+            f"data/processed/{self.product_class}_{self.year}_country_country_product_year.parquet"
+        )
         # # logging.info("RUNNING STATA INPUTS")
-        self.df = pd.read_stata("data/raw/H0_ccpy_2015.dta")
-        
+        # self.df = pd.read_stata("data/raw/H0_ccpy_2015.dta")
+
         try:
-            self.df = self.df.rename(columns={"commodity_code":"commoditycode"})
+            self.df = self.df.rename(columns={"commodity_code": "commoditycode"})
         except:
             logging.info("update ccpy, can remove commodity code rename")
         self.df = self.df[["exporter", "importer", "commoditycode", "value_final"]]
@@ -60,46 +60,77 @@ class Complexity(_AtlasCleaning):
         )
 
         imports = self.df.copy(deep=True)
-        imports = imports[['importer', 'commoditycode', 'export_value']].groupby(['importer', 'commoditycode']).agg('sum').reset_index()
-        imports = imports.rename(
-            columns={"export_value": "import_value", 
-                     "importer": "exporter"}
+        imports = (
+            imports[["importer", "commoditycode", "export_value"]]
+            .groupby(["importer", "commoditycode"])
+            .agg("sum")
+            .reset_index()
         )
-        
-        self.df = self.df[['exporter', 'commoditycode', 'export_value']].groupby(["exporter", "commoditycode"]).agg('sum').reset_index()
+        imports = imports.rename(
+            columns={"export_value": "import_value", "importer": "exporter"}
+        )
 
+        self.df = (
+            self.df[["exporter", "commoditycode", "export_value"]]
+            .groupby(["exporter", "commoditycode"])
+            .agg("sum")
+            .reset_index()
+        )
 
         self.df = self.df.merge(imports, on=["exporter", "commoditycode"], how="outer")
         # fill in all combinations of exporter and commodity code
-        
-        all_combinations_cp = pd.DataFrame(index=(pd.MultiIndex.from_product(
-            [
-                self.df["exporter"].unique(),
-                self.df["commoditycode"].unique(),
-            ],
-            names=["exporter", "commoditycode"],
-        )))
+
+        all_combinations_cp = pd.DataFrame(
+            index=(
+                pd.MultiIndex.from_product(
+                    [
+                        self.df["exporter"].unique(),
+                        self.df["commoditycode"].unique(),
+                    ],
+                    names=["exporter", "commoditycode"],
+                )
+            )
+        )
 
         self.df = all_combinations_cp.merge(
             self.df, on=["exporter", "commoditycode"], how="left"
         )
 
-        self.df[['import_value', 'export_value']] = self.df[['import_value', 'export_value']].fillna(0.0)
+        self.df[["import_value", "export_value"]] = self.df[
+            ["import_value", "export_value"]
+        ].fillna(0.0)
 
         aux_stats = aux_stats[aux_stats.year == self.year]
 
         self.df = self.df.merge(
             aux_stats[["exporter", "population", "gdp_pc"]], on=["exporter"], how="left"
         )
-        
-        self.df['population'] = self.df['population'].fillna(0)
+
+        self.df["population"] = self.df["population"].fillna(0)
 
         self.df["inatlas"] = (
             self.df["exporter"].isin(reliable_exporters.exporter).astype(int)
         )
-        
-        self.df.loc[self.df['exporter'].isin(["SYR","HKG","GNQ"]),'inatlas'] = 0
-        self.df.loc[self.df['exporter'].isin(["ARM","BHR","CYP","MMR","SWZ","TGO","BFA", "COD","LBR","SDN","SGP"]),'inatlas'] = 1
+
+        self.df.loc[self.df["exporter"].isin(["SYR", "HKG", "GNQ"]), "inatlas"] = 0
+        self.df.loc[
+            self.df["exporter"].isin(
+                [
+                    "ARM",
+                    "BHR",
+                    "CYP",
+                    "MMR",
+                    "SWZ",
+                    "TGO",
+                    "BFA",
+                    "COD",
+                    "LBR",
+                    "SDN",
+                    "SGP",
+                ]
+            ),
+            "inatlas",
+        ] = 1
 
         total_by_country = (
             self.df[["exporter", "export_value"]]
@@ -125,11 +156,15 @@ class Complexity(_AtlasCleaning):
             self.df = self.df[~self.df.commoditycode.isin(drop_commodities)]
 
         # save all countries, 207 countries, stata fulldata, VALIDATED
-        self.save_parquet(self.df, "intermediate", f"{self.product_classification}_{self.year}_complexity_all_countries")
+        self.save_parquet(
+            self.df,
+            "intermediate",
+            f"{self.product_classification}_{self.year}_complexity_all_countries",
+        )
 
-        # only reliable countries, subset of 123 countries        
-        self.df = self.df[self.df.inatlas == 1]        
-        
+        # only reliable countries, subset of 123 countries
+        self.df = self.df[self.df.inatlas == 1]
+
         self.df = (
             self.df.groupby(["exporter", "commoditycode"])
             .agg({"export_value": "sum", "population": "first", "gdp_pc": "first"})
@@ -140,17 +175,27 @@ class Complexity(_AtlasCleaning):
         self.df = self.df[
             ~self.df.commoditycode.isin(self.NOISY_TRADE[self.product_classification])
         ]
-        
+
         # preserve section of stata
-        self.save_parquet(self.df, "intermediate", f"{self.product_classification}_{self.year}_before_mcp")
+        self.save_parquet(
+            self.df,
+            "intermediate",
+            f"{self.product_classification}_{self.year}_before_mcp",
+        )
         mcp = self.df.copy(deep=True)
-        
-        
+
         # mcp matrix, rca of 1 and greater
-        mcp['rca'] = mcp["export_value"] / (mcp.groupby("exporter")['export_value'].transform('sum'))/ (mcp.groupby("commoditycode")['export_value'].transform('sum') / mcp.export_value.sum())
-        
+        mcp["rca"] = (
+            mcp["export_value"]
+            / (mcp.groupby("exporter")["export_value"].transform("sum"))
+            / (
+                mcp.groupby("commoditycode")["export_value"].transform("sum")
+                / mcp.export_value.sum()
+            )
+        )
+
         mcp["mcp"] = np.where(mcp["rca"] >= 1, 1, 0)
-        
+
         # Herfindahl-Hirschman Index Calculation
         mcp["HH_index"] = (
             mcp["export_value"]
@@ -158,10 +203,12 @@ class Complexity(_AtlasCleaning):
         ) ** 2
         # mcp becomes the count of cases where rca>=1 for each commoditycode
 
-        # validated through RCA 
+        # validated through RCA
         logging.info("save to review rca values")
-        self.save_parquet(mcp, "intermediate", f"{self.product_classification}_{self.year}_mcp_rca")
-        
+        self.save_parquet(
+            mcp, "intermediate", f"{self.product_classification}_{self.year}_mcp_rca"
+        )
+
         mcp = (
             mcp[["commoditycode", "export_value", "HH_index", "mcp"]]
             .groupby("commoditycode")
@@ -179,25 +226,29 @@ class Complexity(_AtlasCleaning):
         mcp["flag_for_few_exporters"] = np.where(mcp["eff_exporters"] <= 2, 1, 0)
         mcp["flag_for_low_ubiquity"] = np.where(mcp["mcp"] <= 2, 1, 0)
 
-        mcp["exclude_flag"] = mcp[["flag_for_small_share", "flag_for_few_exporters", "flag_for_low_ubiquity"]].sum(axis=1)
-        
+        mcp["exclude_flag"] = mcp[
+            ["flag_for_small_share", "flag_for_few_exporters", "flag_for_low_ubiquity"]
+        ].sum(axis=1)
+
         # )
         mcp["exclude_flag"] = (mcp["exclude_flag"] > 0).astype(int)
         mcp.loc[mcp["export_value"] < 1, "exclude_flag"] = 1
-        
+
         # mcp matrix, VALDIDATED through this point
         logging.info("save intermediate mcp matrix")
-        self.save_parquet(mcp, "intermediate", f"{self.product_classification}_{self.year}_mcp")
+        self.save_parquet(
+            mcp, "intermediate", f"{self.product_classification}_{self.year}_mcp"
+        )
 
-        # dropping products                 
+        # dropping products
         drop_products_list = (
             mcp[mcp.exclude_flag == 1]["commoditycode"].unique().tolist()
         )
         # drop least traded products
         self.df = self.df[~self.df["commoditycode"].isin(drop_products_list)]
-        
+
         self.df["year"] = self.year
-        
+
         # self.df = self.df.rename(columns = {"mcp": "mcp_input"})
         # pass mcp matrix into Shreyas's ecomplexity package
         trade_cols = {
@@ -210,160 +261,245 @@ class Complexity(_AtlasCleaning):
 
         # calculate complexity, not mcp matrix
         logging.info("Calculating the complexity of selected countries and products")
-        
-        self.save_parquet(self.df[["year", "exporter", "commoditycode", "export_value"]], "intermediate", f"{self.product_classification}_{self.year}_ecomplexity_input")
-        
+
+        self.save_parquet(
+            self.df[["year", "exporter", "commoditycode", "export_value"]],
+            "intermediate",
+            f"{self.product_classification}_{self.year}_ecomplexity_input",
+        )
+
         reliable_df = ecomplexity(
             self.df[["year", "exporter", "commoditycode", "export_value"]],
             # self.df[["year", "exporter", "commoditycode", "mcp_input"]],
             trade_cols,
             # presence_test="manual",
         )
-        
+
         pci_df = ecomplexity(
             self.df[["year", "exporter", "commoditycode", "export_value"]],
             # self.df[["year", "exporter", "commoditycode", "mcp_input"]],
             trade_cols,
             output_normalized_pci=False,
         )
-        
-        pci_df = pci_df.rename(columns={"pci":"pci_nonnorm"})
-        reliable_df = reliable_df.merge(pci_df[['exporter', 'commoditycode', 'pci_nonnorm']], on=['exporter', 'commoditycode'], how='left')
-        reliable_df = reliable_df.rename(columns={"pci":"pci_normalized", "pci_nonnorm":"pci"})
-        
+
+        pci_df = pci_df.rename(columns={"pci": "pci_nonnorm"})
+        reliable_df = reliable_df.merge(
+            pci_df[["exporter", "commoditycode", "pci_nonnorm"]],
+            on=["exporter", "commoditycode"],
+            how="left",
+        )
+        reliable_df = reliable_df.rename(
+            columns={"pci": "pci_normalized", "pci_nonnorm": "pci"}
+        )
+
         # complexity matrix, VALIDATED OUTPUT
         logging.info("save complexity matrix")
-        self.save_parquet(reliable_df, "intermediate", f"{self.product_classification}_{self.year}_complexitytest")
-        
+        self.save_parquet(
+            reliable_df,
+            "intermediate",
+            f"{self.product_classification}_{self.year}_complexitytest",
+        )
+
         # ecomplexity output
-        reliable_df = reliable_df.drop(columns=['year'])
+        reliable_df = reliable_df.drop(columns=["year"])
         proximity_df = proximity(self.df, trade_cols)
-        
-        self.df = self.df.merge(reliable_df.drop(columns='export_value'), on=['exporter', 'commoditycode'], how='left')
+
+        self.df = self.df.merge(
+            reliable_df.drop(columns="export_value"),
+            on=["exporter", "commoditycode"],
+            how="left",
+        )
 
         # MATA variables: pci1, rca1, eci1 gets renamed to rca, pci, eci, density
         # df_rca = self.df[["exporter", "commoditycode", "rca"]].pivot(
         #      values="rca", index="commoditycode", columns="exporter").fillna(0)
-        
+
         # reliable country data
-        self.df['rca_reliable'] = self.df.rca.fillna(0)
+        self.df["rca_reliable"] = self.df.rca.fillna(0)
         # a matrix shape of 1134 (number of commodities) in mata
-        prody = self.df.groupby('commoditycode').apply(lambda x: (x['rca_reliable'] * x['gdp_pc'] / x['rca'].sum()).sum())
-        
+        prody = self.df.groupby("commoditycode").apply(
+            lambda x: (x["rca_reliable"] * x["gdp_pc"] / x["rca"].sum()).sum()
+        )
+
         self.df = self.df.rename(columns={"eci": "eci_reliable"})
-        self.df['eci_normalized'] = np.where(self.df['rca_reliable'] >= 1, self.df['pci'], 0)
-        rca_count = self.df.groupby('exporter')['rca_reliable'].apply(lambda x: (x>=1).sum())
-        self.df = self.df.merge(rca_count.rename("rca_count"), on=['exporter'], how='left')
-        self.df['eci_normalized'] = self.df['eci_normalized'] / self.df['rca_count']
-        self.df.drop(columns='rca_count')
-        
-        pci = self.df.groupby('commoditycode')['pci_normalized'].agg('first')
-        self.df['pci_reliable'] = ( self.df['pci_normalized'] - pci.mean() ) / pci.std()
+        self.df["eci_normalized"] = np.where(
+            self.df["rca_reliable"] >= 1, self.df["pci"], 0
+        )
+        rca_count = self.df.groupby("exporter")["rca_reliable"].apply(
+            lambda x: (x >= 1).sum()
+        )
+        self.df = self.df.merge(
+            rca_count.rename("rca_count"), on=["exporter"], how="left"
+        )
+        self.df["eci_normalized"] = self.df["eci_normalized"] / self.df["rca_count"]
+        self.df.drop(columns="rca_count")
+
+        pci = self.df.groupby("commoditycode")["pci_normalized"].agg("first")
+        self.df["pci_reliable"] = (self.df["pci_normalized"] - pci.mean()) / pci.std()
 
         # VALIDATED through selected data
-        self.save_parquet(self.df, "intermediate", f"{self.product_classification}_{self.year}_reliable_countries")
+        self.save_parquet(
+            self.df,
+            "intermediate",
+            f"{self.product_classification}_{self.year}_reliable_countries",
+        )
 
         keep_commodity_list = self.df.commoditycode.unique().tolist()
 
         # ALL COUNTRIES, Drop least traded products
         # reload full data for all countries
-        all_countries = self.load_parquet("intermediate", f"{self.product_classification}_{self.year}_complexity_all_countries")[
-            ["exporter", "commoditycode", "export_value", "import_value"]
-        ]
+        all_countries = self.load_parquet(
+            "intermediate",
+            f"{self.product_classification}_{self.year}_complexity_all_countries",
+        )[["exporter", "commoditycode", "export_value", "import_value"]]
         logging.info(f"all countries {all_countries.shape}")
         all_countries = all_countries[
             all_countries.commoditycode.isin(keep_commodity_list)
         ]
         logging.info(f"all countries {all_countries.shape} after dropped commodities")
         # fill in so all exporters match to all remaining commodity codes
-        combinations = pd.DataFrame(index=(pd.MultiIndex.from_product(
-            [
-                all_countries["exporter"].unique(),
-                all_countries["commoditycode"].unique(),
-            ],
-            names=["exporter", "commoditycode"],
-        )))
-        all_countries = combinations.merge(all_countries, on=['exporter', 'commoditycode'], how='left')
+        combinations = pd.DataFrame(
+            index=(
+                pd.MultiIndex.from_product(
+                    [
+                        all_countries["exporter"].unique(),
+                        all_countries["commoditycode"].unique(),
+                    ],
+                    names=["exporter", "commoditycode"],
+                )
+            )
+        )
+        all_countries = combinations.merge(
+            all_countries, on=["exporter", "commoditycode"], how="left"
+        )
         # fill na with zero
-        all_countries['export_value'] = all_countries['export_value'].fillna(0)
-        
+        all_countries["export_value"] = all_countries["export_value"].fillna(0)
+
         num_commodities = len(keep_commodity_list)
 
-        all_countries['rca'] = all_countries['export_value'].div(all_countries.groupby('exporter')['export_value'].transform('sum')).div(all_countries.groupby('commoditycode')['export_value'].transform('sum').div(all_countries['export_value'].sum()))
+        all_countries["rca"] = (
+            all_countries["export_value"]
+            .div(all_countries.groupby("exporter")["export_value"].transform("sum"))
+            .div(
+                all_countries.groupby("commoditycode")["export_value"]
+                .transform("sum")
+                .div(all_countries["export_value"].sum())
+            )
+        )
 
-        all_countries['mcp'] = np.where(all_countries['rca'] >= 1, 1, 0)
-        
+        all_countries["mcp"] = np.where(all_countries["rca"] >= 1, 1, 0)
+
         # COME BACK TO THIS, NEED NON NORMALIZED PCI VALUE
-        all_countries = all_countries.merge(self.df[['commoditycode', 'pci_reliable', 'pci']].drop_duplicates(), on=['commoditycode'], how='left')
-                
-        all_countries = all_countries.sort_values(by=['exporter', 'commoditycode'])
-        
-        all_countries['eci'] = all_countries['mcp'] * all_countries['pci']
+        all_countries = all_countries.merge(
+            self.df[["commoditycode", "pci_reliable", "pci"]].drop_duplicates(),
+            on=["commoditycode"],
+            how="left",
+        )
+
+        all_countries = all_countries.sort_values(by=["exporter", "commoditycode"])
+
+        all_countries["eci"] = all_countries["mcp"] * all_countries["pci"]
         # all_countries['eci'] = all_countries['mcp'] * all_countries['pci_reliable']
         # grouped by exporter
-        all_countries['eci'] = all_countries.groupby('exporter')['eci'].transform('sum') / (all_countries.groupby('exporter')['mcp'].transform('sum'))
-        
-        prody.name = 'prody'
-        all_countries = all_countries.merge(prody, on=['commoditycode'],  how='left')
-        
-        all_countries['expy'] = (all_countries['export_value'] / (all_countries.groupby('exporter')['export_value'].transform('sum'))) * all_countries['prody']
+        all_countries["eci"] = all_countries.groupby("exporter")["eci"].transform(
+            "sum"
+        ) / (all_countries.groupby("exporter")["mcp"].transform("sum"))
 
-        all_countries['expy'] = all_countries.groupby('exporter')['expy'].transform('sum')
+        prody.name = "prody"
+        all_countries = all_countries.merge(prody, on=["commoditycode"], how="left")
+
+        all_countries["expy"] = (
+            all_countries["export_value"]
+            / (all_countries.groupby("exporter")["export_value"].transform("sum"))
+        ) * all_countries["prody"]
+
+        all_countries["expy"] = all_countries.groupby("exporter")["expy"].transform(
+            "sum"
+        )
         # self.df = all_countries.merge(self.df, on=['exporter', 'commoditycode'], how='left', suffixes=('', '_all_countries'))
 
-        eci = all_countries.groupby('exporter')['eci'].agg('first')
-#         validated eci2, eci2 in mata is different than eci2 in stata
-        all_countries['eci_all_countries'] = ( all_countries['eci'] - eci.mean() ) / eci.std()
-        
+        eci = all_countries.groupby("exporter")["eci"].agg("first")
+        #         validated eci2, eci2 in mata is different than eci2 in stata
+        all_countries["eci_all_countries"] = (
+            all_countries["eci"] - eci.mean()
+        ) / eci.std()
+
         # FIX PCI with non-normalized value
         # save selecteddata
-        self.save_parquet(all_countries, "intermediate", f"{self.product_classification}_{self.year}_all_countries")
+        self.save_parquet(
+            all_countries,
+            "intermediate",
+            f"{self.product_classification}_{self.year}_all_countries",
+        )
 
         # All COUNTRIES, ALL PRODUCTS
-        all_cp = self.load_parquet("intermediate", f"{self.product_classification}_{self.year}_complexity_all_countries")[
-            ["exporter", "commoditycode", "export_value", "gdp_pc", "import_value"]
-        ]
-                                  
-        combinations = pd.DataFrame(index=(pd.MultiIndex.from_product(
-            [
-                all_cp["exporter"].unique(),
-                all_cp["commoditycode"].unique(),
-            ],
-            names=["exporter", "commoditycode"],
-        )))
-        all_cp = combinations.merge(all_cp, on=['exporter', 'commoditycode'], how='left')
-        
+        all_cp = self.load_parquet(
+            "intermediate",
+            f"{self.product_classification}_{self.year}_complexity_all_countries",
+        )[["exporter", "commoditycode", "export_value", "gdp_pc", "import_value"]]
+
+        combinations = pd.DataFrame(
+            index=(
+                pd.MultiIndex.from_product(
+                    [
+                        all_cp["exporter"].unique(),
+                        all_cp["commoditycode"].unique(),
+                    ],
+                    names=["exporter", "commoditycode"],
+                )
+            )
+        )
+        all_cp = combinations.merge(
+            all_cp, on=["exporter", "commoditycode"], how="left"
+        )
+
         all_cp[["export_value", "import_value"]] = all_cp[
             ["export_value", "import_value"]
         ].fillna(0)
-        
+
         ## fill in commoditycode 'XXXX' with all zeroes (last column with all zeroes)
-        all_cp.loc[all_cp.commoditycode=="XXXX", 'export_value'] = 0
-        
+        all_cp.loc[all_cp.commoditycode == "XXXX", "export_value"] = 0
+
         all_cp = all_cp.sort_values(by=["exporter", "commoditycode"])
-        
-        all_cp['rca'] = ( all_cp['export_value'] / all_cp.groupby('exporter')['export_value'].transform('sum') ) / ( all_cp.groupby('commoditycode')['export_value'].transform('sum') / all_cp['export_value'].sum() )
-         
-        all_cp['mcp'] = np.where(all_cp['rca'] >= 1, 1, 0)
-        
-        all_cp = all_cp.merge(all_countries[['exporter', 'eci']].drop_duplicates(), on=['exporter'], how='outer')
+
+        all_cp["rca"] = (
+            all_cp["export_value"]
+            / all_cp.groupby("exporter")["export_value"].transform("sum")
+        ) / (
+            all_cp.groupby("commoditycode")["export_value"].transform("sum")
+            / all_cp["export_value"].sum()
+        )
+
+        all_cp["mcp"] = np.where(all_cp["rca"] >= 1, 1, 0)
+
+        all_cp = all_cp.merge(
+            all_countries[["exporter", "eci"]].drop_duplicates(),
+            on=["exporter"],
+            how="outer",
+        )
         # all_cp = all_cp.rename(columns={"eci": "eci_all_countries"})
-        
-        all_cp = all_cp.sort_values(by=['exporter', 'commoditycode'])
-        
+
+        all_cp = all_cp.sort_values(by=["exporter", "commoditycode"])
+
         # eci comes from mata, not the all_countries eci
-        all_cp['pci'] = all_cp['mcp'] * all_cp['eci']
-        
-        all_cp['pci'] = all_cp.groupby('commoditycode')['pci'].transform('sum') / all_cp.groupby('commoditycode')['mcp'].transform('sum')
-        
-        all_cp['prody'] = ( all_cp['rca'] / all_cp.groupby('commoditycode')['rca'].transform('sum') ) * all_cp['gdp_pc']
-        all_cp['prody'] = all_cp.groupby('commoditycode')['prody'].transform('sum')
-        
+        all_cp["pci"] = all_cp["mcp"] * all_cp["eci"]
+
+        all_cp["pci"] = all_cp.groupby("commoditycode")["pci"].transform(
+            "sum"
+        ) / all_cp.groupby("commoditycode")["mcp"].transform("sum")
+
+        all_cp["prody"] = (
+            all_cp["rca"] / all_cp.groupby("commoditycode")["rca"].transform("sum")
+        ) * all_cp["gdp_pc"]
+        all_cp["prody"] = all_cp.groupby("commoditycode")["prody"].transform("sum")
+
         logging.info("Creating the product space for all countries & all products")
         # mata C = M'*M
-        all_cp_mcp = all_cp.pivot(index='exporter', columns='commoditycode', values='mcp')
+        all_cp_mcp = all_cp.pivot(
+            index="exporter", columns="commoditycode", values="mcp"
+        )
         country = all_cp_mcp.T @ all_cp_mcp
-        
+
         # mata S = J(Nps,Ncs,1)*M
         space = (
             pd.DataFrame(1, index=all_cp_mcp.columns, columns=all_cp_mcp.index)
@@ -384,13 +520,17 @@ class Complexity(_AtlasCleaning):
                 all_cp_proximity.T.values,
             )
         )
-        all_cp_pci = all_cp.pivot(index='exporter', columns='commoditycode', values='pci')
+        all_cp_pci = all_cp.pivot(
+            index="exporter", columns="commoditycode", values="pci"
+        )
         # mata density3 = M * density3
         all_cp_density = all_cp_mcp @ all_cp_density
         # mata opportunity_value =  ((density3:*(1 :- M)):*pci3)*J(Nps,Nps,1)
-        opportunity_value = ((all_cp_density.mul(1 - all_cp_mcp)).mul(all_cp_pci)).fillna(
-            0.0
-        ) @ (pd.DataFrame(1, index=all_cp_mcp.columns, columns=all_cp_mcp.columns))
+        opportunity_value = (
+            (all_cp_density.mul(1 - all_cp_mcp)).mul(all_cp_pci)
+        ).fillna(0.0) @ (
+            pd.DataFrame(1, index=all_cp_mcp.columns, columns=all_cp_mcp.columns)
+        )
 
         mcp_rows, mcp_cols = all_cp_mcp.shape
 
@@ -413,15 +553,19 @@ class Complexity(_AtlasCleaning):
                 )
             ).fillna(0)
         )
-                
+
         all_cp_metrics = {
             "density": all_cp_density.T,
             "opportunity_value": opportunity_value.T,
             "opportunity_gain": opportunity_gain.T,
         }
-                
-        all_cp_metrics_df = pd.concat([df.add_prefix(f"{name}_") for name, df in all_cp_metrics.items()], join="inner", axis=1).reset_index()
-        
+
+        all_cp_metrics_df = pd.concat(
+            [df.add_prefix(f"{name}_") for name, df in all_cp_metrics.items()],
+            join="inner",
+            axis=1,
+        ).reset_index()
+
         all_cp_metrics_df = pd.wide_to_long(
             all_cp_metrics_df,
             stubnames=list(all_cp_metrics.keys()),
@@ -430,49 +574,99 @@ class Complexity(_AtlasCleaning):
             sep="_",
             suffix="[A-Z]+",
         ).reset_index()
-                              
-        all_cp = all_cp.merge(all_cp_metrics_df, on=['exporter', 'commoditycode'], how='left')
-        all_cp = all_cp.rename({"prody":"prody_allcp", "density":"density_allcp"})
-        
-        # local rca3 pci3 M density3 prody3 opportunity_value
-        self.save_parquet(all_cp, "intermediate", f"{self.product_classification}_{self.year}_all_countries_all_products")  
 
-        
+        all_cp = all_cp.merge(
+            all_cp_metrics_df, on=["exporter", "commoditycode"], how="left"
+        )
+        all_cp = all_cp.rename({"prody": "prody_allcp", "density": "density_allcp"})
+
+        # local rca3 pci3 M density3 prody3 opportunity_value
+        self.save_parquet(
+            all_cp,
+            "intermediate",
+            f"{self.product_classification}_{self.year}_all_countries_all_products",
+        )
+
         logging.info(f"shape of complexity df after all c and p {reliable_df.shape}")
         # merge all the data sets self.df, all_countries, all_cp
-        
+
         # self.df = self.df.drop(columns=["rca_reliable"])
-        self.df = self.df.rename(columns={"density": "density_reliable", "coi":"coi_reliable", "cog": "cog_reliable"})
-        reliable_cols = ['exporter', 'commoditycode', 'density_reliable', 'rca_reliable', 'eci_reliable', 'pci_reliable', "coi_reliable", "cog_reliable"]
-        
-        all_cp = all_cp.rename(columns={"rca":"rca_allcp", "pci": "pci_allcp", "density": "density_allcp", "prody": "prody_allcp", "opportunity_value": "opportunity_value_allcp", "opportunity_gain": "opportunity_gain_allcp", "mcp": "mcp_allcp"})
-        
-        all_cp = all_cp.drop(columns=['eci'])
-        
-        self.df = all_cp.merge(self.df[reliable_cols], on=['exporter', 'commoditycode'], how='outer')
-        
-        all_countries = all_countries.drop(columns=["eci", "mcp", "pci_reliable", "pci"])
-        all_countries = all_countries.rename(columns={"rca":"rca_all_countries",
-                                                      "prody": "prody_all_countries",
-                                                      "expy": "expy_all_countries"})
-        
-        use_cols = ['exporter', 'commoditycode', 'rca_all_countries', 'eci_all_countries', 'prody_all_countries', 'expy_all_countries']
-        
-        self.df = self.df.merge(all_countries[use_cols], on=['exporter', 'commoditycode'], how='outer')
-                                                      
+        self.df = self.df.rename(
+            columns={
+                "density": "density_reliable",
+                "coi": "coi_reliable",
+                "cog": "cog_reliable",
+            }
+        )
+        reliable_cols = [
+            "exporter",
+            "commoditycode",
+            "density_reliable",
+            "rca_reliable",
+            "eci_reliable",
+            "pci_reliable",
+            "coi_reliable",
+            "cog_reliable",
+        ]
+
+        all_cp = all_cp.rename(
+            columns={
+                "rca": "rca_allcp",
+                "pci": "pci_allcp",
+                "density": "density_allcp",
+                "prody": "prody_allcp",
+                "opportunity_value": "opportunity_value_allcp",
+                "opportunity_gain": "opportunity_gain_allcp",
+                "mcp": "mcp_allcp",
+            }
+        )
+
+        all_cp = all_cp.drop(columns=["eci"])
+
+        self.df = all_cp.merge(
+            self.df[reliable_cols], on=["exporter", "commoditycode"], how="outer"
+        )
+
+        all_countries = all_countries.drop(
+            columns=["eci", "mcp", "pci_reliable", "pci"]
+        )
+        all_countries = all_countries.rename(
+            columns={
+                "rca": "rca_all_countries",
+                "prody": "prody_all_countries",
+                "expy": "expy_all_countries",
+            }
+        )
+
+        use_cols = [
+            "exporter",
+            "commoditycode",
+            "rca_all_countries",
+            "eci_all_countries",
+            "prody_all_countries",
+            "expy_all_countries",
+        ]
+
+        self.df = self.df.merge(
+            all_countries[use_cols], on=["exporter", "commoditycode"], how="outer"
+        )
+
         for col in ["eci_reliable", "eci_all_countries", "expy_all_countries"]:
-            self.df["mean_val"] = self.df.groupby('exporter')[col].transform('mean')
+            self.df["mean_val"] = self.df.groupby("exporter")[col].transform("mean")
             self.df.loc[self.df[col].isna(), col] = self.df["mean_val"]
             self.df = self.df.drop(columns="mean_val")
-            
+
         # replace pci3 = (pci3 - r(mean))/r(sd) if pci3!=.
         pci = self.df.groupby("commoditycode")["pci_allcp"].agg("first")
-        self.df.loc[self.df['pci_allcp'].notna(), 'pci_allcp'] = (self.df["pci_allcp"] - np.mean(pci)) / np.std(pci)
-        
-        # replace opportunity_value = (opportunity_value-r(mean))/r(sd) if opportunity_value!=. 
-        opp_val = self.df.groupby("exporter")["opportunity_value_allcp"].agg("first")
-        self.df.loc[self.df['opportunity_value_allcp'].notna(), 'opportunity_value_allcp'] = (self.df["opportunity_value_allcp"] - np.mean(opp_val)) / np.std(opp_val)
+        self.df.loc[self.df["pci_allcp"].notna(), "pci_allcp"] = (
+            self.df["pci_allcp"] - np.mean(pci)
+        ) / np.std(pci)
 
+        # replace opportunity_value = (opportunity_value-r(mean))/r(sd) if opportunity_value!=.
+        opp_val = self.df.groupby("exporter")["opportunity_value_allcp"].agg("first")
+        self.df.loc[
+            self.df["opportunity_value_allcp"].notna(), "opportunity_value_allcp"
+        ] = (self.df["opportunity_value_allcp"] - np.mean(opp_val)) / np.std(opp_val)
 
         logging.info("combine variables")
         measures = {
@@ -481,7 +675,10 @@ class Complexity(_AtlasCleaning):
             "pci": ["pci_reliable", "pci_allcp"],
             "prody": ["prody_all_countries", "prody_allcp"],
             "expy": ["expy_all_countries"],
-            "density": ["density_reliable", "density_allcp"],  # density output directly from ecomplexity
+            "density": [
+                "density_reliable",
+                "density_allcp",
+            ],  # density output directly from ecomplexity
             "oppval": ["coi_reliable", "opportunity_value_allcp"],
             "oppgain": ["cog_reliable", "opportunity_gain_allcp"],
         }
@@ -489,23 +686,21 @@ class Complexity(_AtlasCleaning):
         for measure, replacement_vals in measures.items():
             # import pdb
             # pdb.set_trace()
-            self.df[measure] = self.df[replacement_vals].bfill(axis=1).iloc[:,0]
+            self.df[measure] = self.df[replacement_vals].bfill(axis=1).iloc[:, 0]
             self.df = self.df.drop(columns=replacement_vals)
-            
+
         # rename M mcp
-        self.df = self.df.rename(
-            columns={"mcp_allcp": "mcp"}
-        )
+        self.df = self.df.rename(columns={"mcp_allcp": "mcp"})
 
         # cap gen distance = 1 - density
         self.df["distance"] = 1 - self.df["density"]
         self.df = self.df.drop(columns=["density"])
-        
+
         # drop any countries with export value == 0
         # zero_val_exporters = self.df.groupby('exporter')['export_value'].sum() == 0
         # if not zero_val_exporters.empty:
         #     self.df = self.df[~(self.df['exporter'].isin(zero_val_exporters['exporter'].tolist()))]
-        
+
         # self.df.loc[self.df.groupby("exporter")['export_value'].transform('sum')==0
         # by_exporter = (
         #     self.df[["exporter", "export_value"]]
@@ -519,21 +714,64 @@ class Complexity(_AtlasCleaning):
         # self.df = self.df[~self.df.exporter.isin(drop_countries)]
 
         # drop noisy commodity_codes
-        self.df =  self.df[
-            ~self.df.commoditycode.isin(
-                self.NOISY_TRADE[self.product_classification]
-            )
+        # self.df =  self.df[
+        #     ~self.df.commoditycode.isin(
+        #         self.NOISY_TRADE[self.product_classification]
+        #     )
+        # ]
+
+        columns_to_keep = [
+            "exporter",
+            "commoditycode",
+            "export_value",
+            "import_value",
+            "gdp_pc",
+            "rca",
+            "mcp",
+            "eci",
+            "pci",
+            "oppval",
+            "oppgain",
+            "distance",
+            "prody",
+            "expy",
         ]
-                
-        columns_to_keep = ['exporter', 'commoditycode', 'export_value', 'import_value', 'gdp_pc', 'rca', 'mcp', 'eci', 'pci', 'oppval', 'oppgain', 'distance', 'prody', 'expy']
         self.df = self.df[columns_to_keep]
-        
-        float32_columns = ['export_value', 'rca', 'eci', 'pci', 'oppval', 'oppgain', 'distance', 'prody', 'expy', 'gdp_pc']
+
+        float32_columns = [
+            "export_value",
+            "rca",
+            "eci",
+            "pci",
+            "oppval",
+            "oppgain",
+            "distance",
+            "prody",
+            "expy",
+            "gdp_pc",
+        ]
         for col in float32_columns:
-            self.df[col] = self.df[col].astype('float32')
-        self.df['mcp'] = self.df['mcp'].astype('int8')
-        self.df['inatlas'] = 1
-        self.df['year'] = self.year
-        self.df = self.df[['year', 'exporter', 'commoditycode', 'inatlas', 'export_value', 'import_value', 'rca', 'mcp', 'eci', 'pci', 'oppval', 'oppgain', 'distance', 'prody', 'expy', 'gdp_pc']]
-        
-        self.df.to_parquet(f"data/processed/{self.product_classification}_2015_complexity.parquet")
+            self.df[col] = self.df[col].astype("float32")
+        self.df["mcp"] = self.df["mcp"].astype("int8")
+        self.df["inatlas"] = 1
+        self.df["year"] = self.year
+        self.df = self.df[
+            [
+                "year",
+                "exporter",
+                "commoditycode",
+                "inatlas",
+                "export_value",
+                "import_value",
+                "rca",
+                "mcp",
+                "eci",
+                "pci",
+                "oppval",
+                "oppgain",
+                "distance",
+                "prody",
+                "expy",
+                "gdp_pc",
+            ]
+        ]

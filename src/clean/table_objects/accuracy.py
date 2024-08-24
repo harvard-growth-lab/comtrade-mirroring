@@ -25,20 +25,19 @@ class Accuracy(_AtlasCleaning):
 
         # load data
         nominal_dollars_df = self.load_parquet("intermediate", "ccy_nominal_dollars")
-        
-        
+
         self.ccy = self.load_parquet(
             f"intermediate",
             f"{self.product_classification}_{self.year}_country_country_year",
         )
         # Compute accuracy scores, called temp.dta in stata
         ccy_accuracy = self.compute_accuracy_scores()
-        
+
         (
             exporter_accuracy_percentiles,
             importer_accuracy_percentiles,
         ) = self.calculate_accuracy_percentiles(nominal_dollars_df, ccy_accuracy)
-     
+
         # Estimate trade values
         self.calculate_weights(
             exporter_accuracy_percentiles, importer_accuracy_percentiles
@@ -47,7 +46,7 @@ class Accuracy(_AtlasCleaning):
         self.calculate_estimated_value(
             exporter_accuracy_percentiles, importer_accuracy_percentiles
         )
-        
+
         self.finalize_output()
 
     def compute_accuracy_scores(self):
@@ -73,7 +72,7 @@ class Accuracy(_AtlasCleaning):
 
         # prepare matrices to maintain indices
         # stata name: es_ij: exporters, is_ij: importers
-        
+
         # if both countries did not report trade with each other than reporting_discrep is zero
         trdiscrep_exp = self.ccy.pivot(
             index="exporter", columns="importer", values="reporting_discrepancy"
@@ -92,7 +91,7 @@ class Accuracy(_AtlasCleaning):
         exporter_accuracy["exporter_accuracy"] = 1
         importer_accuracy = pd.DataFrame(index=iso_index)
         importer_accuracy["importer_accuracy"] = 1
-        
+
         # import pdb
         # pdb.set_trace()
         for i in range(0, 25):  # 25 try
@@ -106,7 +105,7 @@ class Accuracy(_AtlasCleaning):
 
             importer_accuracy["importer_accuracy"] = importer_probability
             exporter_accuracy["exporter_accuracy"] = exporter_probability
-                        
+
         # unstack
         trdiscrep_exp = (
             trdiscrep_exp.stack()
@@ -146,13 +145,15 @@ class Accuracy(_AtlasCleaning):
         if self.af == 0:
             # this is set to run
             logging.info("calculating mean of exporter accuracy and importer accuracy")
-            
+
             # import pdb
             # pdb.set_trace()
-# accuracy_scores = exporter_accuracy.merge(importer_accuracy, on = ['iso'], how = 'outer')
+            # accuracy_scores = exporter_accuracy.merge(importer_accuracy, on = ['iso'], how = 'outer')
             # accuracy_scores['accuracy_score'] = accuracy_scores.mean(axis=1)
-            accuracy_score = (exporter_accuracy["exporter_accuracy"] + importer_accuracy["importer_accuracy"]) / 2
-
+            accuracy_score = (
+                exporter_accuracy["exporter_accuracy"]
+                + importer_accuracy["importer_accuracy"]
+            ) / 2
 
         elif self.af == 1:
             accuracy_score = PCA().fit_transform(exporter_accuracy, importer_accuracy)
@@ -289,79 +290,90 @@ class Accuracy(_AtlasCleaning):
         Series of filtered data based on Nan values with applied conditions to determine
         estimated trade value. Uses accuracy scores and relative percentage of imports and exports
         """
-        
+
         # import pdb
         # pdb.set_trace()
         # est trade value only if accuracy scores and trade values are not nan
-        filtered_df = self.df[((self.df["importer_accuracy_score"].notna())
-            & (self.df["exporter_accuracy_score"].notna())
-            & (self.df["import_value_fob"].notna())
-            & (self.df["export_value_fob"].notna())
-        )]
-        
-        filtered_df['est_trade_value']  = (filtered_df['export_value_fob'] * filtered_df['weight']) + (filtered_df['import_value_fob'] * (1 - filtered_df['weight']))
-        
-        
+        filtered_df = self.df[
+            (
+                (self.df["importer_accuracy_score"].notna())
+                & (self.df["exporter_accuracy_score"].notna())
+                & (self.df["import_value_fob"].notna())
+                & (self.df["export_value_fob"].notna())
+            )
+        ]
+
+        filtered_df["est_trade_value"] = (
+            filtered_df["export_value_fob"] * filtered_df["weight"]
+        ) + (filtered_df["import_value_fob"] * (1 - filtered_df["weight"]))
+
         self.df = self.df.combine_first(filtered_df)
         # self.df = self.df.merge(filtered_df[['exporter', 'importer', 'est_trade_value']], on=['exporter', 'importer'], how='left')
-        
+
         # est trade value only if accuracy scores are not nan
-        filtered_df = self.df[((self.df["importer_accuracy_score"].notna())
-            & (self.df["exporter_accuracy_score"].notna())
-            & self.df["est_trade_value"].isna()
-        )]
-        
-        filtered_df['est_trade_value'] = filtered_df[
+        filtered_df = self.df[
+            (
+                (self.df["importer_accuracy_score"].notna())
+                & (self.df["exporter_accuracy_score"].notna())
+                & self.df["est_trade_value"].isna()
+            )
+        ]
+
+        filtered_df["est_trade_value"] = filtered_df[
             (
                 (filtered_df["exporter_accuracy_score"] < export_percentiles[0.50])
                 & (filtered_df["importer_accuracy_score"] >= import_percentiles[0.90])
             )
-        ]['import_value_fob']
-           
-        filtered_df['est_trade_value'] = filtered_df[
+        ]["import_value_fob"]
+
+        filtered_df["est_trade_value"] = filtered_df[
             (
                 (filtered_df["est_trade_value"].isna())
                 & (filtered_df["exporter_accuracy_score"] >= export_percentiles[0.90])
                 & (filtered_df["importer_accuracy_score"] < import_percentiles[0.50])
             )
-        ]['export_value_fob']
-            
-        filtered_df['est_trade_value'] = filtered_df[
+        ]["export_value_fob"]
+
+        filtered_df["est_trade_value"] = filtered_df[
             (
                 (filtered_df["est_trade_value"].isna())
                 & (self.df["exporter_accuracy_score"] < export_percentiles[0.25])
                 & (self.df["importer_accuracy_score"] >= import_percentiles[0.75])
             )
-        ]['import_value_fob']
-            
-        
-        filtered_df['est_trade_value'] = filtered_df[
+        ]["import_value_fob"]
+
+        filtered_df["est_trade_value"] = filtered_df[
             (
                 (filtered_df["est_trade_value"].isna())
                 & (self.df["exporter_accuracy_score"] >= export_percentiles[0.75])
                 & (self.df["importer_accuracy_score"] < import_percentiles[0.25])
             )
-        ]['export_value_fob']
-                        
-        filtered_df['est_trade_value'] = filtered_df[
+        ]["export_value_fob"]
+
+        filtered_df["est_trade_value"] = filtered_df[
             (
                 (filtered_df["est_trade_value"].isna())
                 & (self.df["exporter_weight"] == 1)
                 & (self.df["importer_weight"] == 1)
             )
-        ][['export_value_fob', 'import_value_fob']].max(axis=1)
-        
-        
+        ][["export_value_fob", "import_value_fob"]].max(axis=1)
+
         self.df = self.df.combine_first(filtered_df)
-        
 
-        self.df.loc[((self.df["est_trade_value"].isna()) & (self.df['importer_weight']==1)), 'est_trade_value'] = self.df['import_value_fob']
-                
-        self.df.loc[((self.df["est_trade_value"].isna()) & (self.df['exporter_weight']==1)), 'est_trade_value'] = self.df['export_value_fob']
+        self.df.loc[
+            ((self.df["est_trade_value"].isna()) & (self.df["importer_weight"] == 1)),
+            "est_trade_value",
+        ] = self.df["import_value_fob"]
 
-        self.df.loc[(self.df["est_trade_value"].isna()), 'est_trade_value'] = self.df['import_value_fob']
+        self.df.loc[
+            ((self.df["est_trade_value"].isna()) & (self.df["exporter_weight"] == 1)),
+            "est_trade_value",
+        ] = self.df["export_value_fob"]
 
-        
+        self.df.loc[(self.df["est_trade_value"].isna()), "est_trade_value"] = self.df[
+            "import_value_fob"
+        ]
+
     def finalize_output(self):
         """ """
         self.df = self.df.rename(
