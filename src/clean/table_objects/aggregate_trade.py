@@ -235,6 +235,14 @@ class AggregateTrade(_AtlasCleaning):
         self.df.loc[
             self.df["reporter_iso"].isin(["RUS", "SUN"]), "reporter_iso"
         ] = "RUS"
+        # south africa union (ZA1) is south africa (ZAF)
+        self.df.loc[
+            self.df["reporter_iso"].isin(["ZA1"]), "reporter_iso"
+        ] = "ZAF"
+        self.df.loc[
+            self.df["partner_iso"].isin(["ZA1"]), "partner_iso"
+        ] = "ZAF"
+
 
     def aggregate_data(self, level):
         """

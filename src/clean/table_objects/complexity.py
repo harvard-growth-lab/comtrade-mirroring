@@ -35,21 +35,21 @@ class Complexity(_AtlasCleaning):
         reliable_exporters = pd.read_stata(
             os.path.join(self.raw_data_path, "obs_atlas.dta")
         )
-        # Import trade data from CID Atlas
-        # if self.product_class == "SITC":
-        #     self.df = pd.read_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}.parquet"))
-        #     self.df.to_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}_OLD.parquet"))
-        #     if 'final_value' not in self.df.columns:
-        #         self.df['value_final'] = self.df['export_value']
-        #         self.df = self.df.rename(columns={"export_value": "value_exporter",
-        #                                            "import_value": "value_importer"})
-        #         self.df.to_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}.parquet"))
-        # else:
-        #     self.df = pd.read_parquet(
-        #         f"data/processed/{self.product_class}_{self.year}_country_country_product_year.parquet"
-        #     )
-        logging.info("RUNNING STATA INPUTS")
-        self.df = pd.read_stata("data/raw/H0_ccpy_2015.dta")
+        Import trade data from CID Atlas
+        if self.product_class == "SITC":
+            self.df = pd.read_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}.parquet"))
+            self.df.to_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}_OLD.parquet"))
+            if 'final_value' not in self.df.columns:
+                self.df['value_final'] = self.df['export_value']
+                self.df = self.df.rename(columns={"export_value": "value_exporter",
+                                                   "import_value": "value_importer"})
+                self.df.to_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}.parquet"))
+        else:
+            self.df = pd.read_parquet(
+                f"data/processed/{self.product_class}_{self.year}_country_country_product_year.parquet"
+            )
+        # logging.info("RUNNING STATA INPUTS")
+        # self.df = pd.read_stata("data/raw/H0_ccpy_2015.dta")
 
         try:
             self.df = self.df.rename(columns={"commodity_code": "commoditycode"})
