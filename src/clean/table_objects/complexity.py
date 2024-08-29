@@ -36,12 +36,20 @@ class Complexity(_AtlasCleaning):
             os.path.join(self.raw_data_path, "obs_atlas.dta")
         )
         # Import trade data from CID Atlas
-
-        self.df = pd.read_parquet(
-            f"data/processed/{self.product_class}_{self.year}_country_country_product_year.parquet"
-        )
-        # # logging.info("RUNNING STATA INPUTS")
-        # self.df = pd.read_stata("data/raw/H0_ccpy_2015.dta")
+        # if self.product_class == "SITC":
+        #     self.df = pd.read_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}.parquet"))
+        #     self.df.to_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}_OLD.parquet"))
+        #     if 'final_value' not in self.df.columns:
+        #         self.df['value_final'] = self.df['export_value']
+        #         self.df = self.df.rename(columns={"export_value": "value_exporter",
+        #                                            "import_value": "value_importer"})
+        #         self.df.to_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}.parquet"))
+        # else:
+        #     self.df = pd.read_parquet(
+        #         f"data/processed/{self.product_class}_{self.year}_country_country_product_year.parquet"
+        #     )
+        logging.info("RUNNING STATA INPUTS")
+        self.df = pd.read_stata("data/raw/H0_ccpy_2015.dta")
 
         try:
             self.df = self.df.rename(columns={"commodity_code": "commoditycode"})
@@ -471,6 +479,7 @@ class Complexity(_AtlasCleaning):
         )
 
         all_cp["mcp"] = np.where(all_cp["rca"] >= 1, 1, 0)
+        all_cp.loc[all_cp.commoditycode=="XXXX", 'mcp'] = 1
 
         all_cp = all_cp.merge(
             all_countries[["exporter", "eci"]].drop_duplicates(),
@@ -509,11 +518,9 @@ class Complexity(_AtlasCleaning):
         product_y = country.div(space.T)
 
         # mata proximity = (P1+P2 - abs(P1-P2))/2 - I(Nps)
-        all_cp_proximity = (
-            product_x + product_y - abs(product_x + product_y) / 2
-        ) - np.identity(all_cp_mcp.shape[1])
+        all_cp_proximity = (product_x + product_y - abs(product_x - product_y)) / 2 - np.identity(all_cp_mcp.shape[1])
         # mata density3 = proximity' :/ (J(Nps,Nps,1) * proximity')
-        all_cp_proximity = all_cp_proximity.fillna(0)
+        # all_cp_proximity = all_cp_proximity.fillna(0)
         all_cp_density = all_cp_proximity.T.div(
             np.dot(
                 np.ones((all_cp_mcp.shape[1], all_cp_mcp.shape[1]), dtype=int),
@@ -528,9 +535,11 @@ class Complexity(_AtlasCleaning):
         # mata opportunity_value =  ((density3:*(1 :- M)):*pci3)*J(Nps,Nps,1)
         opportunity_value = (
             (all_cp_density.mul(1 - all_cp_mcp)).mul(all_cp_pci)
-        ).fillna(0.0) @ (
+        ) @ (
             pd.DataFrame(1, index=all_cp_mcp.columns, columns=all_cp_mcp.columns)
         )
+        import pdb
+        pdb.set_trace()
 
         mcp_rows, mcp_cols = all_cp_mcp.shape
 
@@ -663,6 +672,9 @@ class Complexity(_AtlasCleaning):
         ) / np.std(pci)
 
         # replace opportunity_value = (opportunity_value-r(mean))/r(sd) if opportunity_value!=.
+        # standardize opportunity_value
+        import pdb
+        pdb.set_trace()
         opp_val = self.df.groupby("exporter")["opportunity_value_allcp"].agg("first")
         self.df.loc[
             self.df["opportunity_value_allcp"].notna(), "opportunity_value_allcp"
