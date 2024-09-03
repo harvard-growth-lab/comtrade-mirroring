@@ -42,11 +42,9 @@ class Accuracy(_AtlasCleaning):
         self.calculate_weights(
             exporter_accuracy_percentiles, importer_accuracy_percentiles
         )
-
         self.calculate_estimated_value(
             exporter_accuracy_percentiles, importer_accuracy_percentiles
         )
-
         self.finalize_output()
 
     def compute_accuracy_scores(self):
@@ -92,8 +90,6 @@ class Accuracy(_AtlasCleaning):
         importer_accuracy = pd.DataFrame(index=iso_index)
         importer_accuracy["importer_accuracy"] = 1
 
-        # import pdb
-        # pdb.set_trace()
         for i in range(0, 25):  # 25 try
             # @ is element-wise multiplication
             exporter_probability = 1 / (
@@ -370,9 +366,11 @@ class Accuracy(_AtlasCleaning):
             "est_trade_value",
         ] = self.df["export_value_fob"]
 
-        self.df.loc[(self.df["est_trade_value"].isna()), "est_trade_value"] = self.df[
-            "import_value_fob"
-        ]
+        # egen mintrade = rowmin(exportvalue_fob importvalue_fob)
+        # replace estvalue = mintrade if mintrade!=. & estvalue==. 
+        mask = self.df["est_trade_value"].isna()
+        self.df.loc[mask, "est_trade_value"] = self.df.loc[mask, ["import_value_fob", "export_value_fob"]].min(axis=1)
+
 
     def finalize_output(self):
         """ """

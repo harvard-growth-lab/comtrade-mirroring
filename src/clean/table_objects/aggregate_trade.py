@@ -61,7 +61,7 @@ class AggregateTrade(_AtlasCleaning):
         logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
         # filter and clean data
         self.filter_data()
-
+        
         self.save_parquet(
             self.df, "intermediate", f"cleaned_{self.product_class}_{self.year}"
         )
@@ -214,7 +214,7 @@ class AggregateTrade(_AtlasCleaning):
                 == self.unspecified_by_class[self.product_class]
             )
         )
-        self.df.loc[mask, "reporter_ansnoclas"] = self.df.loc[mask, "trade_value"]
+        self.df.loc[mask, "reporter_ansnoclas"] = self.df["trade_value"]
         # self.df["reporter_ansnoclas"] = self.df["reporter_ansnoclas"]#.fillna(0)
 
     def handle_germany_reunification(self):

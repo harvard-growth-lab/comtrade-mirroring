@@ -35,11 +35,10 @@ class Complexity(_AtlasCleaning):
         reliable_exporters = pd.read_stata(
             os.path.join(self.raw_data_path, "obs_atlas.dta")
         )
-        Import trade data from CID Atlas
+        # Import trade data from CID Atlas
         if self.product_class == "SITC":
             self.df = pd.read_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}.parquet"))
-            self.df.to_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}_OLD.parquet"))
-            if 'final_value' not in self.df.columns:
+            if 'value_final' not in self.df.columns:
                 self.df['value_final'] = self.df['export_value']
                 self.df = self.df.rename(columns={"export_value": "value_exporter",
                                                    "import_value": "value_importer"})
@@ -538,8 +537,6 @@ class Complexity(_AtlasCleaning):
         ) @ (
             pd.DataFrame(1, index=all_cp_mcp.columns, columns=all_cp_mcp.columns)
         )
-        import pdb
-        pdb.set_trace()
 
         mcp_rows, mcp_cols = all_cp_mcp.shape
 
@@ -673,8 +670,6 @@ class Complexity(_AtlasCleaning):
 
         # replace opportunity_value = (opportunity_value-r(mean))/r(sd) if opportunity_value!=.
         # standardize opportunity_value
-        import pdb
-        pdb.set_trace()
         opp_val = self.df.groupby("exporter")["opportunity_value_allcp"].agg("first")
         self.df.loc[
             self.df["opportunity_value_allcp"].notna(), "opportunity_value_allcp"

@@ -184,7 +184,7 @@ def compute_distance(year, product_classification, dist):
             logging.error(f"Didn't download year: {wrap_year}")
 
         df = pd.concat([df, df_lag_lead])
-
+        
     dist.loc[dist["exporter"] == "ROU", "exporter"] = "ROM"
     dist.loc[dist["importer"] == "ROU", "exporter"] = "ROM"
 
@@ -239,16 +239,12 @@ def compute_distance(year, product_classification, dist):
         "beta_contig": coefficients[1],
     }
 
-    tau_replace = (
-        res["c"]
-        + (res["beta_dist"] * df["lndist"])
-        + (res["beta_contig"] * df["contig"])
-    )
+    df.loc[df["year"] == year, "tau"] = res["c"] +(res["beta_dist"] * df["lndist"]) + (res["beta_contig"] * df["contig"])
 
     # clean up compute dist df
     del compute_dist_df
+    
 
-    df.loc[df["year"] == year, "tau"] = tau_replace
     df.loc[(df["year"] == year) & (df["tau"] < 0) & (df["tau"].notna()), "tau"] = 0
     df.loc[(df["year"] == year) & (df["tau"] > 0.2) & (df["tau"].notna()), "tau"] = 0.2
     tau_mean = df[df["year"] == year]["tau"].mean()
@@ -267,6 +263,7 @@ def compute_distance(year, product_classification, dist):
     df.loc[
         (df["lnoneplust"] < 0) & (df["import_value_fob"].isna()), "import_value_fob"
     ] = df["import_value_cif"]
+    
 
     return df[
         [
@@ -295,12 +292,12 @@ def run_stata_code(df, stata_code):
 
 if __name__ == "__main__":
     ingestion_attrs_H0 = {
-        "start_year": 1992,
+        "start_year": 1995,
         "end_year": 2022,
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_24/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_02/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H0",
     }
@@ -311,7 +308,7 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_24/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_02/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H4",
     }
@@ -322,7 +319,7 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_24/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_02/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H5",
     }
@@ -333,12 +330,12 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_08_24/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_02/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "SITC",
     }
 
-    # run_atlas_cleaning(ingestion_attrs_H0)
-    # run_atlas_cleaning(ingestion_attrs_H4)
+    run_atlas_cleaning(ingestion_attrs_H0)
+    run_atlas_cleaning(ingestion_attrs_H4)
     run_atlas_cleaning(ingestion_attrs_SITC)
     # run_atlas_cleaning(ingestion_attrs_H5)
