@@ -13,6 +13,15 @@ logging.basicConfig(level=logging.INFO)
 
 
 class CountryCountryProductYear(_AtlasCleaning):
+    OIL = {
+        "H0": "270900",
+        "H4": "270900",
+        "H5": "270900",
+        "S1": "3230",
+        "S2": "3230",
+        "SITC": "3230",
+    }    
+    
     SPECIALIZED_COMMODITY_CODES_BY_CLASS = {
         "H0": ["XXXXXX", "999999"],
         "H4": ["XXXXXX", "999999"],
@@ -36,9 +45,10 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.df = self.load_parquet(
             f"intermediate", f"cleaned_{self.product_classification}_{self.year}"
         )
+        self.df = self.df.rename(columns={"commodity_code":"commoditycode"})
         if self.product_classification[:1] == "H":
             self.df.loc[
-                self.df["commodity_code"].str[:4] == "9999", "commodity_code"
+                self.df["commoditycode"].str[:4] == "9999", "commoditycode"
             ] = "999999"
         # logging.info(f"number of exporters {len(self.df.exporter.unique())}")
         # leaving filter for quick testing purposes
@@ -143,6 +153,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.handle_not_specified()
         logging.info("ccpy: handled not specified")
         print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+        
+        self.handle_venezuela()
 
         self.df["year"] = self.year
         # import pdb
@@ -152,7 +164,6 @@ class CountryCountryProductYear(_AtlasCleaning):
                 "reweighted_value": "value_final",
                 "export_value": "value_exporter",
                 "import_value": "value_importer",
-                "commodity_code": "commoditycode",
             }
         )
         # import pdb
@@ -191,7 +202,7 @@ class CountryCountryProductYear(_AtlasCleaning):
             self.df = self.df[self.df.product_level == 4]
 
         # drop commodity code totals, WLD, na
-        self.df = self.df[self.df.commodity_code != "TOTAL"]
+        self.df = self.df[self.df.commoditycode != "TOTAL"]
         self.df = self.df[
             ~((self.df.partner_iso.isna()) | (self.df.reporter_iso.isna()))
         ]
@@ -211,9 +222,9 @@ class CountryCountryProductYear(_AtlasCleaning):
         country_pairs = accuracy[["idpair", "exporter", "importer"]]
 
         # generate index for each product
-        self.df["idprod"] = self.df.groupby(["commodity_code"]).ngroup()
-        products = self.df[["idprod", "commodity_code"]].drop_duplicates(
-            subset=["idprod", "commodity_code"]
+        self.df["idprod"] = self.df.groupby(["commoditycode"]).ngroup()
+        products = self.df[["idprod", "commoditycode"]].drop_duplicates(
+            subset=["idprod", "commoditycode"]
         )
         nprod = products.count().idprod
 
@@ -222,9 +233,8 @@ class CountryCountryProductYear(_AtlasCleaning):
             [
                 country_pairs["exporter"].unique(),
                 country_pairs["importer"].unique(),
-                # products["commodity_code"].unique(),
             ],
-            names=["reporter_iso", "partner_iso"],  # , "commodity_code"],
+            names=["reporter_iso", "partner_iso"], 
         )
 
         all_ccpy = (
@@ -254,7 +264,7 @@ class CountryCountryProductYear(_AtlasCleaning):
                 "trade_flow",
                 "reporter_iso",
                 "partner_iso",
-                "commodity_code",
+                "commoditycode",
                 "trade_value",
             ]
         ]
@@ -263,7 +273,7 @@ class CountryCountryProductYear(_AtlasCleaning):
 
         self.df = (
             self.df.groupby(
-                ["trade_flow", "reporter_iso", "partner_iso", "commodity_code"]
+                ["trade_flow", "reporter_iso", "partner_iso", "commoditycode"]
             )
             .agg("sum")
             .reset_index()
@@ -277,8 +287,8 @@ class CountryCountryProductYear(_AtlasCleaning):
 
         self.df = re.merge(
             ri,
-            left_on=["reporter_iso", "partner_iso", "commodity_code"],
-            right_on=["partner_iso", "reporter_iso", "commodity_code"],
+            left_on=["reporter_iso", "partner_iso", "commoditycode"],
+            right_on=["partner_iso", "reporter_iso", "commoditycode"],
             how="outer",
             suffixes=("_reporting_exp", "_reporting_imp"),
         )
@@ -469,6 +479,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         reweight_df = ccpy_trade_total.merge(
             ccy_trade_total, on=["exporter", "importer"], how="outer"
         ).fillna(0)
+        reweight_df = reweight_df.rename(columns={"commodity_code":"commoditycode"})
         
         # determine if data trade discrepancies
         reweight_df["trade_discrep1"] = (
@@ -515,7 +526,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         
         reweight_df = reweight_df[['exporter', 'importer', 'discrep_val']]
         discrep_vals = reweight_df[reweight_df.discrep_val > 0]
-        discrep_vals["commodity_code"] = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[
+        discrep_vals["commoditycode"] = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[
             self.product_classification
         ][self.TRADE_DATA_DISCREPANCIES]
         discrep_vals = discrep_vals.rename(columns={"discrep_val": "reweighted_value"})
@@ -545,7 +556,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         ]
 
         self.df.loc[
-            self.df.commodity_code.isna(), "commodity_code"
+            self.df.commoditycode.isna(), "commoditycode"
         ] = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[self.product_classification][
             self.TRADE_DATA_DISCREPANCIES
         ]
@@ -562,7 +573,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         ][self.NOT_SPECIFIED]
 
         mask = (self.df["importer"] == "ANS") & (
-            self.df["commodity_code"] == not_specified_val
+            self.df["commoditycode"] == not_specified_val
         )
         self.df.loc[mask, "not_specified"] = self.df.loc[mask, "reweighted_value"]
         self.df["reweighted_value_temp"] = self.df["reweighted_value"]
@@ -589,6 +600,28 @@ class CountryCountryProductYear(_AtlasCleaning):
 
         if drop_exporter:
             logging.info("dropping exporter")
-            import pdb
-            pdb.set_trace()
             self.df[~(self.df.exporter.isin(drop_exporter))]
+            
+            
+            
+    def handle_venezuela(self):
+        """
+        Comtrade stopped patching trade data for Venezuela starting in 2020. 
+        
+        As part of the cleaning the Growth Lab patches Venezuela's exports for Crude Petroleum
+        the patch is done by reflecting OPEC's oil exports
+        """
+        self.df = self.df[~((self.df.exporter=="VEN") & (self.df.importer=="ANS") & (self.df.commoditycode==self.OIL[self.product_classification]))]
+        
+        ven_opec = pd.read_csv("data/ven_fix/venezuela_270900_exports.csv")
+        ven_opec = ven_opec[ven_opec.year==self.year].drop(columns="year")
+        ven_opec = ven_opec.rename(columns= {"value_exporter": "export_value",
+                                             "value_importer": "import_value",
+                                             "value_final": "final_value"})
+        ven_opec['commoditycode'] = ven_opec['commoditycode'].astype(str)
+        if ven_opec.empty:
+            raise ValueError(f"Need to add the export value for oil in {self.year} for Venezuela")
+        import pdb
+        pdb.set_trace()
+        self.df = pd.concat([self.df, ven_opec], axis=0, ignore_index=True, sort=False)   
+        

@@ -89,7 +89,7 @@ class AggregateTrade(_AtlasCleaning):
         ]
 
         self.save_parquet(
-            self.df, "intermediate", f"aggregated_{self.product_class}_{self.year}"
+            self.df, "intermediate", f"{self.product_class}_{self.year}_aggregated"
         )
 
     def load_comtrade_downloader_file(self):
@@ -119,6 +119,7 @@ class AggregateTrade(_AtlasCleaning):
                 },
             )
             logging.info("using original csv file not from compactor")
+            logging.info(f"size of original csv file {df.shape}")
             df.loc[df["Reporter"] == "Other Asia, nes", "Reporter ISO"] = "TWN"
             df.loc[df["Partner"] == "Other Asia, nes", "Partner ISO"] = "TWN"
             df = df.drop(columns=["Reporter", "Partner"])
@@ -149,7 +150,9 @@ class AggregateTrade(_AtlasCleaning):
                 except:
                     error_message = f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate"
                     # raise ValueError(error_message)
+        logging.info(f"data shape before drop {df.shape}")
         df = df.dropna(axis=0, how="all")
+        logging.info(f"data shape after drop {df.shape}")
         return df.rename(columns=columns)
 
     def filter_data(self):
