@@ -103,30 +103,30 @@ def run_atlas_cleaning(ingestion_attrs):
                 accuracy.df, "intermediate", f"{product_classification}_{year}_accuracy"
             )
 
-            ccpy = CountryCountryProductYear(year, **ingestion_attrs)
+        ccpy = CountryCountryProductYear(year, **ingestion_attrs)
 
-            ccpy.save_parquet(
-                ccpy.df,
-                "processed",
-                f"{product_classification}_{year}_country_country_product_year",
+        ccpy.save_parquet(
+            ccpy.df,
+            "processed",
+            f"{product_classification}_{year}_country_country_product_year",
+        )
+        try:
+            os.makedirs(ccpy.final_output_path, exist_ok=True)
+            os.makedirs(
+                os.path.join(ccpy.final_output_path, f"{product_classification}"),
+                exist_ok=True,
             )
-            try:
-                os.makedirs(ccpy.final_output_path, exist_ok=True)
-                os.makedirs(
-                    os.path.join(ccpy.final_output_path, f"{product_classification}"),
-                    exist_ok=True,
-                )
 
-                ccpy.df.to_parquet(
-                    os.path.join(
-                        ccpy.final_output_path,
-                        f"{product_classification}",
-                        f"{product_classification}_{year}.parquet",
-                    ),
-                    index=False,
-                )
-            except Exception as e:
-                print(f"failed to write ccpy to parquet: {e}")
+            ccpy.df.to_parquet(
+                os.path.join(
+                    ccpy.final_output_path,
+                    f"{product_classification}",
+                    f"{product_classification}_{year}.parquet",
+                ),
+                index=False,
+            )
+        except Exception as e:
+            print(f"failed to write ccpy to parquet: {e}")
 
         # complexity files
         complexity = Complexity(year, **ingestion_attrs)

@@ -39,149 +39,85 @@ class CountryCountryProductYear(_AtlasCleaning):
         print(f"starting ccpy: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
         self.product_classification = kwargs["product_classification"]
         self.year = year
-
-        # load data
-
-        self.df = self.load_parquet(
-            f"intermediate", f"cleaned_{self.product_classification}_{self.year}"
-        )
-        self.df = self.df.rename(columns={"commodity_code":"commoditycode"})
-        if self.product_classification[:1] == "H":
-            self.df.loc[
-                self.df["commoditycode"].str[:4] == "9999", "commoditycode"
-            ] = "999999"
-        # logging.info(f"number of exporters {len(self.df.exporter.unique())}")
-        # leaving filter for quick testing purposes
-        # self.df = self.df[
-        #     (
-        #         self.df.reporter_iso.isin(
-        #             ["USA", "BEL", "SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]
-        #         )
-        #     )
-        #     & (
-        #         self.df.partner_iso.isin(
-        #             ["USA", "BEL", "SAU", "IND", "CHL," "VEN", "ZWE", "ABW", "CAN"]
-        #         )
-        #     )
-        # ]
-        accuracy = self.load_parquet(
-            "intermediate", f"{self.product_classification}_{self.year}_accuracy"
-        )
-
-        # accuracy = pd.read_stata("data/raw/weights_2015.dta")
-        # accuracy = accuracy.rename(columns={"value_exporter": "export_value", "value_importer": "import_value", "value_final": "final_trade_value",
-        #                                     "w_e": "weight", "w_e_0": "exporter_weight",
-        #                                     "w_i_0": "importer_weight",
-        #                                     "exporter_A_e": "exporter_accuracy_score",
-        #                                     "importer_A_i": "importer_accuracy_score"})
-
-        # accuracy = accuracy[
-        #     accuracy.final_trade_value >= 100_000
-        # ]
-        # accuracy = accuracy[
-        #     (
-        #         accuracy.exporter.isin(
-        #             ["USA", "BEL", "SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]
-        #         )
-        #     )
-        #     & (
-        #         accuracy.importer.isin(
-        #             ["USA", "BEL", "SAU", "IND", "CHL", "VEN", "ZWE", "ABW", "CAN"]
-        #         )
-        #     )
-        # ]
-        # prepare the data
-        # import pdb
-        # pdb.set_trace()
-        self.filter_and_clean_data()
-        logging.info("check after filter for WLD, nan, NAN")
-        # import pdb
-        # pdb.set_trace()
-
-        logging.info("ccpy: filtered and cleaned data")
-        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-        all_ccpy, self.npairs, self.nprod = self.setup_trade_analysis_framework(
-            accuracy
-        )
-        # import pdb
-        # pdb.set_trace()
-
-        logging.info("ccpy: set up trade analysis framework")
-        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-
-        # calculate the value of exports for each country pair and product
-        self.generate_trade_value_matrix(accuracy, all_ccpy)
-        logging.info("ccpy: generated trade vals matrix with cif ratio applied")
-        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-        # import pdb
-        # pdb.set_trace()
-
-        self.trade_score = self.assign_trade_scores()
-        # import pdb
-        # pdb.set_trace()
-        accuracy = accuracy[accuracy.importer != accuracy.exporter]
-        accuracy = accuracy.set_index(["exporter", "importer"])
-
-        cc_trade_totals = self.assign_accuracy_scores(accuracy)
-        logging.info("ccpy: assigned accuracy scores")
-        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-
-        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-        # import pdb
-        # pdb.set_trace()
-
-        self.calculate_final_trade_value()
-        logging.info("ccpy: calculated final trade val")
-        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-        # import pdb
-        # pdb.set_trace()
-
-        self.reweight_final_trade_value(accuracy)
-        logging.info("ccpy: reweighted")
-        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-
-        # import pdb
-        # pdb.set_trace()
-
-        # final processing
-        self.filter_and_handle_trade_data_discrepancies()
-        logging.info("ccpy: handle trade data discrepancies")
-        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
-        # import pdb
-        # pdb.set_trace()
-
-        self.handle_not_specified()
-        logging.info("ccpy: handled not specified")
-        print(f"time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
         
-        self.handle_venezuela()
+        if self.product_classification == "SITC":
+            self.df = pd.read_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}.parquet"))
+            self.handle_venezuela()
+        
+        else:
 
-        self.df["year"] = self.year
-        # import pdb
-        # pdb.set_trace()
-        self.df = self.df.rename(
-            columns={
-                "reweighted_value": "value_final",
-                "export_value": "value_exporter",
-                "import_value": "value_importer",
-            }
-        )
-        # import pdb
-        # pdb.set_trace()
-        self.df[["value_final", "value_exporter", "value_importer"]] = self.df[
-            ["value_final", "value_exporter", "value_importer"]
-        ].fillna(0)
-        self.df = self.df[
-            [
-                "year",
-                "exporter",
-                "importer",
-                "commoditycode",
-                "value_final",
-                "value_exporter",
-                "value_importer",
+
+            # load data
+            self.df = self.load_parquet(
+                f"intermediate", f"cleaned_{self.product_classification}_{self.year}"
+            )
+            self.df = self.df.rename(columns={"commodity_code":"commoditycode"})
+            if self.product_classification[:1] == "H":
+                self.df.loc[
+                    self.df["commoditycode"].str[:4] == "9999", "commoditycode"
+                ] = "999999"
+                
+            accuracy = self.load_parquet(
+                "intermediate", f"{self.product_classification}_{self.year}_accuracy"
+            )
+
+            # prepare the data
+            self.filter_and_clean_data()
+            logging.info("check after filter for WLD, nan, NAN")
+
+            logging.info("ccpy: filtered and cleaned data")
+            all_ccpy, self.npairs, self.nprod = self.setup_trade_analysis_framework(
+                accuracy
+            )
+
+            logging.info("ccpy: set up trade analysis framework")
+
+            # calculate the value of exports for each country pair and product
+            self.generate_trade_value_matrix(accuracy, all_ccpy)
+
+            self.trade_score = self.assign_trade_scores()
+            accuracy = accuracy[accuracy.importer != accuracy.exporter]
+            accuracy = accuracy.set_index(["exporter", "importer"])
+
+            cc_trade_totals = self.assign_accuracy_scores(accuracy)
+            logging.info("ccpy: assigned accuracy scores")
+
+            self.calculate_final_trade_value()
+            logging.info("ccpy: calculated final trade val")
+
+            self.reweight_final_trade_value(accuracy)
+            logging.info("ccpy: reweighted")
+
+            # final processing
+            self.filter_and_handle_trade_data_discrepancies()
+            logging.info("ccpy: handle trade data discrepancies")
+
+            self.handle_not_specified()
+
+            self.df["year"] = self.year
+            self.df = self.df.rename(
+                columns={
+                    "reweighted_value": "value_final",
+                    "export_value": "value_exporter",
+                    "import_value": "value_importer",
+                }
+            )
+            self.handle_venezuela()
+
+            self.df[["value_final", "value_exporter", "value_importer"]] = self.df[
+                ["value_final", "value_exporter", "value_importer"]
+            ].fillna(0)
+            self.df = self.df[
+                [
+                    "year",
+                    "exporter",
+                    "importer",
+                    "commoditycode",
+                    "value_final",
+                    "value_exporter",
+                    "value_importer",
+                ]
             ]
-        ]
 
     def filter_and_clean_data(self):
         """
@@ -608,20 +544,17 @@ class CountryCountryProductYear(_AtlasCleaning):
         """
         Comtrade stopped patching trade data for Venezuela starting in 2020. 
         
-        As part of the cleaning the Growth Lab patches Venezuela's exports for Crude Petroleum
-        the patch is done by reflecting OPEC's oil exports
+        As part of the cleaning the Growth Lab patches Venezuela's exports for Crude Petroleum. 
+        The value is calculated by determining oil production less country's oil consumption 
+        using the price per barrel from the https://www.energyinst.org/statistical-review 
         """
         self.df = self.df[~((self.df.exporter=="VEN") & (self.df.importer=="ANS") & (self.df.commoditycode==self.OIL[self.product_classification]))]
         
         ven_opec = pd.read_csv("data/ven_fix/venezuela_270900_exports.csv")
-        ven_opec = ven_opec[ven_opec.year==self.year].drop(columns="year")
-        ven_opec = ven_opec.rename(columns= {"value_exporter": "export_value",
-                                             "value_importer": "import_value",
-                                             "value_final": "final_value"})
-        ven_opec['commoditycode'] = ven_opec['commoditycode'].astype(str)
-        if ven_opec.empty:
+        ven_opec = ven_opec[ven_opec.year==self.year]
+        ven_opec = ven_opec.astype({'year':'int64'})
+        ven_opec['commoditycode'] = self.OIL[self.product_classification]
+        if ven_opec.empty and self.year > 2019:
             raise ValueError(f"Need to add the export value for oil in {self.year} for Venezuela")
-        import pdb
-        pdb.set_trace()
         self.df = pd.concat([self.df, ven_opec], axis=0, ignore_index=True, sort=False)   
         
