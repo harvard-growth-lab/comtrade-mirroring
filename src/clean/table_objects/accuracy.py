@@ -367,10 +367,11 @@ class Accuracy(_AtlasCleaning):
         ] = self.df["export_value_fob"]
 
         # egen mintrade = rowmin(exportvalue_fob importvalue_fob)
-        # replace estvalue = mintrade if mintrade!=. & estvalue==. 
+        # replace estvalue = mintrade if mintrade!=. & estvalue==.
         mask = self.df["est_trade_value"].isna()
-        self.df.loc[mask, "est_trade_value"] = self.df.loc[mask, ["import_value_fob", "export_value_fob"]].min(axis=1)
-
+        self.df.loc[mask, "est_trade_value"] = self.df.loc[
+            mask, ["import_value_fob", "export_value_fob"]
+        ].min(axis=1)
 
     def finalize_output(self):
         """ """

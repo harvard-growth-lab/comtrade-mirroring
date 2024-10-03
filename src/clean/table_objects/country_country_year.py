@@ -33,7 +33,7 @@ class CountryCountryYear(_AtlasCleaning):
             os.path.join(f"intermediate"),
             f"{self.product_classification}_{self.year}",
         )
-        
+
         # Clean and filter data
         self.clean_data()
 
@@ -84,7 +84,6 @@ class CountryCountryYear(_AtlasCleaning):
 
         self.normalize_trade_flows()
 
-
     def clean_data(self):
         # self.df = self.df.dropna(subset=["exporter", "importer"])
         self.df = self.df[~((self.df.exporter == "WLD") | (self.df.importer == "WLD"))]
@@ -105,12 +104,12 @@ class CountryCountryYear(_AtlasCleaning):
         ensures cif_ratio is never greater than .20
         """
         df["cif_ratio"] = (df["import_value_cif"] / self.df["import_value_fob"]) - 1
-        df["cif_ratio"] = df.groupby("exporter")['cif_ratio'].transform("mean")
+        df["cif_ratio"] = df.groupby("exporter")["cif_ratio"].transform("mean")
         logging.info("review CIF ratio from compute distance")
         df["cif_ratio"] = df["cif_ratio"].apply(
             lambda val: min(val, 0.20) if pd.notnull(val) else val
         )
-        df.loc[df.cif_ratio.isna(), "cif_ratio"] = .20
+        df.loc[df.cif_ratio.isna(), "cif_ratio"] = 0.20
         return df
 
     def filter_by_population_threshold(self, population: pd.DataFrame()):

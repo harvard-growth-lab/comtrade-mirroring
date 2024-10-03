@@ -1,4 +1,3 @@
-import logging
 import os
 import sys
 from glob import glob
@@ -18,7 +17,10 @@ from clean.table_objects.accuracy import Accuracy
 from clean.table_objects.country_country_product_year import CountryCountryProductYear
 from clean.table_objects.complexity import Complexity
 
+import logging
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 CIF_RATIO = 0.075
 
 pd.options.display.max_columns = None
@@ -50,11 +52,8 @@ def run_atlas_cleaning(ingestion_attrs):
     for year in range(start_year, end_year + 1):
         if product_classification == "SITC":
             break
-        # file_name = f"data/intermediate/cleaned_{product_classification}_{year}.parquet"
-        # if not os.path.isfile(file_name):
-        # get possible classifications based on year
-        logging.info("removing classifications step until can confirm with Seba")
         classifications = [product_classification]
+        # removed classifications merge step, not needed
         # classifications = get_classifications(year)
         logging.info(
             f"Aggregating data for {year} and these classifications {classifications}"
@@ -65,6 +64,8 @@ def run_atlas_cleaning(ingestion_attrs):
         ]
 
     logging.info("Completed data aggregations, starting next loop")
+    import pdb
+    pdb.set_trace()
 
     for year in range(start_year, end_year + 1):
         if product_classification != "SITC":
@@ -294,10 +295,10 @@ if __name__ == "__main__":
     ingestion_attrs_H0 = {
         "start_year": 1995,
         "end_year": 2022,
-        "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
+        "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_04/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_16/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H0",
     }
@@ -305,10 +306,10 @@ if __name__ == "__main__":
     ingestion_attrs_H4 = {
         "start_year": 2012,
         "end_year": 2022,
-        "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
+        "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_04/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_16/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H4",
     }
@@ -316,10 +317,10 @@ if __name__ == "__main__":
     ingestion_attrs_H5 = {
         "start_year": 2017,
         "end_year": 2022,
-        "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
+        "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_04/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_10/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H5",
     }
@@ -327,10 +328,10 @@ if __name__ == "__main__":
     ingestion_attrs_SITC = {
         "start_year": 1962,
         "end_year": 2022,
-        "downloaded_files_path": "../../../../*data_tools_for_GL/compactor_output/atlas_update/",
+        "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_04/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_10/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "SITC",
     }

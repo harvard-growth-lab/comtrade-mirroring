@@ -20,8 +20,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         "S1": "3230",
         "S2": "3230",
         "SITC": "3230",
-    }    
-    
+    }
+
     SPECIALIZED_COMMODITY_CODES_BY_CLASS = {
         "H0": ["XXXXXX", "999999"],
         "H4": ["XXXXXX", "999999"],
@@ -39,24 +39,26 @@ class CountryCountryProductYear(_AtlasCleaning):
         print(f"starting ccpy: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
         self.product_classification = kwargs["product_classification"]
         self.year = year
-        
+
         if self.product_classification == "SITC":
-            self.df = pd.read_parquet(os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}.parquet"))
+            self.df = pd.read_parquet(
+                os.path.join(
+                    self.final_output_path, "SITC", f"SITC_{self.year}.parquet"
+                )
+            )
             self.handle_venezuela()
-        
+
         else:
-
-
             # load data
             self.df = self.load_parquet(
                 f"intermediate", f"cleaned_{self.product_classification}_{self.year}"
             )
-            self.df = self.df.rename(columns={"commodity_code":"commoditycode"})
+            self.df = self.df.rename(columns={"commodity_code": "commoditycode"})
             if self.product_classification[:1] == "H":
                 self.df.loc[
                     self.df["commoditycode"].str[:4] == "9999", "commoditycode"
                 ] = "999999"
-                
+
             accuracy = self.load_parquet(
                 "intermediate", f"{self.product_classification}_{self.year}_accuracy"
             )
@@ -170,7 +172,7 @@ class CountryCountryProductYear(_AtlasCleaning):
                 country_pairs["exporter"].unique(),
                 country_pairs["importer"].unique(),
             ],
-            names=["reporter_iso", "partner_iso"], 
+            names=["reporter_iso", "partner_iso"],
         )
 
         all_ccpy = (
@@ -415,8 +417,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         reweight_df = ccpy_trade_total.merge(
             ccy_trade_total, on=["exporter", "importer"], how="outer"
         ).fillna(0)
-        reweight_df = reweight_df.rename(columns={"commodity_code":"commoditycode"})
-        
+        reweight_df = reweight_df.rename(columns={"commodity_code": "commoditycode"})
+
         # determine if data trade discrepancies
         reweight_df["trade_discrep1"] = (
             (
@@ -443,24 +445,38 @@ class CountryCountryProductYear(_AtlasCleaning):
         reweight_df["is_discrepancy"] = (
             (reweight_df["trade_discrep1"] + reweight_df["trade_discrep2"]) > 0
         ).astype(int)
-        
-        reweight_df["discrep_val"] = (reweight_df["ccy_trade"] - reweight_df["ccpy_trade"]) * reweight_df["is_discrepancy"]
-        
+
+        reweight_df["discrep_val"] = (
+            reweight_df["ccy_trade"] - reweight_df["ccpy_trade"]
+        ) * reweight_df["is_discrepancy"]
+
         reweight_df["value_less_discrep"] = (
             reweight_df["ccy_trade"] - reweight_df["discrep_val"]
         )
-        
-        self.df.loc[self.df.final_value>1000, 'reweighted_value'] = self.df['final_value']
-        # self.df = self.df[self.df['final_value']>1000]
-        
-        self.df['reweighted_value_ratio'] = self.df['reweighted_value'] / (self.df.groupby(['exporter', 'importer'])['reweighted_value'].transform('sum'))
 
-        self.df = self.df.merge(reweight_df[['exporter', 'importer', 'value_less_discrep']], on=['exporter', 'importer'], how='outer')
-        self.df['reweighted_value'] = self.df['reweighted_value_ratio'] * self.df['value_less_discrep']
-        
-        self.df = self.df.drop(columns=['value_less_discrep', 'reweighted_value_ratio'])
-        
-        reweight_df = reweight_df[['exporter', 'importer', 'discrep_val']]
+        self.df.loc[self.df.final_value > 1000, "reweighted_value"] = self.df[
+            "final_value"
+        ]
+        # self.df = self.df[self.df['final_value']>1000]
+
+        self.df["reweighted_value_ratio"] = self.df["reweighted_value"] / (
+            self.df.groupby(["exporter", "importer"])["reweighted_value"].transform(
+                "sum"
+            )
+        )
+
+        self.df = self.df.merge(
+            reweight_df[["exporter", "importer", "value_less_discrep"]],
+            on=["exporter", "importer"],
+            how="outer",
+        )
+        self.df["reweighted_value"] = (
+            self.df["reweighted_value_ratio"] * self.df["value_less_discrep"]
+        )
+
+        self.df = self.df.drop(columns=["value_less_discrep", "reweighted_value_ratio"])
+
+        reweight_df = reweight_df[["exporter", "importer", "discrep_val"]]
         discrep_vals = reweight_df[reweight_df.discrep_val > 0]
         discrep_vals["commoditycode"] = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[
             self.product_classification
@@ -537,24 +553,29 @@ class CountryCountryProductYear(_AtlasCleaning):
         if drop_exporter:
             logging.info("dropping exporter")
             self.df[~(self.df.exporter.isin(drop_exporter))]
-            
-            
-            
+
     def handle_venezuela(self):
         """
-        Comtrade stopped patching trade data for Venezuela starting in 2020. 
-        
-        As part of the cleaning the Growth Lab patches Venezuela's exports for Crude Petroleum. 
-        The value is calculated by determining oil production less country's oil consumption 
-        using the price per barrel from the https://www.energyinst.org/statistical-review 
+        Comtrade stopped patching trade data for Venezuela starting in 2020.
+
+        As part of the cleaning the Growth Lab patches Venezuela's exports for Crude Petroleum.
+        The value is calculated by determining oil production less country's oil consumption
+        using the price per barrel from the https://www.energyinst.org/statistical-review
         """
-        self.df = self.df[~((self.df.exporter=="VEN") & (self.df.importer=="ANS") & (self.df.commoditycode==self.OIL[self.product_classification]))]
-        
+        self.df = self.df[
+            ~(
+                (self.df.exporter == "VEN")
+                & (self.df.importer == "ANS")
+                & (self.df.commoditycode == self.OIL[self.product_classification])
+            )
+        ]
+
         ven_opec = pd.read_csv("data/ven_fix/venezuela_270900_exports.csv")
-        ven_opec = ven_opec[ven_opec.year==self.year]
-        ven_opec = ven_opec.astype({'year':'int64'})
-        ven_opec['commoditycode'] = self.OIL[self.product_classification]
+        ven_opec = ven_opec[ven_opec.year == self.year]
+        ven_opec = ven_opec.astype({"year": "int64"})
+        ven_opec["commoditycode"] = self.OIL[self.product_classification]
         if ven_opec.empty and self.year > 2019:
-            raise ValueError(f"Need to add the export value for oil in {self.year} for Venezuela")
-        self.df = pd.concat([self.df, ven_opec], axis=0, ignore_index=True, sort=False)   
-        
+            raise ValueError(
+                f"Need to add the export value for oil in {self.year} for Venezuela"
+            )
+        self.df = pd.concat([self.df, ven_opec], axis=0, ignore_index=True, sort=False)
