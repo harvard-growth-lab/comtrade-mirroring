@@ -64,8 +64,6 @@ def run_atlas_cleaning(ingestion_attrs):
         ]
 
     logging.info("Completed data aggregations, starting next loop")
-    import pdb
-    pdb.set_trace()
 
     for year in range(start_year, end_year + 1):
         if product_classification != "SITC":
