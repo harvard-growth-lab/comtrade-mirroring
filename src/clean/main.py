@@ -2,6 +2,7 @@ import os
 import sys
 from glob import glob
 import pandas as pd
+import pyarrow as pq
 from scipy.stats.mstats import winsorize
 import numpy as np
 from time import gmtime, strftime, localtime
@@ -127,7 +128,7 @@ def run_atlas_cleaning(ingestion_attrs):
         except Exception as e:
             print(f"failed to write ccpy to parquet: {e}")
 
-        # complexity files
+        complexity files
         complexity = Complexity(year, **ingestion_attrs)
 
         complexity.save_parquet(
@@ -163,6 +164,9 @@ def run_atlas_cleaning(ingestion_attrs):
         )
     except Exception as e:
         print(f"failed to write complexity to parquet: {e}")
+        
+    comparison = complexity.compare_files()
+    logging.info(f"review of compared files {comparison}")
 
 
 def compute_distance(year, product_classification, dist):
@@ -177,7 +181,7 @@ def compute_distance(year, product_classification, dist):
     for wrap_year in [year - 1, year + 1]:
         try:
             df_lag_lead = pd.read_parquet(
-                f"data/intermediate/aggregated_{product_classification}_{wrap_year}.parquet"
+                f"data/intermediate/{product_classification}_{wrap_year}_aggregated.parquet"
             )
         except FileNotFoundError:
             logging.error(f"Didn't download year: {wrap_year}")
@@ -290,13 +294,27 @@ def run_stata_code(df, stata_code):
 
 
 if __name__ == "__main__":
+    
+    ingestion_attrs = {
+        "start_year": 2021,
+        "end_year": 2022,
+        "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
+        # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
+        "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
+        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_10/input",
+        # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
+        "product_classification": "H0",
+    }
+
     ingestion_attrs_H0 = {
         "start_year": 1995,
         "end_year": 2022,
         "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_16/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
+        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_10/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H0",
     }
@@ -307,7 +325,9 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_16/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_10/input",
+        "product_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
+
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H4",
     }
@@ -319,6 +339,7 @@ if __name__ == "__main__":
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
         "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_10/input",
+        "product_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H5",
     }
@@ -330,6 +351,7 @@ if __name__ == "__main__":
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
         "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_10/input",
+        "product_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "SITC",
     }

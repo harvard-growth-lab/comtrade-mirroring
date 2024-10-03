@@ -35,26 +35,9 @@ class Complexity(_AtlasCleaning):
         reliable_exporters = pd.read_stata(
             os.path.join(self.raw_data_path, "obs_atlas.dta")
         )
-        # Import trade data from CID Atlas
+        # TODO: include functionality for generating SITC ccpy with ~800 products
         if self.product_class == "SITC":
-            self.df = pd.read_parquet(
-                os.path.join(
-                    self.final_output_path, "SITC", f"SITC_{self.year}.parquet"
-                )
-            )
-            if "value_final" not in self.df.columns:
-                self.df["value_final"] = self.df["export_value"]
-                self.df = self.df.rename(
-                    columns={
-                        "export_value": "value_exporter",
-                        "import_value": "value_importer",
-                    }
-                )
-                self.df.to_parquet(
-                    os.path.join(
-                        self.final_output_path, "SITC", f"SITC_{self.year}.parquet"
-                    )
-                )
+            sef.handle_sitc()
         else:
             self.df = pd.read_parquet(
                 f"data/processed/{self.product_class}_{self.year}_country_country_product_year.parquet"
@@ -712,3 +695,28 @@ class Complexity(_AtlasCleaning):
                 "gdp_pc",
             ]
         ]
+
+        
+        def handle_sitc(self):
+            """
+            Due to product incompatibility across different released version of SITC, 
+            GL uses a baseline of ~800 products 
+            """
+            self.df = pd.read_parquet(
+                os.path.join(
+                    self.final_output_path, "SITC", f"SITC_{self.year}.parquet"
+                )
+            )
+            if "value_final" not in self.df.columns:
+                self.df["value_final"] = self.df["export_value"]
+                self.df = self.df.rename(
+                    columns={
+                        "export_value": "value_exporter",
+                        "import_value": "value_importer",
+                    }
+                )
+                self.df.to_parquet(
+                    os.path.join(
+                        self.final_output_path, "SITC", f"SITC_{self.year}.parquet"
+                    )
+                )
