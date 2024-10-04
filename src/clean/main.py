@@ -128,7 +128,7 @@ def run_atlas_cleaning(ingestion_attrs):
         except Exception as e:
             print(f"failed to write ccpy to parquet: {e}")
 
-        complexity files
+        # complexity files
         complexity = Complexity(year, **ingestion_attrs)
 
         complexity.save_parquet(
