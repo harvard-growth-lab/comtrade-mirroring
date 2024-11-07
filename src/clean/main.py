@@ -299,7 +299,8 @@ if __name__ == "__main__":
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
         "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
-        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
+        # used for comparison to atlas production data and generated data
+        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
         "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas-common-data",
         "product_classification": "H0",
     }
@@ -310,8 +311,8 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_15/input",
-        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_15/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
+        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
         "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas-common-data",
         "product_classification": "H0",
     }
@@ -322,9 +323,9 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_10/input",
-        "product_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
-
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
+        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
+        "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas-common-data",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H4",
     }
@@ -335,8 +336,8 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_10/input",
-        "product_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
+        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
         "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas-common-data",
         "product_classification": "H5",
     }
@@ -347,13 +348,13 @@ if __name__ == "__main__":
         "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_09_10/input",
-        "product_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
+        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
         "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas-common-data",
         "product_classification": "SITC",
     }
 
-    run_atlas_cleaning(ingestion_attrs_H0)
-    # run_atlas_cleaning(ingestion_attrs_H4)
+    # run_atlas_cleaning(ingestion_attrs_H0)
+    run_atlas_cleaning(ingestion_attrs_H4)
     # run_atlas_cleaning(ingestion_attrs_SITC)
     # run_atlas_cleaning(ingestion_attrs_H5)

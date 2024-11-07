@@ -46,9 +46,6 @@ class CountryCountryYear(_AtlasCleaning):
 
         # read in economic indicators
         population = self.add_economic_indicators()
-        # cpi = self.inflation_adjustment(deflator)
-        # import pdb
-        # pdb.set_trace()
 
         # merge data to have all possible combinations for exporter, importer
         all_combinations_ccy_index = pd.MultiIndex.from_product(
@@ -308,7 +305,7 @@ class CountryCountryYear(_AtlasCleaning):
         """
         population and produce price index from FRED (st. louis)
         """
-        fred = pd.read_csv(os.path.join(self.atlas_common_path, "fred", "data", "fred_ppiidc.csv"))
+        fred = pd.read_csv(os.path.join(self.atlas_common_path, "imf_indicators", "data", "fred_ppiidc.csv"))
         logging.info(f"base year set to {fred.atlas_base_year.unique()}, should be same as atlas data year")
         fred = fred[['year', 'deflator']]
         fred = fred[fred.year >= 1962]
@@ -331,27 +328,3 @@ class CountryCountryYear(_AtlasCleaning):
             wdi_pop, left_on=["code", "year"], right_on=["iso", "year"], how="outer"
         ).drop(columns=["code"])
         return pop
-
-#     def inflation_adjustment(self, cpi):
-#         """ """
-        
-#         import pdb
-#         pdb.set_trace()
-#         cpi = cpi.reset_index(drop=True)
-
-#         for i, row in cpi.iterrows():
-#             if i == 0:
-#                 cpi.at[i, "cpi_index"] = 100.0
-#             else:
-#                 cpi.at[i, "cpi_index"] = cpi.iloc[i - 1]["cpi_index"] * (
-#                     1 + row.cpi / 100
-#                 )
-
-#         # sets base year at 2010
-#         base_year_cpi_index = cpi.loc[cpi.year == self.CPI_BASE_YEAR, "cpi_index"].iloc[
-#             0
-#         ]
-#         cpi["cpi_index_base"] = cpi["cpi_index"] / base_year_cpi_index
-
-#         self.save_parquet(cpi, "intermediate", "inflation_index")
-#         return cpi
