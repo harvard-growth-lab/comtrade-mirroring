@@ -55,9 +55,6 @@ class _AtlasCleaning(object):
         self.dist_cepii = pd.read_stata(
             os.path.join(self.raw_data_path, "dist_cepii.dta")
         )
-        # self.inflation = pd.read_parquet(
-        #     os.path.join("data", "raw", "inflation_index.parquet")
-        # )
         self.ans_partners = pd.read_csv(
             os.path.join(self.raw_data_path, "areas_not_specified.csv")
         )

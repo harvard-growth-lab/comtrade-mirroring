@@ -305,7 +305,7 @@ class CountryCountryYear(_AtlasCleaning):
         """
         population and produce price index from FRED (st. louis)
         """
-        fred = pd.read_csv(os.path.join(self.atlas_common_path, "imf_indicators", "data", "fred_ppiidc.csv"))
+        fred = pd.read_csv(os.path.join(self.atlas_common_path, "fred", "data", "fred_ppiidc.csv"))
         logging.info(f"base year set to {fred.atlas_base_year.unique()}, should be same as atlas data year")
         fred = fred[['year', 'deflator']]
         fred = fred[fred.year >= 1962]
