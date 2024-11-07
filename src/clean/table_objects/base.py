@@ -35,6 +35,7 @@ class _AtlasCleaning(object):
         root_dir,
         final_output_path,
         prod_output_path,
+        atlas_common_path,
         product_classification,
     ):
         # INPUTS
@@ -45,6 +46,7 @@ class _AtlasCleaning(object):
         self.data_path = os.path.join(self.root_dir, "data")
         self.final_output_path = os.path.join(final_output_path)
         self.prod_output_path = os.path.join(prod_output_path)
+        self.atlas_common_path = os.path.join(atlas_common_path)
         self.raw_data_path = os.path.join(self.data_path, "raw")
         self.intermediate_data_path = os.path.join(self.data_path, "intermediate")
         self.processed_data_path = os.path.join(self.data_path, "processed")
@@ -53,9 +55,9 @@ class _AtlasCleaning(object):
         self.dist_cepii = pd.read_stata(
             os.path.join(self.raw_data_path, "dist_cepii.dta")
         )
-        self.inflation = pd.read_parquet(
-            os.path.join("data", "raw", "inflation_index.parquet")
-        )
+        # self.inflation = pd.read_parquet(
+        #     os.path.join("data", "raw", "inflation_index.parquet")
+        # )
         self.ans_partners = pd.read_csv(
             os.path.join(self.raw_data_path, "areas_not_specified.csv")
         )
