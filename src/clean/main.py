@@ -19,6 +19,7 @@ from clean.table_objects.country_country_product_year import CountryCountryProdu
 from clean.table_objects.complexity import Complexity
 
 import logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -51,11 +52,14 @@ def run_atlas_cleaning(ingestion_attrs):
     dist = pd.read_stata(os.path.join("data", "raw", "dist_cepii.dta"))
 
     for year in range(start_year, end_year + 1):
-        if product_classification == "SITC":
-            break
-        classifications = [product_classification]
-        # removed classifications merge step, not needed
-        # classifications = get_classifications(year)
+        if product_classification == "SITC" and year > 1994:
+            # use cleaned CCPY H0 data for SITC
+            continue
+        elif product_classification == "SITC":
+            classifications = get_classifications(year)
+        else:
+            classifications = [product_classification]
+        
         logging.info(
             f"Aggregating data for {year} and these classifications {classifications}"
         )
@@ -67,38 +71,44 @@ def run_atlas_cleaning(ingestion_attrs):
     logging.info("Completed data aggregations, starting next loop")
 
     for year in range(start_year, end_year + 1):
-        if product_classification != "SITC":
-            # depending on year, merge multiple classifications, take median of values
-            # df = merge_classifications(year, ingestion_attrs["root_dir"])
-            # compute distance requires three years of aggregated data
-            logging.info(f"Beginning compute distance for year {year}")
-            df = compute_distance(year, product_classification, dist)
+        # if product_classification == "SITC":
+        #     product_classification = get_classifications(year)[0]
+        if product_classification=="SITC" and year > 1994:
+            # use cleaned CCPY H0 data for SITC
+            continue
+            
+        # compute distance requires three years of aggregated data
+        logging.info(f"Beginning compute distance for year {year}")
+        df = compute_distance(year, product_classification, dist)
 
-            # country country year intermediate file, passed into CCY object
-            df.to_parquet(
-                os.path.join(
-                    ingestion_attrs["root_dir"],
-                    "data",
-                    "intermediate",
-                    f"{product_classification}_{year}.parquet",
-                ),
-                index=False,
-            )
-
-            ccy = CountryCountryYear(year, **ingestion_attrs)
-
-            ccy.save_parquet(
-                ccy.df,
+        # country country year intermediate file, passed into CCY object
+        df.to_parquet(
+            os.path.join(
+                ingestion_attrs["root_dir"],
+                "data",
                 "intermediate",
-                f"{product_classification}_{year}_country_country_year",
-            )
+                f"{product_classification}_{year}.parquet",
+            ),
+            index=False,
+        )
+        del df
 
-            accuracy = Accuracy(year, **ingestion_attrs)
-            logging.info("confirm CIF ratio column is present")
+        ccy = CountryCountryYear(year, **ingestion_attrs)
 
-            accuracy.save_parquet(
-                accuracy.df, "intermediate", f"{product_classification}_{year}_accuracy"
-            )
+        ccy.save_parquet(
+            ccy.df,
+            "intermediate",
+            f"{product_classification}_{year}_country_country_year",
+        )
+        del ccy.df
+
+        accuracy = Accuracy(year, **ingestion_attrs)
+        logging.info("confirm CIF ratio column is present")
+
+        accuracy.save_parquet(
+            accuracy.df, "intermediate", f"{product_classification}_{year}_accuracy"
+        )
+        del accuracy.df
 
         ccpy = CountryCountryProductYear(year, **ingestion_attrs)
 
@@ -107,23 +117,19 @@ def run_atlas_cleaning(ingestion_attrs):
             "processed",
             f"{product_classification}_{year}_country_country_product_year",
         )
-        try:
-            os.makedirs(ccpy.final_output_path, exist_ok=True)
-            os.makedirs(
-                os.path.join(ccpy.final_output_path, f"{product_classification}"),
-                exist_ok=True,
-            )
+        ccpy.save_parquet(ccpy.df, "final", f"{product_classification}_{year}")
 
-            ccpy.df.to_parquet(
-                os.path.join(
-                    ccpy.final_output_path,
-                    f"{product_classification}",
-                    f"{product_classification}_{year}.parquet",
-                ),
-                index=False,
+        # handle SITC CCPY by running H0 through conversion table
+        if product_classification == "H0":
+            converted_table = ConcordanceTable(ccpy.df, product_classification, "S2")
+            ccpy.save_parquet(
+                converted_table.df,
+                "processed",
+                f"SITC_{year}_country_country_product_year",
             )
-        except Exception as e:
-            print(f"failed to write ccpy to parquet: {e}")
+            ccpy.save_parquet(converted_table.df, "final", f"SITC_{year}", "SITC")
+            del converted_table.df
+        del ccpy.df
 
         # complexity files
         complexity = Complexity(year, **ingestion_attrs)
@@ -133,6 +139,8 @@ def run_atlas_cleaning(ingestion_attrs):
             "processed",
             f"{product_classification}_{year}_complexity",
         )
+        del complexity.df
+
         logging.info(
             f"end time for {year}: {strftime('%Y-%m-%d %H:%M:%S', localtime())}"
         )
@@ -149,19 +157,11 @@ def run_atlas_cleaning(ingestion_attrs):
         "processed",
         f"{product_classification}_complexity_all",
     )
-    try:
-        os.makedirs(os.path.join(complexity.final_output_path, "CPY"), exist_ok=True)
-        complexity_all.to_parquet(
-            os.path.join(
-                complexity.final_output_path,
-                "CPY",
-                f"{product_classification}_cpy_all.parquet",
-            ),
-            index=False,
-        )
-    except Exception as e:
-        print(f"failed to write complexity to parquet: {e}")
-        
+    complexity.save_parquet(
+        complexity_all, "final", f"{product_classification}_cpy_all", "CPY"
+    )
+    del complexity_all
+
     comparison = complexity.compare_files()
     logging.info(f"review of compared files {comparison}")
 
@@ -184,7 +184,7 @@ def compute_distance(year, product_classification, dist):
             logging.error(f"Didn't download year: {wrap_year}")
 
         df = pd.concat([df, df_lag_lead])
-        
+
     dist.loc[dist["exporter"] == "ROU", "exporter"] = "ROM"
     dist.loc[dist["importer"] == "ROU", "exporter"] = "ROM"
 
@@ -239,11 +239,14 @@ def compute_distance(year, product_classification, dist):
         "beta_contig": coefficients[1],
     }
 
-    df.loc[df["year"] == year, "tau"] = res["c"] +(res["beta_dist"] * df["lndist"]) + (res["beta_contig"] * df["contig"])
+    df.loc[df["year"] == year, "tau"] = (
+        res["c"]
+        + (res["beta_dist"] * df["lndist"])
+        + (res["beta_contig"] * df["contig"])
+    )
 
     # clean up compute dist df
     del compute_dist_df
-    
 
     df.loc[(df["year"] == year) & (df["tau"] < 0) & (df["tau"].notna()), "tau"] = 0
     df.loc[(df["year"] == year) & (df["tau"] > 0.2) & (df["tau"].notna()), "tau"] = 0.2
@@ -263,7 +266,6 @@ def compute_distance(year, product_classification, dist):
     df.loc[
         (df["lnoneplust"] < 0) & (df["import_value_fob"].isna()), "import_value_fob"
     ] = df["import_value_cif"]
-    
 
     return df[
         [
@@ -291,70 +293,69 @@ def run_stata_code(df, stata_code):
 
 
 if __name__ == "__main__":
-    
     ingestion_attrs = {
         "start_year": 2021,
-        "end_year": 2022,
+        "end_year": 2023,
         "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_14/input",
         # used for comparison to atlas production data and generated data
         "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
-        "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas-common-data",
+        "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
         "product_classification": "H0",
     }
 
     ingestion_attrs_H0 = {
         "start_year": 1995,
-        "end_year": 2022,
-        "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
+        "end_year": 2023,
+        "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
-        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
-        "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas-common-data",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2025_01_14/input",
+        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
+        "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
         "product_classification": "H0",
     }
 
     ingestion_attrs_H4 = {
         "start_year": 2012,
-        "end_year": 2022,
-        "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
+        "end_year": 2023,
+        "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
-        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
-        "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas-common-data",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2025_01_14/input",
+        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
+        "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
         # "root_dir": "/media/psf/AllFiles/Users/ELJ479/projects/atlas_cleaning/src",
         "product_classification": "H4",
     }
 
     ingestion_attrs_H5 = {
         "start_year": 2017,
-        "end_year": 2022,
-        "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
+        "end_year": 2023,
+        "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
-        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
-        "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas-common-data",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2025_01_14/input",
+        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
+        "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
         "product_classification": "H5",
     }
 
     ingestion_attrs_SITC = {
         "start_year": 1962,
-        "end_year": 2022,
-        "downloaded_files_path": "../../../../_shared_dev_data/compactor_output/atlas_update/",
+        "end_year": 2023,
+        "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
         # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
         "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
-        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_10_02_copy/input",
-        "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas-common-data",
+        "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2025_01_14/input",
+        "prod_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_06/input",
+        "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
         "product_classification": "SITC",
     }
 
-    # run_atlas_cleaning(ingestion_attrs_H0)
+    run_atlas_cleaning(ingestion_attrs_H0)
+    run_atlas_cleaning(ingestion_attrs_SITC)
     run_atlas_cleaning(ingestion_attrs_H4)
-    # run_atlas_cleaning(ingestion_attrs_SITC)
     # run_atlas_cleaning(ingestion_attrs_H5)

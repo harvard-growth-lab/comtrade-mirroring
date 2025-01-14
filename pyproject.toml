@@ -18,6 +18,8 @@ pystata = "^0.0.1"
 stata-setup = "^0.1.3"
 comtradeapicall = "^1.2.1"
 ecomplexity = { git = "git@github.com:cid-harvard/py-ecomplexity-clean.git", branch = "intermediate_pci_val" }
+regex = "^2024.11.6"
+openpyxl = "^3.1.5"
 
 
 [build-system]

@@ -111,17 +111,15 @@ class CountryCountryYear(_AtlasCleaning):
         Drop all exporter and importers with populations below the population limit
         to reduce noise when determining accuracy scores
         """
-        
+
         population = population[population.year == self.year].drop(columns=["year"])
-        population.loc[population["imf_pop"].isna(), "imf_pop"] = population[
-            "wdi_pop"
-        ]
+        population.loc[population["imf_pop"].isna(), "imf_pop"] = population["wdi_pop"]
         population = population.rename(columns={"imf_pop": "imf_wdi_pop"})
 
         countries_under_threshold = population[
             population.imf_wdi_pop < self.population_threshold
         ]["iso"].tolist()
-        
+
         self.df = self.df[
             ~(
                 (self.df.exporter.isin(countries_under_threshold))
@@ -194,7 +192,9 @@ class CountryCountryYear(_AtlasCleaning):
 
         # converts exports, import values to constant dollar values
         for col in ["export_value_fob", "import_value_fob"]:
-            self.df[col] = self.df[col] / fred[fred.year==self.year]['deflator'].iloc[0]
+            self.df[col] = (
+                self.df[col] / fred[fred.year == self.year]["deflator"].iloc[0]
+            )
 
             # fill na here verified
         # foreach j in exportvalue_fob importvalue_fob importvalue_cif {
@@ -206,7 +206,7 @@ class CountryCountryYear(_AtlasCleaning):
         ].fillna(0)
 
         self.df = self.df.drop(
-            columns=["import_value_cif"]  # , "cif_ratio"] "cpi_index_base", 
+            columns=["import_value_cif"]  # , "cif_ratio"] "cpi_index_base",
         )
         # in stata v_e and v_i
         self.df = self.df.rename(
@@ -215,7 +215,7 @@ class CountryCountryYear(_AtlasCleaning):
                 "import_value_fob": "imports_const_usd",
             }
         )
-        
+
         # trade below threshold is zeroed
         self.df.loc[
             self.df.exports_const_usd < self.flow_limit, "exports_const_usd"
@@ -305,18 +305,21 @@ class CountryCountryYear(_AtlasCleaning):
         """
         population and produce price index from FRED (st. louis)
         """
-        fred = pd.read_csv(os.path.join(self.atlas_common_path, "fred", "data", "fred_ppiidc.csv"))
-        logging.info(f"base year set to {fred.atlas_base_year.unique()}, should be same as atlas data year")
-        fred = fred[['year', 'deflator']]
+        fred = pd.read_csv(
+            os.path.join(self.atlas_common_path, "fred", "data", "fred_ppiidc.csv")
+        )
+        logging.info(
+            f"base year set to {fred.atlas_base_year.unique()}, should be same as atlas data year"
+        )
+        fred = fred[["year", "deflator"]]
         fred = fred[fred.year >= 1962]
         self.save_parquet(fred, "intermediate", "fred_index")
-        
+
         # population
         wdi_pop = (
-            pd.read_stata(
-                self.wdi_path, columns=["year", "iso", "sp_pop_totl"]
-            )
-            .reset_index(drop=True).rename(columns={"sp_pop_totl":"wdi_pop"})
+            pd.read_stata(self.wdi_path, columns=["year", "iso", "sp_pop_totl"])
+            .reset_index(drop=True)
+            .rename(columns={"sp_pop_totl": "wdi_pop"})
         )
 
         imf_pop = pd.read_csv(

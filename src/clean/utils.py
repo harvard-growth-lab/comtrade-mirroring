@@ -12,14 +12,14 @@ def get_classifications(year):
     classifications = []
     if year >= 1976 and year < 1995:
         classifications.append("S2")
-    if year >= 1988 and year <= 2003:
-        classifications.append("S3")
-    if year >= 1994:
-        classifications.append("H0")
-        classifications.append("HS")
-    if year <= 2003:
-        classifications.append("ST")
-    if year <= 1985:
+    # if year >= 1988 and year <= 2003 and product_classification=="SITC":
+    #     classifications.append("S3")
+    # if year >= 1994:
+    #     classifications.append("H0")
+    #     classifications.append("HS")
+    # if year <= 2003  and product_classification=="SITC"::
+    #     classifications.append("ST")
+    if year >= 1962 and year < 1976:
         classifications.append("S1")
 
     logging.info(

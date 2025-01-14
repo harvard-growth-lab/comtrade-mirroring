@@ -13,14 +13,14 @@ from clean.table_objects.base import _AtlasCleaning
 
 class AggregateTrade(_AtlasCleaning):
     COLUMNS_DICT_COMPACTOR = {
-        "period": "year",
+        # "period": "year",
         "digitLevel": "product_level",
         "flowCode": "trade_flow",
         "reporterISO3": "reporter_iso",
         "partnerISO3": "partner_iso",
         "cmdCode": "commodity_code",
         "primaryValue": "trade_value",
-        "qty": "qty",
+        # "qty": "qty",
     }
     COLUMNS_DICT = {
         "Year": "year",
@@ -32,7 +32,7 @@ class AggregateTrade(_AtlasCleaning):
         "Partner ISO": "partner_iso",
         "Commodity Code": "commodity_code",
         "Trade Value (US$)": "trade_value",
-        "Qty": "qty",
+        # "Qty": "qty",
     }
 
     def __init__(self, year, product_class, **kwargs):
@@ -62,6 +62,9 @@ class AggregateTrade(_AtlasCleaning):
         # filter and clean data
         self.filter_data()
         
+        if self.product_class in ["S1", "S2"]:
+                self.product_class = "SITC"
+
         self.save_parquet(
             self.df, "intermediate", f"cleaned_{self.product_class}_{self.year}"
         )
@@ -69,7 +72,6 @@ class AggregateTrade(_AtlasCleaning):
         self.df = self.df[self.df["trade_flow"].isin([1, 2])]
         self.label_unspecified_products()
 
-        logging.info(f"Size after unspecified products dataframe {self.df.shape}")
         self.handle_germany_reunification()
 
         # returns bilateral data
@@ -87,6 +89,7 @@ class AggregateTrade(_AtlasCleaning):
         self.df = self.df[
             ["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
         ]
+        
 
         self.save_parquet(
             self.df, "intermediate", f"{self.product_class}_{self.year}_aggregated"
@@ -135,6 +138,7 @@ class AggregateTrade(_AtlasCleaning):
                     ),
                     columns=self.COLUMNS_DICT_COMPACTOR.keys(),
                 )
+
             except:
                 logging.error(f"{self.year} not stored as a parquet file")
                 try:
@@ -149,10 +153,8 @@ class AggregateTrade(_AtlasCleaning):
                     )
                 except:
                     error_message = f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate"
-                    # raise ValueError(error_message)
-        logging.info(f"data shape before drop {df.shape}")
+                    raise ValueError(error_message)
         df = df.dropna(axis=0, how="all")
-        logging.info(f"data shape after drop {df.shape}")
         return df.rename(columns=columns)
 
     def filter_data(self):
@@ -165,8 +167,13 @@ class AggregateTrade(_AtlasCleaning):
             self.df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_class])
         ]
         # TODO how do I handle reimports and reexports (SEBA question)
-        self.df.loc[:, "trade_flow"] = self.df["trade_flow"].replace(
-            {"M": 1, "X": 2, "RM": 3, "RX": 4}
+        trade_flow_mapping = {"M": 1, "X": 2, "RM": 3, "RX": 4}
+
+        # Method 1: Using map (preferred)
+        self.df.loc[:, "trade_flow"] = (
+            self.df["trade_flow"]
+            .map(trade_flow_mapping)
+            .astype('int8', copy=False)
         )
         try:
             self.df["trade_flow"] = self.df["trade_flow"].astype(str).astype(int)
@@ -239,13 +246,8 @@ class AggregateTrade(_AtlasCleaning):
             self.df["reporter_iso"].isin(["RUS", "SUN"]), "reporter_iso"
         ] = "RUS"
         # south africa union (ZA1) is south africa (ZAF)
-        self.df.loc[
-            self.df["reporter_iso"].isin(["ZA1"]), "reporter_iso"
-        ] = "ZAF"
-        self.df.loc[
-            self.df["partner_iso"].isin(["ZA1"]), "partner_iso"
-        ] = "ZAF"
-
+        self.df.loc[self.df["reporter_iso"].isin(["ZA1"]), "reporter_iso"] = "ZAF"
+        self.df.loc[self.df["partner_iso"].isin(["ZA1"]), "partner_iso"] = "ZAF"
 
     def aggregate_data(self, level):
         """
@@ -256,7 +258,7 @@ class AggregateTrade(_AtlasCleaning):
         df = self.df[self.df.product_level == level]
         df = (
             df.groupby(
-                ["year", "trade_flow", "product_level", "reporter_iso", "partner_iso"]
+                ["trade_flow", "product_level", "reporter_iso", "partner_iso"]
             )
             .agg({"trade_value": "sum", "reporter_ansnoclas": "sum"})
             .reset_index()

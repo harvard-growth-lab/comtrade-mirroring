@@ -7,7 +7,7 @@ import logging
 import dask.dataframe as dd
 import cProfile
 
-# using a cloned repo in order to return a non normalized pci value 
+# using a cloned repo in order to return a non normalized pci value
 # intermediate_pci_val
 from ecomplexity import ecomplexity
 from ecomplexity import proximity
@@ -34,30 +34,28 @@ class Complexity(_AtlasCleaning):
 
         self.preprocess_data()
         self.filter_countries_and_noisy_commodities()
-        
+
         mcp = self.calculate_mcp()
         self.filter_least_traded_products(mcp)
         # delete mcp?
-        
-        self.calculate_ecomplexity()
-        
-        prody = self.most_reliable_country_metrics()
-        
-        all_countries = self.all_countries_less_least_traded_product_metrics(prody)
-        
-        all_cp = self.all_countries_all_products_metrics(all_countries)
-        
-        
-        all_cp = self.growth_opportunity_metrics(all_cp)
-        
-        self.merge_data(all_cp, all_countries)
-        
-        self.standardize_metrics()
-        
-        self.backfill_complexity_by_data_reliability()
-        
-        self.prepare_output_data()
 
+        self.calculate_ecomplexity()
+
+        prody = self.most_reliable_country_metrics()
+
+        all_countries = self.all_countries_less_least_traded_product_metrics(prody)
+
+        all_cp = self.all_countries_all_products_metrics(all_countries)
+
+        all_cp = self.growth_opportunity_metrics(all_cp)
+
+        self.merge_data(all_cp, all_countries)
+
+        self.standardize_metrics()
+
+        self.backfill_complexity_by_data_reliability()
+
+        self.prepare_output_data()
 
     def load_data(self):
         self.aux_stats = pd.read_csv(
@@ -66,7 +64,7 @@ class Complexity(_AtlasCleaning):
         self.reliable_exporters = pd.read_stata(
             os.path.join(self.raw_data_path, "obs_atlas.dta")
         )
-        
+
         # TODO: include functionality for generating SITC ccpy with ~800 products
         if self.product_class == "SITC":
             self.handle_sitc()
@@ -75,16 +73,13 @@ class Complexity(_AtlasCleaning):
                 f"data/processed/{self.product_class}_{self.year}_country_country_product_year.parquet"
             )
 
-
     def handle_sitc(self):
         """
-        Due to product incompatibility across different released version of SITC, 
-        GL uses a baseline of ~800 products 
+        Due to product incompatibility across different released version of SITC,
+        GL uses a baseline of ~800 products
         """
         self.df = pd.read_parquet(
-            os.path.join(
-                self.final_output_path, "SITC", f"SITC_{self.year}.parquet"
-            )
+            os.path.join(self.final_output_path, "SITC", f"SITC_{self.year}.parquet")
         )
         if "value_final" not in self.df.columns:
             self.df["value_final"] = self.df["export_value"]
@@ -102,7 +97,7 @@ class Complexity(_AtlasCleaning):
 
     def preprocess_data(self):
         """
-        Manipulates final trade value to display, export and import value. 
+        Manipulates final trade value to display, export and import value.
         Rectangularizes trade data and fills in nan values with zeroes. This step
         is a preprocessing step before using Growth Lab's py-ecomplexity package
         """
@@ -149,21 +144,22 @@ class Complexity(_AtlasCleaning):
             ["import_value", "export_value"]
         ].fillna(0.0)
 
-
     def filter_countries_and_noisy_commodities(self):
         """
         Filter country and product list to highest level of data quality based on historical
-        precedent. 
-        
+        precedent.
+
         Based on a predetermined list of the historically most-reliable country reporters only
-        include most reliable reporters. Remove traditionally noisy commodity codes. 
-        
+        include most reliable reporters. Remove traditionally noisy commodity codes.
+
         Return filtered dataframe
         """
         self.aux_stats = self.aux_stats[self.aux_stats.year == self.year]
 
         self.df = self.df.merge(
-            self.aux_stats[["exporter", "population", "gdp_pc"]], on=["exporter"], how="left"
+            self.aux_stats[["exporter", "population", "gdp_pc"]],
+            on=["exporter"],
+            how="left",
         )
 
         self.df["population"] = self.df["population"].fillna(0)
@@ -212,7 +208,7 @@ class Complexity(_AtlasCleaning):
         drop_commodities = total_by_commodity[total_by_commodity.export_value == 0.0][
             "commoditycode"
         ].tolist()
-        
+
         if drop_countries or drop_commodities:
             self.df = self.df[~self.df.exporter.isin(drop_countries)]
             self.df = self.df[~self.df.commoditycode.isin(drop_commodities)]
@@ -237,15 +233,14 @@ class Complexity(_AtlasCleaning):
         self.df = self.df[
             ~self.df.commoditycode.isin(self.NOISY_TRADE[self.product_classification])
         ]
-        
-        
+
     def calculate_mcp(self):
         """
-        Calculates the revealed comparative advantage, we use Balassa’s definition, 
-        which says that a country is an effective exporter of a product if it exports 
-        more than its “fair share,” or a share that is at least equal to the share of total 
+        Calculates the revealed comparative advantage, we use Balassa’s definition,
+        which says that a country is an effective exporter of a product if it exports
+        more than its “fair share,” or a share that is at least equal to the share of total
         world trade that the product represents (RCA greater than 1) and groups the data
-        by commodity codes in order to count the number of rca>=1 products 
+        by commodity codes in order to count the number of rca>=1 products
         """
         # preserve
         df = self.df.copy(deep=True)
@@ -267,7 +262,7 @@ class Complexity(_AtlasCleaning):
             df["export_value"]
             / (df.groupby("commoditycode")["export_value"].transform("sum"))
         ) ** 2
-        
+
         # df becomes the count of cases where rca>=1 for each commoditycode
         return (
             df[["commoditycode", "export_value", "HH_index", "mcp"]]
@@ -276,16 +271,14 @@ class Complexity(_AtlasCleaning):
             .reset_index()
         )
 
-        
-        
     def filter_least_traded_products(self, df):
         """
         Removes products based on three criteria:
-        
+
             1. products share of world trade is less than 2.5%
-            2. based on the Herfindahl-Hirschman Index effective exporters are 2 or less 
-            3. number of countries with a revealed comparative advantage for the product is 2 or less 
-            
+            2. based on the Herfindahl-Hirschman Index effective exporters are 2 or less
+            3. number of countries with a revealed comparative advantage for the product is 2 or less
+
         Returns filtered data frame
         """
         df["share"] = 100 * (df["export_value"] / df.export_value.sum())
@@ -307,14 +300,11 @@ class Complexity(_AtlasCleaning):
         df.loc[df["export_value"] < 1, "exclude_flag"] = 1
 
         # dropping products
-        drop_products_list = (
-            df[df.exclude_flag == 1]["commoditycode"].unique().tolist()
-        )
+        drop_products_list = df[df.exclude_flag == 1]["commoditycode"].unique().tolist()
 
         # drop least traded products
         self.df = self.df[~self.df["commoditycode"].isin(drop_products_list)]
-        
-        
+
     def calculate_ecomplexity(self):
         self.df["year"] = self.year
 
@@ -363,13 +353,12 @@ class Complexity(_AtlasCleaning):
             how="left",
         )
 
-        
     def rectangularize_data(self, df):
         """
-        Manipulates df shape for matrix multiplication. Each exporter has has row for each 
+        Manipulates df shape for matrix multiplication. Each exporter has has row for each
         commodity code
         """
-        
+
         combinations = pd.DataFrame(
             index=(
                 pd.MultiIndex.from_product(
@@ -381,9 +370,7 @@ class Complexity(_AtlasCleaning):
                 )
             )
         )
-        df = combinations.merge(
-            df, on=["exporter", "commoditycode"], how="left"
-        )
+        df = combinations.merge(df, on=["exporter", "commoditycode"], how="left")
         # fill na with zero
         # df["export_value"] = all_countries["export_value"].fillna(0)
         return df
@@ -418,10 +405,7 @@ class Complexity(_AtlasCleaning):
         self.df["pci_reliable"] = (self.df["pci_normalized"] - pci.mean()) / pci.std()
         return prody
 
-    
-    
     def all_countries_less_least_traded_product_metrics(self, prody):
-                
         keep_commodity_list = self.df.commoditycode.unique().tolist()
 
         # reload full data for all countries
@@ -433,11 +417,10 @@ class Complexity(_AtlasCleaning):
         all_countries = all_countries[
             all_countries.commoditycode.isin(keep_commodity_list)
         ]
-        
+
         all_countries = self.rectangularize_data(all_countries)
         all_countries["export_value"] = all_countries["export_value"].fillna(0)
 
-        
         num_commodities = len(keep_commodity_list)
 
         all_countries["rca"] = (
@@ -480,23 +463,21 @@ class Complexity(_AtlasCleaning):
         )
 
         eci = all_countries.groupby("exporter")["eci"].agg("first")
-        
+
         # validated eci2, eci2 in mata is different than eci2 in stata
         all_countries["eci_all_countries"] = (
             all_countries["eci"] - eci.mean()
         ) / eci.std()
-        
+
         return all_countries
-    
-    
+
     def all_countries_all_products_metrics(self, all_countries):
-        """
-        """
+        """ """
         all_cp = self.load_parquet(
             "intermediate",
             f"{self.product_classification}_{self.year}_complexity_all_countries",
         )[["exporter", "commoditycode", "export_value", "gdp_pc", "import_value"]]
-        
+
         all_cp = self.rectangularize_data(all_cp)
         all_cp[["export_value", "import_value"]] = all_cp[
             ["export_value", "import_value"]
@@ -539,10 +520,8 @@ class Complexity(_AtlasCleaning):
         all_cp["prody"] = all_cp.groupby("commoditycode")["prody"].transform("sum")
         return all_cp
 
-    
     def growth_opportunity_metrics(self, all_cp):
-        """
-        """
+        """ """
         logging.info("Creating the product space for all countries & all products")
         # mata C = M'*M
         all_cp_mcp = all_cp.pivot(
@@ -566,7 +545,7 @@ class Complexity(_AtlasCleaning):
         all_cp_proximity = (
             product_x + product_y - abs(product_x - product_y)
         ) / 2 - np.identity(all_cp_mcp.shape[1])
-        
+
         # mata density3 = proximity' :/ (J(Nps,Nps,1) * proximity')
         # all_cp_proximity = all_cp_proximity.fillna(0)
         all_cp_density = all_cp_proximity.T.div(
@@ -604,12 +583,12 @@ class Complexity(_AtlasCleaning):
             ).fillna(0)
         )
 
-        all_cp_metrics =  {
+        all_cp_metrics = {
             "density": all_cp_density.T,
             "opportunity_value": opportunity_value.T,
             "opportunity_gain": opportunity_gain.T,
         }
-    
+
         all_cp_metrics_df = pd.concat(
             [df.add_prefix(f"{name}_") for name, df in all_cp_metrics.items()],
             join="inner",
@@ -630,11 +609,9 @@ class Complexity(_AtlasCleaning):
         )
         all_cp = all_cp.rename({"prody": "prody_allcp", "density": "density_allcp"})
         return all_cp
-    
-    
+
     def merge_data(self, all_cp, all_countries):
-        """
-        """
+        """ """
         self.df = self.df.rename(
             columns={
                 "density": "density_reliable",
@@ -694,11 +671,9 @@ class Complexity(_AtlasCleaning):
         self.df = self.df.merge(
             all_countries[use_cols], on=["exporter", "commoditycode"], how="outer"
         )
-        
-        
+
     def standardize_metrics(self):
-        """
-        """
+        """ """
         for col in ["eci_reliable", "eci_all_countries", "expy_all_countries"]:
             self.df["mean_val"] = self.df.groupby("exporter")[col].transform("mean")
             self.df.loc[self.df[col].isna(), col] = self.df["mean_val"]
@@ -717,12 +692,8 @@ class Complexity(_AtlasCleaning):
             self.df["opportunity_value_allcp"].notna(), "opportunity_value_allcp"
         ] = (self.df["opportunity_value_allcp"] - np.mean(opp_val)) / np.std(opp_val)
 
-
-    
-    
     def backfill_complexity_by_data_reliability(self):
-        """
-        """
+        """ """
         measures = {
             "rca": ["rca_reliable", "rca_all_countries", "rca_allcp"],
             "eci": ["eci_reliable", "eci_all_countries"],
@@ -740,9 +711,7 @@ class Complexity(_AtlasCleaning):
         for measure, replacement_vals in measures.items():
             self.df[measure] = self.df[replacement_vals].bfill(axis=1).iloc[:, 0]
             self.df = self.df.drop(columns=replacement_vals)
-            
-            
-            
+
     def prepare_output_data(self):
         """
         Align data to meet expected data formats, dropping unecessary columns
@@ -810,13 +779,3 @@ class Complexity(_AtlasCleaning):
                 "gdp_pc",
             ]
         ]
-
-
-
-
-
-
-
-
-
-

@@ -70,17 +70,27 @@ class _AtlasCleaning(object):
         df = pd.read_parquet(os.path.join(read_dir, f"{table_name}.parquet"))
         return df
 
-    def save_parquet(self, df, data_folder, table_name: str):
+    def save_parquet(
+        self,
+        df,
+        data_folder,
+        table_name: str,
+        product_classification='',
+    ):
+        if product_classification=='':
+            product_classification = self.product_classification
         if data_folder == "final":
-            save_dir = os.path.join(
-                self.final_output_path, f"{self.product_classification}"
-            )
+            os.makedirs(self.final_output_path, exist_ok=True)
+            save_dir = os.path.join(self.final_output_path, f"{product_classification}")
         else:
             save_dir = os.path.join(self.data_path, data_folder)
+        os.makedirs(save_dir, exist_ok=True)
         save_path = os.path.join(save_dir, f"{table_name}.parquet")
         df.to_parquet(save_path, index=False)
 
-    def compare_files(self, skip=['classification', 'services_bilateral', 'services_unilateral']):
+    def compare_files(
+        self, skip=["classification", "services_bilateral", "services_unilateral"]
+    ):
         """
         Compares two Parquet files for exact data match using pyarrow.
 
@@ -92,10 +102,12 @@ class _AtlasCleaning(object):
         for folder in [x[0] for x in os.walk(self.final_output_path)][1:]:
             if folder not in skip:
                 for file in glob.glob(os.path.join(folder, "*.parquet")):
-                    file_name = file.split('/')[-1]
-                    df1 = pq.read_table(os.path.join(self.prod_output_path, folder, file_name))
-                    df2 = pq.read_table(os.path.join(self.final_output_path, folder, file_name))
+                    file_name = file.split("/")[-1]
+                    df1 = pq.read_table(
+                        os.path.join(self.prod_output_path, folder, file_name)
+                    )
+                    df2 = pq.read_table(
+                        os.path.join(self.final_output_path, folder, file_name)
+                    )
                     comparison[file_name] = df1.equals(df2)
         return comparison
-                                      
-            
