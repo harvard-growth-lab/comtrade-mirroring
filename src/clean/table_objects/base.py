@@ -34,7 +34,7 @@ class _AtlasCleaning(object):
         downloaded_files_path,
         root_dir,
         final_output_path,
-        prod_output_path,
+        comparison_file_path,
         atlas_common_path,
         product_classification,
     ):
@@ -45,7 +45,7 @@ class _AtlasCleaning(object):
         self.root_dir = root_dir
         self.data_path = os.path.join(self.root_dir, "data")
         self.final_output_path = os.path.join(final_output_path)
-        self.prod_output_path = os.path.join(prod_output_path)
+        self.comparison_file_path = os.path.join(comparison_file_path)
         self.atlas_common_path = os.path.join(atlas_common_path)
         self.raw_data_path = os.path.join(self.data_path, "raw")
         self.intermediate_data_path = os.path.join(self.data_path, "intermediate")
@@ -65,6 +65,19 @@ class _AtlasCleaning(object):
 
         self.wdi_path = os.path.join(self.raw_data_path, "wdi_extended.dta")
 
+    def get_attrs(self):
+        return {
+            "start_year": self.start_year,
+            "end_year": self.end_year,
+            "downloaded_files_path": self.downloaded_files_path,
+            "root_dir": self.root_dir,
+            "final_output_path": self.final_output_path,
+            # used for comparison to atlas production data and generated data
+            "comparison_file_path": self.comparison_file_path,
+            "atlas_common_path": self.atlas_common_path,
+            "product_classification": self.product_classification,
+            }
+    
     def load_parquet(self, data_folder, table_name: str):
         read_dir = os.path.join(self.root_dir, "data", data_folder)
         df = pd.read_parquet(os.path.join(read_dir, f"{table_name}.parquet"))

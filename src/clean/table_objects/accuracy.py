@@ -24,7 +24,7 @@ class Accuracy(_AtlasCleaning):
         self.df = pd.DataFrame()
 
         # load data
-        nominal_dollars_df = self.load_parquet("intermediate", "ccy_nominal_dollars")
+        nominal_dollars_df = self.load_parquet("intermediate", f"{self.product_classification}_ccy_nominal_dollars")
 
         self.ccy = self.load_parquet(
             f"intermediate",
@@ -286,9 +286,6 @@ class Accuracy(_AtlasCleaning):
         Series of filtered data based on Nan values with applied conditions to determine
         estimated trade value. Uses accuracy scores and relative percentage of imports and exports
         """
-
-        # import pdb
-        # pdb.set_trace()
         # est trade value only if accuracy scores and trade values are not nan
         filtered_df = self.df[
             (
@@ -297,14 +294,11 @@ class Accuracy(_AtlasCleaning):
                 & (self.df["import_value_fob"].notna())
                 & (self.df["export_value_fob"].notna())
             )
-        ]
-
-        filtered_df["est_trade_value"] = (
-            filtered_df["export_value_fob"] * filtered_df["weight"]
-        ) + (filtered_df["import_value_fob"] * (1 - filtered_df["weight"]))
+        ].copy()
+        
+        filtered_df.loc[:, "est_trade_value"] = (filtered_df["export_value_fob"] * filtered_df["weight"]) + (filtered_df["import_value_fob"] * (1 - filtered_df["weight"]))
 
         self.df = self.df.combine_first(filtered_df)
-        # self.df = self.df.merge(filtered_df[['exporter', 'importer', 'est_trade_value']], on=['exporter', 'importer'], how='left')
 
         # est trade value only if accuracy scores are not nan
         filtered_df = self.df[
@@ -315,14 +309,14 @@ class Accuracy(_AtlasCleaning):
             )
         ]
 
-        filtered_df["est_trade_value"] = filtered_df[
+        filtered_df.loc[:, "est_trade_value"] = filtered_df[
             (
                 (filtered_df["exporter_accuracy_score"] < export_percentiles[0.50])
                 & (filtered_df["importer_accuracy_score"] >= import_percentiles[0.90])
             )
         ]["import_value_fob"]
 
-        filtered_df["est_trade_value"] = filtered_df[
+        filtered_df.loc[:, "est_trade_value"] = filtered_df[
             (
                 (filtered_df["est_trade_value"].isna())
                 & (filtered_df["exporter_accuracy_score"] >= export_percentiles[0.90])
@@ -330,7 +324,7 @@ class Accuracy(_AtlasCleaning):
             )
         ]["export_value_fob"]
 
-        filtered_df["est_trade_value"] = filtered_df[
+        filtered_df.loc[:, "est_trade_value"] = filtered_df[
             (
                 (filtered_df["est_trade_value"].isna())
                 & (self.df["exporter_accuracy_score"] < export_percentiles[0.25])
@@ -338,7 +332,7 @@ class Accuracy(_AtlasCleaning):
             )
         ]["import_value_fob"]
 
-        filtered_df["est_trade_value"] = filtered_df[
+        filtered_df.loc[:, "est_trade_value"] = filtered_df[
             (
                 (filtered_df["est_trade_value"].isna())
                 & (self.df["exporter_accuracy_score"] >= export_percentiles[0.75])
@@ -346,7 +340,7 @@ class Accuracy(_AtlasCleaning):
             )
         ]["export_value_fob"]
 
-        filtered_df["est_trade_value"] = filtered_df[
+        filtered_df.loc[:, "est_trade_value"] = filtered_df[
             (
                 (filtered_df["est_trade_value"].isna())
                 & (self.df["exporter_weight"] == 1)

@@ -220,9 +220,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         re = self.df[self.df.trade_flow == 2]
         ri = self.df[self.df.trade_flow == 1]
 
-        # import pdb
-        # pdb.set_trace()
-
         self.df = re.merge(
             ri,
             left_on=["reporter_iso", "partner_iso", "commoditycode"],
@@ -230,8 +227,6 @@ class CountryCountryProductYear(_AtlasCleaning):
             how="outer",
             suffixes=("_reporting_exp", "_reporting_imp"),
         )
-        # import pdb
-        # pdb.set_trace()
 
         # Handle asymmetrical imports/exports
         self.df["reporter_iso_reporting_exp"] = self.df[
@@ -240,9 +235,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.df["partner_iso_reporting_exp"] = self.df[
             "partner_iso_reporting_exp"
         ].combine_first(self.df["reporter_iso_reporting_imp"])
-
-        # import pdb
-        # pdb.set_trace()
 
         self.df = self.df.drop(
             columns=[
@@ -331,8 +323,6 @@ class CountryCountryProductYear(_AtlasCleaning):
             - When trade score is 4 but accuracy score is 0, use the average of export and import values
             - When either score is 0, use the available value (import or export) based on the non-zero score
         """
-        # import pdb
-        # pdb.set_trace()
         self.df["final_value"] = (
             (
                 (
@@ -387,8 +377,6 @@ class CountryCountryProductYear(_AtlasCleaning):
                 * ((self.df["trade_score"] == 1) * (self.df["accuracy"] == 2))
             )
         )
-        # import pdb
-        # pdb.set_trace()
         self.df = self.df.drop(columns=["trade_score", "accuracy"])
 
     def reweight_final_trade_value(self, accuracy):
@@ -562,20 +550,22 @@ class CountryCountryProductYear(_AtlasCleaning):
         The value is calculated by determining oil production less country's oil consumption
         using the price per barrel from the https://www.energyinst.org/statistical-review
         """
-        self.df = self.df[
-            ~(
+        reported_total = self.df[
+            (
                 (self.df.exporter == "VEN")
-                & (self.df.importer == "ANS")
                 & (self.df.commoditycode == self.OIL[self.product_classification])
             )
-        ]
+        ]['value_final'].sum()
 
         ven_opec = pd.read_csv("data/ven_fix/venezuela_270900_exports.csv")
         ven_opec = ven_opec[ven_opec.year == self.year]
-        ven_opec = ven_opec.astype({"year": "int64"})
-        ven_opec["commoditycode"] = self.OIL[self.product_classification]
         if ven_opec.empty and self.year > 2019:
             raise ValueError(
                 f"Need to add the export value for oil in {self.year} for Venezuela"
             )
+        # the difference of total Venezuela exports, subtracts trade value 
+        # if anyone imports did report Venezuela oil trade
+        ven_opec['value_final'] = ven_opec['value_final'] - reported_total
+        ven_opec = ven_opec.astype({"year": "int64"})
+        ven_opec["commoditycode"] = self.OIL[self.product_classification]
         self.df = pd.concat([self.df, ven_opec], axis=0, ignore_index=True, sort=False)

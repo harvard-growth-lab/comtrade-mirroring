@@ -168,13 +168,14 @@ class AggregateTrade(_AtlasCleaning):
         ]
         # TODO how do I handle reimports and reexports (SEBA question)
         trade_flow_mapping = {"M": 1, "X": 2, "RM": 3, "RX": 4}
-
-        # Method 1: Using map (preferred)
+        
+        self.df["trade_flow"] = self.df["trade_flow"].astype(str)
         self.df.loc[:, "trade_flow"] = (
             self.df["trade_flow"]
             .map(trade_flow_mapping)
-            .astype('int8', copy=False)
         )
+        self.df["trade_flow"] = self.df["trade_flow"].astype("int8")
+
         try:
             self.df["trade_flow"] = self.df["trade_flow"].astype(str).astype(int)
         except:
@@ -211,10 +212,8 @@ class AggregateTrade(_AtlasCleaning):
             )
 
         for level in self.HIERARCHY_LEVELS[self.product_class]:
-            self.df[self.df.product_level == level]["commodity_code"] = self.df[
-                self.df.product_level == level
-            ]["commodity_code"].str.zfill(level)
-
+            self.df.loc[self.df.product_level==level, "commodity_code"] = self.df["commodity_code"].str.zfill(level)
+            
     def label_unspecified_products(self):
         mask = (
             (self.df["partner_iso"] == "ANS")
