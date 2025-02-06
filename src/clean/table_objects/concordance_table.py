@@ -22,7 +22,7 @@ class ConcordanceTable:
 
     def __init__(self, df, classification_code, target_classification_code):
         self.df = df
-        
+
         self.classification_code = classification_code
         self.target_classification_code = target_classification_code
 
@@ -47,7 +47,9 @@ class ConcordanceTable:
 
     def _prep_data_request(self) -> None:
         """ """
-        self.concordance_table = self.concordance_table[[self.classification_code, self.target_classification_code]]
+        self.concordance_table = self.concordance_table[
+            [self.classification_code, self.target_classification_code]
+        ]
         self.concordance_table = self.concordance_table.drop_duplicates()
         for col in [self.classification_code, self.target_classification_code]:
             self.concordance_table[col] = self.concordance_table[col].apply(
@@ -81,11 +83,13 @@ class ConcordanceTable:
 
     def _run_concordance(self) -> None:
         """ """
-        cl_counts = self.concordance_table[self.target_classification_code].value_counts()
+        cl_counts = self.concordance_table[
+            self.target_classification_code
+        ].value_counts()
         self.concordance_table["eql_distribution"] = 1 / self.concordance_table[
             self.classification_code
         ].map(cl_counts)
-        
+
         if (
             self.classification_code == "HS92"
             and self.target_classification_code == "SITC2"
@@ -105,7 +109,8 @@ class ConcordanceTable:
             and self.target_classification_code == "SITC2"
         ):
             self.df.loc[
-                self.df[self.classification_code] == "XXXXXX", self.target_classification_code
+                self.df[self.classification_code] == "XXXXXX",
+                self.target_classification_code,
             ] = "XXXX"
         self.df = self.df.drop(columns=["eql_distribution", self.classification_code])
 

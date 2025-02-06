@@ -61,9 +61,9 @@ class AggregateTrade(_AtlasCleaning):
         logging.info(f"Size of raw comtrade dataframe {self.df.shape}")
         # filter and clean data
         self.filter_data()
-        
+
         if self.product_class in ["S1", "S2"]:
-                self.product_class = "SITC"
+            self.product_class = "SITC"
 
         self.save_parquet(
             self.df, "intermediate", f"cleaned_{self.product_class}_{self.year}"
@@ -89,7 +89,6 @@ class AggregateTrade(_AtlasCleaning):
         self.df = self.df[
             ["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
         ]
-        
 
         self.save_parquet(
             self.df, "intermediate", f"{self.product_class}_{self.year}_aggregated"
@@ -168,12 +167,9 @@ class AggregateTrade(_AtlasCleaning):
         ]
         # TODO how do I handle reimports and reexports (SEBA question)
         trade_flow_mapping = {"M": 1, "X": 2, "RM": 3, "RX": 4}
-        
+
         self.df["trade_flow"] = self.df["trade_flow"].astype(str)
-        self.df.loc[:, "trade_flow"] = (
-            self.df["trade_flow"]
-            .map(trade_flow_mapping)
-        )
+        self.df.loc[:, "trade_flow"] = self.df["trade_flow"].map(trade_flow_mapping)
         self.df["trade_flow"] = self.df["trade_flow"].astype("int8")
 
         try:
@@ -212,8 +208,10 @@ class AggregateTrade(_AtlasCleaning):
             )
 
         for level in self.HIERARCHY_LEVELS[self.product_class]:
-            self.df.loc[self.df.product_level==level, "commodity_code"] = self.df["commodity_code"].str.zfill(level)
-            
+            self.df.loc[self.df.product_level == level, "commodity_code"] = self.df[
+                "commodity_code"
+            ].str.zfill(level)
+
     def label_unspecified_products(self):
         mask = (
             (self.df["partner_iso"] == "ANS")
@@ -256,9 +254,7 @@ class AggregateTrade(_AtlasCleaning):
         """
         df = self.df[self.df.product_level == level]
         df = (
-            df.groupby(
-                ["trade_flow", "product_level", "reporter_iso", "partner_iso"]
-            )
+            df.groupby(["trade_flow", "product_level", "reporter_iso", "partner_iso"])
             .agg({"trade_value": "sum", "reporter_ansnoclas": "sum"})
             .reset_index()
         )

@@ -24,7 +24,9 @@ class Accuracy(_AtlasCleaning):
         self.df = pd.DataFrame()
 
         # load data
-        nominal_dollars_df = self.load_parquet("intermediate", f"{self.product_classification}_ccy_nominal_dollars")
+        nominal_dollars_df = self.load_parquet(
+            "intermediate", f"{self.product_classification}_ccy_nominal_dollars"
+        )
 
         self.ccy = self.load_parquet(
             f"intermediate",
@@ -295,8 +297,10 @@ class Accuracy(_AtlasCleaning):
                 & (self.df["export_value_fob"].notna())
             )
         ].copy()
-        
-        filtered_df.loc[:, "est_trade_value"] = (filtered_df["export_value_fob"] * filtered_df["weight"]) + (filtered_df["import_value_fob"] * (1 - filtered_df["weight"]))
+
+        filtered_df.loc[:, "est_trade_value"] = (
+            filtered_df["export_value_fob"] * filtered_df["weight"]
+        ) + (filtered_df["import_value_fob"] * (1 - filtered_df["weight"]))
 
         self.df = self.df.combine_first(filtered_df)
 

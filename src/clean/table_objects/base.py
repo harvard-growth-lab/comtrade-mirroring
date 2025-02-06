@@ -7,6 +7,10 @@ import typing
 import glob
 import pyarrow.parquet as pq
 
+pd.options.display.max_columns = None
+pd.options.display.max_rows = None
+pd.set_option("max_colwidth", 400)
+
 
 class _AtlasCleaning(object):
     # Classification names & levels
@@ -76,8 +80,8 @@ class _AtlasCleaning(object):
             "comparison_file_path": self.comparison_file_path,
             "atlas_common_path": self.atlas_common_path,
             "product_classification": self.product_classification,
-            }
-    
+        }
+
     def load_parquet(self, data_folder, table_name: str):
         read_dir = os.path.join(self.root_dir, "data", data_folder)
         df = pd.read_parquet(os.path.join(read_dir, f"{table_name}.parquet"))
@@ -88,9 +92,9 @@ class _AtlasCleaning(object):
         df,
         data_folder,
         table_name: str,
-        product_classification='',
+        product_classification="",
     ):
-        if product_classification=='':
+        if product_classification == "":
             product_classification = self.product_classification
         if data_folder == "final":
             os.makedirs(self.final_output_path, exist_ok=True)
