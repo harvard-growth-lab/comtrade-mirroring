@@ -21,6 +21,7 @@ class GrowthProjections(_AtlasCleaning):
         self.data_loader = DataLoader(self.year, **kwargs)
         
         wdi = self.data_loader.load_wdi_data().rename(columns={"code": "exporter"})
+        
         growth_rate_df = self.calc_growth_rate(wdi)
         pop_rate_df = self.calc_pop_growth()
         nr = self.data_loader.load_natural_resources()
@@ -29,16 +30,19 @@ class GrowthProjections(_AtlasCleaning):
         nr.loc[:, 'eci_oppval']= nr['eci'] * nr['oppval']
         wdi.loc[:, 'ln_gdppc_const'] = np.log(wdi['gdppc_const'])
         
-        df = wdi[['year','exporter','ln_gdppc_const']].merge(growth_rate_df, on=['year','exporter'], how='left').merge(pop_rate_df, on=['year','exporter'], how='left').merge(natres_rate_df, on=['year','exporter'], how='left').merge(nr[['year','exporter','eci', 'oppval', 'eci_oppval']], on=['year','exporter'], how='left')
+        self.df = wdi[['year','exporter','ln_gdppc_const']].merge(growth_rate_df, on=['year','exporter'], how='left').merge(pop_rate_df, on=['year','exporter'], how='left').merge(natres_rate_df, on=['year','exporter'], how='left').merge(nr[['year','exporter','eci', 'oppval', 'eci_oppval']], on=['year','exporter'], how='left')
         
-        import pdb
-        pdb.set_trace()
+        # self.df = self.df[self.df.year>1969]
+        
+        
+        # import pdb
+        # pdb.set_trace()
         
         
         
 
 
-    def regression_forecast(self):
+    def detect_outliers(self):
         """
         for regression need:
             - gdppc_const (lnypc)
@@ -49,39 +53,32 @@ class GrowthProjections(_AtlasCleaning):
             - oppval
             - eci_opp
         """
-        nr.loc[:, 'eci_oppval']= nr['eci'] * nr['oppval']
-        # take natural log of gdppc_const
-        # only atlas
-        # only keep years, ending in forecast year (60 - 2010s)
-        # gen growth10 = 1 * (  (gdppc_const_year_2018/gdppc_const_year_2008)^(1/10)-1)
-        wdi.set_index("year", inplace=True)
-        wdi.reset_index(inplace=True)
-        
+        for digit_year in range(0,10):
+            # hold on to only years ending in digit_year
+            df_filtered = filter_year_pattern(df, digit_year, forecast_year)
+                 
+    
+    
+    def filter_year_pattern(df, j, forecast_year):
+        return df[
+            (df['year'] == 1960 + j) |
+            (df['year'] == 1970 + j) |
+            (df['year'] == 1980 + j) |
+            (df['year'] == 1990 + j) |
+            (df['year'] == 2000 + j) |
+            (df['year'] == 2010 + j) |
+            (df['year'] == forecast_year)
+        ]
+
 
     def calc_growth_rate(self, wdi):
         """
         stata's growth10
         """
-        growth_df = pd.DataFrame()
-        if self.year + 10 < 2022:
-            # gen deltaNRrealexports= ( (f10.nnrexppc/f10.deflactor) - (nnrexppc/deflactor) ) / ny_gdp_pcap_kd
-            pivot_df = wdi.pivot_table(
-                index=["exporter"], columns="year", values=["gdppc_const"]
-            )
-
-            growth_df[self.year] = (
-                pivot_df["gdppc_const"][self.year + self.FORWARD_YEAR]
-                / pivot_df["gdppc_const"][self.year]
-            ) ** (1 / 10) - 1
-            growth_df = growth_df.reset_index().rename(
-                columns={self.year: f"gdppc_growth_{self.FORWARD_YEAR}"}
-            )
-            growth_df["year"] = self.year
-        else:
-            growth_df.loc[
-                growth_df.year == self.year, f"gdppc_growth_{self.FORWARD_YEAR}"
-            ] = np.nan
-        return growth_df
+        df = wdi[['year', 'exporter','gdppc_const']].set_index('year')
+        # gen deltaNRrealexports= ( (f10.nnrexppc/f10.deflactor) - (nnrexppc/deflactor) ) / ny_gdp_pcap_kd
+        df.loc[:, f"gdppc_growth_{self.FORWARD_YEAR}"] = (df.groupby('exporter')["gdppc_const"].shift(-10)/df['gdppc_const']) ** (1 / 10) - 1
+        return df.reset_index()
 
     def calc_pop_growth(self):
         """
@@ -91,32 +88,23 @@ class GrowthProjections(_AtlasCleaning):
         wdi_population = wdi_population[["code", "year", "population"]].rename(columns={"code": "exporter"})
         un_pop = self.data_loader.load_population_forecast()
         un_pop = un_pop.rename(columns={"iso":"exporter"})
+        
         df = wdi_population.merge(un_pop, on=["exporter", "year"], how="left", suffixes=("_wdi", "_un"))
+        # TODO: handle missing un population figures
+        df = df[['year', 'exporter','population_un']].set_index('year')
         # gen pghat =1* ( (f10.pop_hat/pop_hat)^(1/10)-1)
-        pop_growth_df = pd.DataFrame()
-        if self.year + 10 < 2022:
-            pivot_df = df.pivot_table(
-                index=["exporter"], columns="year", values=["population_un"]
-            )
-            pop_growth_df[self.year] = 1 * (
+        df.loc[:, f"pop_growth_{self.FORWARD_YEAR}"] = 1 * (
                 (
-                    pivot_df["population_un"][self.year + self.FORWARD_YEAR]
-                    / pivot_df["population_un"][self.year]
+                    df.groupby('exporter')["population_un"].shift(-10)
+                    / df["population_un"]
                 )
                 ** (1 / self.FORWARD_YEAR)
                 - 1
             )
-            pop_growth_df = pop_growth_df.reset_index().rename(
-                columns={self.year: f"pop_growth_{self.FORWARD_YEAR}"}
-            )
-            pop_growth_df["year"] = self.year
-        else:
-            pop_growth_df["year"] = self.year
-            pop_growth_df.loc[
-                pop_growth_df.year == self.year, f"pop_growth_{self.FORWARD_YEAR}"
-            ] = np.nan
-        return pop_growth_df
+        
+        return df.reset_index()
 
+    
     def calc_natural_resources_per_cap(self, wdi, nr):
         """
         stata's deltaNRrealexports
@@ -137,38 +125,21 @@ class GrowthProjections(_AtlasCleaning):
         )
 
         df.loc[:, "deflator"] = df["gdppc"] / df["gdppc_const"]
-        nat_res_change_df = pd.DataFrame()
+        df = df[['year', 'exporter', 'nat_res_exportspc', 'gdppc_const' ,'deflator']].set_index('year')
+        df = df.sort_values(['year','exporter'])
 
-        if self.year + 10 < 2022:
-            # gen deltaNRrealexports= ( (f10.nnrexppc/f10.deflactor) - (nnrexppc/deflactor) ) / ny_gdp_pcap_kd
-            pivot_df = df.pivot_table(
-                index=["exporter"],
-                columns="year",
-                values=["nat_res_exportspc", "deflator", "gdppc_const"],
-            )
-
-            nat_res_change_df[self.year] = (
+        df.loc[:, f"nr_growth_{self.FORWARD_YEAR}"] = (
                 (
-                    pivot_df["nat_res_exportspc"][self.year + self.FORWARD_YEAR]
-                    / pivot_df["deflator"][self.year + self.FORWARD_YEAR]
+                    df.groupby('exporter')["nat_res_exportspc"].shift(-10)
+                    / df.groupby('exporter')["deflator"].shift(-10)
                 )
                 - (
-                    pivot_df["nat_res_exportspc"][self.year]
-                    / pivot_df["deflator"][self.year]
+                    df["nat_res_exportspc"]
+                    / df["deflator"]
                 )
-            ) / pivot_df["gdppc_const"][self.year]
+            ) / df["gdppc_const"]
 
-            nat_res_change_df = nat_res_change_df.reset_index().rename(
-                columns={self.year: "nat_res_change"}
-            )
-            nat_res_change_df["year"] = self.year
-
-        else:
-            nat_res_change_df["year"] = self.year
-            nat_res_change_df.loc[
-                nat_res_change_df.year == self.year, "nat_res_change"
-            ] = np.nan
-        return nat_res_change_df
+        return df.reset_index()
     
 
     def complexity_metrics(self):
