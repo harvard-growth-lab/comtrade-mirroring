@@ -19,8 +19,26 @@ class GrowthProjections(_AtlasCleaning):
 
         self.year = year
         self.data_loader = DataLoader(self.year, **kwargs)
+        
+        wdi = self.data_loader.load_wdi_data().rename(columns={"code": "exporter"})
+        growth_rate_df = self.calc_growth_rate(wdi)
+        pop_rate_df = self.calc_pop_growth()
+        nr = self.data_loader.load_natural_resources()
+        natres_rate_df = self.calc_natural_resources_per_cap(wdi, nr)
+        
+        nr.loc[:, 'eci_oppval']= nr['eci'] * nr['oppval']
+        wdi.loc[:, 'ln_gdppc_const'] = np.log(wdi['gdppc_const'])
+        
+        df = wdi[['year','exporter','ln_gdppc_const']].merge(growth_rate_df, on=['year','exporter'], how='left').merge(pop_rate_df, on=['year','exporter'], how='left').merge(natres_rate_df, on=['year','exporter'], how='left').merge(nr[['year','exporter','eci', 'oppval', 'eci_oppval']], on=['year','exporter'], how='left')
+        
+        import pdb
+        pdb.set_trace()
+        
+        
+        
 
-    def regression_forecast(self, forecast_year=8):
+
+    def regression_forecast(self):
         """
         for regression need:
             - gdppc_const (lnypc)
@@ -31,18 +49,19 @@ class GrowthProjections(_AtlasCleaning):
             - oppval
             - eci_opp
         """
+        nr.loc[:, 'eci_oppval']= nr['eci'] * nr['oppval']
         # take natural log of gdppc_const
         # only atlas
         # only keep years, ending in forecast year (60 - 2010s)
         # gen growth10 = 1 * (  (gdppc_const_year_2018/gdppc_const_year_2008)^(1/10)-1)
         wdi.set_index("year", inplace=True)
         wdi.reset_index(inplace=True)
+        
 
-    def calc_growth_rate(self, df):
+    def calc_growth_rate(self, wdi):
         """
         stata's growth10
         """
-        wdi = self.data_loader.load_wdi_data().rename(columns={"code": "exporter"})
         growth_df = pd.DataFrame()
         if self.year + 10 < 2022:
             # gen deltaNRrealexports= ( (f10.nnrexppc/f10.deflactor) - (nnrexppc/deflactor) ) / ny_gdp_pcap_kd
@@ -62,20 +81,22 @@ class GrowthProjections(_AtlasCleaning):
             growth_df.loc[
                 growth_df.year == self.year, f"gdppc_growth_{self.FORWARD_YEAR}"
             ] = np.nan
+        return growth_df
 
     def calc_pop_growth(self):
         """
         stata's pghat
         """
-        wdi = self.data_loader.load_wdi_data()
-        wdi = wdi[["code", "year", "population"]].rename(columns={"code": "iso"})
+        wdi_population = self.data_loader.load_wdi_data()
+        wdi_population = wdi_population[["code", "year", "population"]].rename(columns={"code": "exporter"})
         un_pop = self.data_loader.load_population_forecast()
-        df = wdi.merge(un_pop, on=["iso", "year"], how="left", suffixes=("_wdi", "_un"))
+        un_pop = un_pop.rename(columns={"iso":"exporter"})
+        df = wdi_population.merge(un_pop, on=["exporter", "year"], how="left", suffixes=("_wdi", "_un"))
         # gen pghat =1* ( (f10.pop_hat/pop_hat)^(1/10)-1)
         pop_growth_df = pd.DataFrame()
         if self.year + 10 < 2022:
             pivot_df = df.pivot_table(
-                index=["iso"], columns="year", values=["population_un"]
+                index=["exporter"], columns="year", values=["population_un"]
             )
             pop_growth_df[self.year] = 1 * (
                 (
@@ -96,15 +117,13 @@ class GrowthProjections(_AtlasCleaning):
             ] = np.nan
         return pop_growth_df
 
-    def calc_natural_resources_per_cap(self):
+    def calc_natural_resources_per_cap(self, wdi, nr):
         """
         stata's deltaNRrealexports
         calculates natural resource 10-change in exports normalized by gdp per cap
         """
-        wdi = self.data_loader.load_wdi_data()
-        nr = self.data_loader.load_natural_resources()
         df = nr.merge(
-            wdi, left_on=["year", "exporter"], right_on=["year", "code"], how="left"
+            wdi, on=["year", "exporter"], how="left"
         )
         # gen nnrexppc= nr_net_exports/ (ny_gdp_mktp_cd/ny_gdp_pcap_cd)
         df.loc[:, "nat_res_exportspc"] = df["net_exports"] / (df["gdp"] / df["gdppc"])

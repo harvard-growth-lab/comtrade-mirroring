@@ -8,8 +8,7 @@ import numpy as np
 from time import gmtime, strftime, localtime
 import cProfile
 import glob
-import datetime as datetime
-
+from datetime import date, timedelta, datetime
 
 from clean.table_objects.base import _AtlasCleaning
 from clean.table_objects.aggregate_trade import AggregateTrade
@@ -49,7 +48,7 @@ ingestion_attrs_H0 = {
     "end_year": 2023,
     "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
     "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/rewrite_{datetime.datetime.now().strftime('%Y-%m-%d')}/input",
+    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/rewrite_{(datetime.now() - timedelta(days=1)).strftime('%Y_%m_%d')}/input",
     "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
     "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
     "product_classification": "H0",
@@ -60,7 +59,7 @@ ingestion_attrs_H4 = {
     "end_year": 2023,
     "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
     "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/rewrite_{datetime.datetime.now().strftime('%Y-%m-%d')}/input",
+    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/rewrite_{(datetime.now() - timedelta(days=1)).strftime('%Y_%m_%d')}/input",
     "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
     "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
     "product_classification": "H4",
@@ -71,7 +70,7 @@ ingestion_attrs_H5 = {
     "end_year": 2023,
     "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
     "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/rewrite_{datetime.datetime.now().strftime('%Y-%m-%d')}/input",
+    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/rewrite_{(datetime.now() - timedelta(days=1)).strftime('%Y_%m_%d')}/input",
     "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
     "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
     "product_classification": "H5",
@@ -82,7 +81,7 @@ ingestion_attrs_SITC = {
     "end_year": 2023,
     "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
     "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/rewrite_{datetime.datetime.now().strftime('%Y-%m-%d')}/input",
+    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/rewrite_{(datetime.now() - timedelta(days=1)).strftime('%Y_%m_%d')}/input",
     "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
     "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
     "product_classification": "SITC",

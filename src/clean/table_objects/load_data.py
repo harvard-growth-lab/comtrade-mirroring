@@ -16,7 +16,8 @@ logging.basicConfig(level=logging.INFO)
 class DataLoader(_AtlasCleaning):
     def __init__(self, year, **kwargs):
         super().__init__(**kwargs)
-
+        
+    
     def load_natural_resources(self):
         """
         keep year iso eci oppval in_atlas diversity avubiquity total_exports
@@ -60,6 +61,7 @@ class DataLoader(_AtlasCleaning):
 
         df["eci_rank"] = df.groupby(["year"])["eci"].rank(ascending=False)
         # df.loc[df.inatlas==1, 'eci_rank_inatlas'] = df.groupby(["year"])['eci'].rank(ascending=False)
+        df = df.rename(columns={"code":"exporter"})
         return df
 
     def load_wdi_data(self):
