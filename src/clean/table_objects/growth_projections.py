@@ -4,15 +4,23 @@ from clean.table_objects.load_data import DataLoader
 import os
 import numpy as np
 from sklearn.decomposition import PCA
+from pathlib import Path
 import logging
 import copy
 import numpy
+import statsmodels.api as sm
+from statsmodels.tools.eval_measures import rmse as RMSE
+
+
 
 logging.basicConfig(level=logging.INFO)
 
 
 class GrowthProjections(_AtlasCleaning):
     FORWARD_YEAR = 10
+    FEATURES = ['ln_gdppc_const','pop_growth_10', 'nr_growth_10', 'eci', 'oppval',  'eci_oppval']
+    DEPENDENT_VARIABLE = 'gdppc_growth_10'
+    THRESHOLD = 2.5
 
     def __init__(self, year, **kwargs):
         super().__init__(**kwargs)
@@ -32,17 +40,24 @@ class GrowthProjections(_AtlasCleaning):
         
         self.df = wdi[['year','exporter','ln_gdppc_const']].merge(growth_rate_df, on=['year','exporter'], how='left').merge(pop_rate_df, on=['year','exporter'], how='left').merge(natres_rate_df, on=['year','exporter'], how='left').merge(nr[['year','exporter','eci', 'oppval', 'eci_oppval']], on=['year','exporter'], how='left')
         
-        # self.df = self.df[self.df.year>1969]
+        self.df = self.df[self.df.year>1969]
+        self.df = self.filter_to_in_rankings()
         
-        
-        # import pdb
-        # pdb.set_trace()
-        
+        self.forecast_year= 2021
+        self.df_res = pd.DataFrame()
+        for digit_year in range(0,10):
+            
+            pred_df, X, y = self.select_regression_data(digit_year)
+            X, y = self.remove_outliers(digit_year, X, y)
+            results, X, y = self.run_growth_projection_regression(digit_year, X, y)
+            self.predict_future_growth(digit_year, pred_df, results, X, y)
+            import pdb
+            pdb.set_trace()
         
         
 
 
-    def detect_outliers(self):
+    def select_regression_data(self, digit_year):
         """
         for regression need:
             - gdppc_const (lnypc)
@@ -53,21 +68,121 @@ class GrowthProjections(_AtlasCleaning):
             - oppval
             - eci_opp
         """
-        for digit_year in range(0,10):
-            # hold on to only years ending in digit_year
-            df_filtered = filter_year_pattern(df, digit_year, forecast_year)
+        # hold on to only years ending in digit_year
+
+        # data selection
+        dff = self.filter_year_pattern(digit_year)
+        print(f"shape of filtered data frame {dff.shape}")
+        dff['year'] = dff.year.astype('int')
+        dff['dummy_year'] = dff.loc[:, 'year']
+        dff = pd.get_dummies(dff, columns=['dummy_year'], drop_first=True, dtype='int')
+        # forecast year data
+        pred_df = dff[dff.year == self.forecast_year]
+
+
+        X = dff[dff.year.astype(str).str.endswith(str(digit_year)) | (dff.year == self.forecast_year)].copy()
+        # X = dff[~(dff.year==self.forecast_year)].copy()
+        y = X[self.DEPENDENT_VARIABLE]
+
+        # get data that will be used in regression 
+        X = sm.add_constant(X)
+        model = sm.OLS(y, X[['const'] + self.FEATURES], missing='drop')
+        print(f"model results from identifying data sample {model.fit().summary()}")
+        
+        import pdb
+        pdb.set_trace()
+
+        X = X[X.index.isin(model.data.row_labels) | (X.year == self.forecast_year)]
+        return pred_df, X, X[self.DEPENDENT_VARIABLE]
+            
+    def remove_outliers(self, digit_year, X, y):
+        
+        self.dummy_vars = [#f"dummy_year_197{digit_year}", 
+              f"dummy_year_198{digit_year}", 
+              f"dummy_year_199{digit_year}",
+              f"dummy_year_200{digit_year}", 
+              f"dummy_year_201{digit_year}"]
+        #self.dummy_vars.remove(f"dummy_year_197{digit_year}")
+
+        X = sm.add_constant(X)
+        model = sm.OLS(y, X[['const'] + self.FEATURES + self.dummy_vars], missing='drop')
+        res = model.fit()
+        print(f"model results from finding outliers {res.summary()}")
+        
+        import pdb
+        pdb.set_trace()
+
+
+        X.loc[:, 'predicted'] = res.predict(X[['const'] + self.FEATURES + self.dummy_vars])
+
+        X.loc[:, 'predicted'] = res.predict(X[['const'] + self.FEATURES + self.dummy_vars])
+        X.loc[:, 'abs_difference'] = abs(X['predicted']  - y)
+        rmse = RMSE(X[self.DEPENDENT_VARIABLE], X['predicted'])
+        X.loc[:, "exceeds_threshold"] = X['abs_difference'] > (rmse * self.THRESHOLD)
+        X = X[~(X.exceeds_threshold==True)]
+
+        y = X[self.DEPENDENT_VARIABLE]
+        X = sm.add_constant(X)
+        return X, y
+
+
+    def run_growth_projection_regression(self, digit_year, X, y):
+        gp_model = sm.OLS(y, X[['const'] + self.FEATURES + self.dummy_vars], missing='drop')
+#             model_index = gp_model.data.row_labels
+
+        historical_X = X.loc[gp_model.data.row_labels]
+        historical_y = y.loc[gp_model.data.row_labels]
+        groups_used = historical_X['iso3_code']
+        # res = gp_model.fit(cov_type='cluster', cov_kwds={'groups': X['iso3_code']})
+        res = gp_model.fit(cov_type='cluster', cov_kwds={'groups': groups_used})        
+        print(f"model results from running gp regression {res.summary()}")
+        
+        import pdb
+        pdb.set_trace()
+
+
+        baseline_year = f"dummy_year_201{self.forecast_year}"
+        # take the decade Fixed Effect of the latest dummy
+        return res, historical_X, historical_y
+
+
+    def predict_future_growth(self, digit_year, pred_df, res, X, y):
+        coeff = res.params[f"dummy_year_201{digit_year}"]
+        X.loc[:, 'predicted_gdppc'] = res.predict(X[self.FEATURES + self.dummy_vars])
+        X.loc[:, 'abs_difference_gdppc'] = abs(X['predicted']  - y)
+        rmse = RMSE(y, X['predicted_gdppc'])
+        
+
+        pred_df.loc[pred_df.year==2021, 'predicted_gdppc'] = res.predict(pred_df[self.FEATURES + self.dummy_vars]) + coeff
+        # df = pd.concat([historical_X, pred_df])
+        pred_df['digit_year'] = digit_year
+        pred_df['r2'] = res.rsquared
+
+        pred_df = pred_df[pred_df.year == self.forecast_year]
+
+        # Calculate total growth (tg)
+        pred_df['total_growth'] = ((1 + pred_df['predicted_gdppc']/1) * (1 + pred_df['pop_growth_10']/1) - 1)
+        import pdb
+        pdb.set_trace()
+        self.df_res = pd.concat([self.df_res, pred_df])
+            
                  
     
+    def filter_to_in_rankings(self):
+        df = pd.read_parquet(Path(self.raw_data_path) / "growth_projection_countries.parquet")
+        self.df = df.merge(self.df, left_on='iso3_code', right_on='exporter', how='left')
+        return self.df[self.df.in_rankings==True]
+        
     
-    def filter_year_pattern(df, j, forecast_year):
-        return df[
-            (df['year'] == 1960 + j) |
-            (df['year'] == 1970 + j) |
-            (df['year'] == 1980 + j) |
-            (df['year'] == 1990 + j) |
-            (df['year'] == 2000 + j) |
-            (df['year'] == 2010 + j) |
-            (df['year'] == forecast_year)
+    def filter_year_pattern(self, digit_year):
+        return self.df[
+            (self.df['year'] == 1960 + digit_year) |
+            (self.df['year'] == 1970 + digit_year) |
+            (self.df['year'] == 1980 + digit_year) |
+            (self.df['year'] == 1990 + digit_year) |
+            (self.df['year'] == 2000 + digit_year) |
+            (self.df['year'] == 2010 + digit_year) |
+            (self.df['year'] == self.forecast_year)
         ]
 
 
@@ -89,9 +204,15 @@ class GrowthProjections(_AtlasCleaning):
         un_pop = self.data_loader.load_population_forecast()
         un_pop = un_pop.rename(columns={"iso":"exporter"})
         
-        df = wdi_population.merge(un_pop, on=["exporter", "year"], how="left", suffixes=("_wdi", "_un"))
+        df = un_pop.merge(wdi_population, on=["exporter", "year"], how="left", suffixes=("_wdi", "_un"))
+        
         # TODO: handle missing un population figures
+        df['population_un'] = df.population_un.astype('float') 
+        df['population_wdi'] = df.population_wdi.astype('float') 
+        df.loc[df.population_un.isna(), 'population_un'] = df['population_wdi']
         df = df[['year', 'exporter','population_un']].set_index('year')
+        
+        
         # gen pghat =1* ( (f10.pop_hat/pop_hat)^(1/10)-1)
         df.loc[:, f"pop_growth_{self.FORWARD_YEAR}"] = 1 * (
                 (
@@ -139,7 +260,9 @@ class GrowthProjections(_AtlasCleaning):
                 )
             ) / df["gdppc_const"]
 
-        return df.reset_index()
+        df = df.reset_index()
+        df[f"nr_growth_{self.FORWARD_YEAR}"] = df[f"nr_growth_{self.FORWARD_YEAR}"].fillna(0)
+        return df[['year', 'exporter',f"nr_growth_{self.FORWARD_YEAR}"]]
     
 
     def complexity_metrics(self):

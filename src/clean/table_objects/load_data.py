@@ -71,6 +71,15 @@ class DataLoader(_AtlasCleaning):
         return pd.read_csv(
             Path(self.atlas_common_path) / "wdi_indicators" / "data" / "wdi_data.csv"
         )
+    
+    def load_imf_data(self):
+        """
+        WDI does not provide sufficient data for Venezuela
+        """
+        return pd.read_csv(
+            Path(self.atlas_common_path) / "wdi_indicators" / "data" / "imf_data.csv"
+        )
+
 
     def load_population_forecast(self):
         """
