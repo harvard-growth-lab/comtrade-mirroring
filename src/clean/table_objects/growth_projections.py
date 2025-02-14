@@ -79,9 +79,7 @@ class GrowthProjections(_AtlasCleaning):
         # forecast year data
         pred_df = dff[dff.year == self.forecast_year]
 
-
         X = dff[dff.year.astype(str).str.endswith(str(digit_year)) | (dff.year == self.forecast_year)].copy()
-        # X = dff[~(dff.year==self.forecast_year)].copy()
         y = X[self.DEPENDENT_VARIABLE]
 
         # get data that will be used in regression 
@@ -89,9 +87,6 @@ class GrowthProjections(_AtlasCleaning):
         model = sm.OLS(y, X[['const'] + self.FEATURES], missing='drop')
         print(f"model results from identifying data sample {model.fit().summary()}")
         
-        import pdb
-        pdb.set_trace()
-
         X = X[X.index.isin(model.data.row_labels) | (X.year == self.forecast_year)]
         return pred_df, X, X[self.DEPENDENT_VARIABLE]
             
@@ -109,12 +104,7 @@ class GrowthProjections(_AtlasCleaning):
         res = model.fit()
         print(f"model results from finding outliers {res.summary()}")
         
-        import pdb
-        pdb.set_trace()
-
-
         X.loc[:, 'predicted'] = res.predict(X[['const'] + self.FEATURES + self.dummy_vars])
-
         X.loc[:, 'predicted'] = res.predict(X[['const'] + self.FEATURES + self.dummy_vars])
         X.loc[:, 'abs_difference'] = abs(X['predicted']  - y)
         rmse = RMSE(X[self.DEPENDENT_VARIABLE], X['predicted'])
@@ -127,6 +117,7 @@ class GrowthProjections(_AtlasCleaning):
 
 
     def run_growth_projection_regression(self, digit_year, X, y):
+        self.FEATURES.remove('pop_growth_10')
         gp_model = sm.OLS(y, X[['const'] + self.FEATURES + self.dummy_vars], missing='drop')
 #             model_index = gp_model.data.row_labels
 
@@ -137,10 +128,6 @@ class GrowthProjections(_AtlasCleaning):
         res = gp_model.fit(cov_type='cluster', cov_kwds={'groups': groups_used})        
         print(f"model results from running gp regression {res.summary()}")
         
-        import pdb
-        pdb.set_trace()
-
-
         baseline_year = f"dummy_year_201{self.forecast_year}"
         # take the decade Fixed Effect of the latest dummy
         return res, historical_X, historical_y
@@ -148,12 +135,12 @@ class GrowthProjections(_AtlasCleaning):
 
     def predict_future_growth(self, digit_year, pred_df, res, X, y):
         coeff = res.params[f"dummy_year_201{digit_year}"]
-        X.loc[:, 'predicted_gdppc'] = res.predict(X[self.FEATURES + self.dummy_vars])
+        X.loc[:, 'predicted_gdppc'] = res.predict(X[['const'] + self.FEATURES + self.dummy_vars])
         X.loc[:, 'abs_difference_gdppc'] = abs(X['predicted']  - y)
         rmse = RMSE(y, X['predicted_gdppc'])
         
-
-        pred_df.loc[pred_df.year==2021, 'predicted_gdppc'] = res.predict(pred_df[self.FEATURES + self.dummy_vars]) + coeff
+        pred_df.loc[:, 'const'] = 1
+        pred_df.loc[pred_df.year==2021, 'predicted_gdppc'] = res.predict(pred_df[['const'] + self.FEATURES + self.dummy_vars]) + coeff
         # df = pd.concat([historical_X, pred_df])
         pred_df['digit_year'] = digit_year
         pred_df['r2'] = res.rsquared
@@ -162,8 +149,6 @@ class GrowthProjections(_AtlasCleaning):
 
         # Calculate total growth (tg)
         pred_df['total_growth'] = ((1 + pred_df['predicted_gdppc']/1) * (1 + pred_df['pop_growth_10']/1) - 1)
-        import pdb
-        pdb.set_trace()
         self.df_res = pd.concat([self.df_res, pred_df])
             
                  
