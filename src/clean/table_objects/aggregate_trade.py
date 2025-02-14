@@ -8,7 +8,7 @@ import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 
-from clean.table_objects.base import _AtlasCleaning
+from clean.objects.base import _AtlasCleaning
 
 
 class AggregateTrade(_AtlasCleaning):

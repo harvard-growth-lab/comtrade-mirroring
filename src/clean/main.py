@@ -10,14 +10,14 @@ import cProfile
 import glob
 from datetime import date, timedelta, datetime
 
-from clean.table_objects.base import _AtlasCleaning
+from clean.objects.base import _AtlasCleaning
 from clean.table_objects.aggregate_trade import AggregateTrade
 from clean.utils import get_classifications, merge_classifications
 from clean.table_objects.country_country_year import CountryCountryYear
 from clean.table_objects.accuracy import Accuracy
 from clean.table_objects.country_country_product_year import CountryCountryProductYear
 from clean.table_objects.complexity import Complexity
-from clean.table_objects.concordance_table import ConcordanceTable
+from clean.objects.concordance_table import ConcordanceTable
 
 import logging
 

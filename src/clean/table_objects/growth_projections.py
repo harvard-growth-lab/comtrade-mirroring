@@ -1,6 +1,6 @@
 import pandas as pd
-from clean.table_objects.base import _AtlasCleaning
-from clean.table_objects.load_data import DataLoader
+from clean.objects.base import _AtlasCleaning
+from clean.objects.load_data import DataLoader
 import os
 import numpy as np
 from sklearn.decomposition import PCA
@@ -22,11 +22,10 @@ class GrowthProjections(_AtlasCleaning):
     DEPENDENT_VARIABLE = 'gdppc_growth_10'
     THRESHOLD = 2.5
 
-    def __init__(self, year, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.year = year
-        self.data_loader = DataLoader(self.year, **kwargs)
+        self.data_loader = DataLoader(**kwargs)
         
         wdi = self.data_loader.load_wdi_data().rename(columns={"code": "exporter"})
         

@@ -1,5 +1,5 @@
 import pandas as pd
-from clean.table_objects.base import _AtlasCleaning
+from clean.objects.base import _AtlasCleaning
 import os
 import numpy as np
 from sklearn.decomposition import PCA
