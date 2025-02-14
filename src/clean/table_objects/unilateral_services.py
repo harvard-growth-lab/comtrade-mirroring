@@ -19,11 +19,12 @@ class UnilateralServices(_AtlasCleaning):
         
         self.load_wdi_services_data()
         self.df = self.df.fillna(0)
-        self.preprocess_services("export")
-        self.preprocess_services("import")
+        self.df = self.df.rename(columns={'code': 'iso'})
+        self.preprocess_flows("export")
+        self.preprocess_flows("import")
+        self.exports = self.isolate_trade_flows("export")
+        self.imports = self.isolate_trade_flows("import")
         
-        import pdb
-        pdb.set_trace()
                 
         
     def load_wdi_services_data(self):
@@ -35,16 +36,22 @@ class UnilateralServices(_AtlasCleaning):
         )
                               
                               
-    def preprocess_services(self, trade_flow):
+    def preprocess_flows(self, trade_flow):
         """
         """
-        share = [col for col in dff.columns if col.endswith(f'{trade_flow}_share')]
+        share = [col for col in self.df.columns if col.endswith(f'{trade_flow}_share')]
         for col in share:
             val = col.replace('share','value')
             self.df.loc[:, val] = ( self.df[col] / 100 ) * self.df[f'services_{trade_flow}_value']
         self.df.loc[:,f'unspecified_{trade_flow}_services'] = ((100 - self.df[share].sum(axis=1)) /100) * self.df[f'services_{trade_flow}_value']
         self.df.loc[self.df[f'unspecified_{trade_flow}_services']<0, f'unspecified_{trade_flow}_services'] = 0
         self.df = self.df.drop(columns=share)
+        
+        
+    def isolate_trade_flows(self, trade_flow):
+        cols = [col for col in self.df.columns if f"{trade_flow}" in col and col != f'services_{trade_flow}']
+        return pd.melt(self.df,id_vars=['iso', 'year'],value_vars=cols,var_name='concept',value_name='value')
+        
                               
                     
         
