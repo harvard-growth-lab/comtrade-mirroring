@@ -50,8 +50,11 @@ class GrowthProjections(_AtlasCleaning):
             X, y = self.remove_outliers(digit_year, X, y)
             results, X, y = self.run_growth_projection_regression(digit_year, X, y)
             self.predict_future_growth(digit_year, pred_df, results, X, y)
-            import pdb
-            pdb.set_trace()
+            
+        import pdb
+        pdb.set_trace()
+
+        self.calc_aggregated_final_growth_projection()
         
         
 
@@ -116,8 +119,9 @@ class GrowthProjections(_AtlasCleaning):
 
 
     def run_growth_projection_regression(self, digit_year, X, y):
-        self.FEATURES.remove('pop_growth_10')
-        gp_model = sm.OLS(y, X[['const'] + self.FEATURES + self.dummy_vars], missing='drop')
+        self.reg_features = self.FEATURES.copy()
+        self.reg_features.remove('pop_growth_10')
+        gp_model = sm.OLS(y, X[['const'] + self.reg_features + self.dummy_vars], missing='drop')
 #             model_index = gp_model.data.row_labels
 
         historical_X = X.loc[gp_model.data.row_labels]
@@ -134,22 +138,45 @@ class GrowthProjections(_AtlasCleaning):
 
     def predict_future_growth(self, digit_year, pred_df, res, X, y):
         coeff = res.params[f"dummy_year_201{digit_year}"]
-        X.loc[:, 'predicted_gdppc'] = res.predict(X[['const'] + self.FEATURES + self.dummy_vars])
+        X.loc[:, 'predicted_gdppc'] = res.predict(X[['const'] + self.reg_features + self.dummy_vars])
         X.loc[:, 'abs_difference_gdppc'] = abs(X['predicted']  - y)
         rmse = RMSE(y, X['predicted_gdppc'])
         
         pred_df.loc[:, 'const'] = 1
-        pred_df.loc[pred_df.year==2021, 'predicted_gdppc'] = res.predict(pred_df[['const'] + self.FEATURES + self.dummy_vars]) + coeff
+        pred_df.loc[pred_df.year==2021, 'predicted_gdppc'] = res.predict(pred_df[['const'] + self.reg_features + self.dummy_vars]) + coeff
         # df = pd.concat([historical_X, pred_df])
         pred_df['digit_year'] = digit_year
         pred_df['r2'] = res.rsquared
 
-        pred_df = pred_df[pred_df.year == self.forecast_year]
-
         # Calculate total growth (tg)
         pred_df['total_growth'] = ((1 + pred_df['predicted_gdppc']/1) * (1 + pred_df['pop_growth_10']/1) - 1)
+        dummy_cols = [col for col in pred_df.columns if col.startswith('dummy_')]
+        pred_df = pred_df.drop(columns=dummy_cols)
+
         self.df_res = pd.concat([self.df_res, pred_df])
-            
+        
+    def calc_aggregated_final_growth_projection(self):
+        self.df_res['diff']=100*(self.df_res['gdppc_growth_10']-self.df_res['predicted_gdppc'])
+        self.df_res.loc[self.df_res.year==2021,'diff']=0
+        df.loc[df.year==2021,'temp1']=df['predicted_gdppc']
+        df.loc[df.year==2021,'temp2']=df['pop_growth_10']
+        df['point_est']=df.groupby(['digit_year','iso3_code'])['temp1'].transform('mean')
+        df['pop_est']=df.groupby(['digit_year','iso3_code'])['temp2'].transform('mean')
+        
+        df['estimate'] = df['point_est'] + (df['diff']/100)
+        
+#         gen gdppoint = 100*(( 1+pointest/1)*(1+pop/1) -1 )
+#         gen gdpestimate = 100*(( 1+estimate/1)*(1+pop/1) -1 )
+#         replace laggrowthmkt10 = .  if year!=`fyear'
+#         egen meangdpest = mean(gdpestimate), by(baseyear iso)
+#         egen meanoverall = mean(gdpestimate), by( iso)
+#         format gdp* diff* mean* laggrowthmkt10 pghat %9.3fc
+
+#     cd $path
+#     save "$path/atlas_growth_forecasts_$byear.dta", replace 	
+
+        import pdb
+        pdb.set_trace()
                  
     
     def filter_to_in_rankings(self):
