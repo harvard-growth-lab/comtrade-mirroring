@@ -11,12 +11,16 @@ from pathlib import Path
 import requests
 import datetime as datetime
 import io
+from ecomplexity import ecomplexity
+
 
 logging.basicConfig(level=logging.INFO)
 
 
 class UnilateralServices(_AtlasCleaning):
     SERVICES_START_YEAR = 1980
+    SERVICES = ['comms', 'finance', 'transport', 'travel']
+    
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
@@ -32,7 +36,11 @@ class UnilateralServices(_AtlasCleaning):
         self.df = exports.merge(imports, on=['year','iso','services'],how='outer',suffixes=('_export','_import'))
         self.df = self.df.rename(columns={"value_export":"export_value","value_import":"import_value"})
         products = self.combine_services_and_goods()
-        self.handle_complexity()
+        self.complexity = self.handle_complexity()
+        self.update_pci_to_avg()
+        
+        import pdb
+        pdb.set_trace()
                                       
                               
     def preprocess_flows(self, trade_flow):
@@ -81,7 +89,7 @@ class UnilateralServices(_AtlasCleaning):
         return df
         
     def handle_complexity(self):
-        # self.df = self.df.set_index('year')
+        services_complexity = pd.DataFrame()
         for year in range(self.SERVICES_START_YEAR, self.end_year + 1):
             lag_year = year - 1
             df = self.df[self.df.year.isin([year, lag_year])].copy()
@@ -90,10 +98,10 @@ class UnilateralServices(_AtlasCleaning):
             df['year'] = year
             df=df.reset_index().rename(columns={'iso':'exporter'})
             df=df[~(df.services=="unspecified")]
-            df = df.rename(columns={"services":"commodity_code"})
+            df = df.rename(columns={"services":"commoditycode"})
             # dataservices 
             avg_service_exports = df.copy()
-            df = df.groupby(['exporter','year']).agg({"export_value":"sum"})
+            df = df.groupby(['exporter','year']).agg({"export_value":"sum"}).reset_index()
             df=df.rename(columns={"export_value":"total_services"})
             df=df[~((df.total_services.isna()) | (df.total_services==0))]
             
@@ -102,10 +110,10 @@ class UnilateralServices(_AtlasCleaning):
             goods=goods[~((goods.commoditycode=="XXXX") | (goods.commoditycode=="9310"))]
             goods = goods[['exporter', 'commoditycode', 'export_value', 'pci']].rename(columns={"pci":"old_pci"})
             goods.loc[:,'commoditycode'] = goods['commoditycode'].str[:2]
-            goods = goods.groupby(['exporter','commoditycode']).agg({"export_value":"sum","old_pci":"mean"})
+            goods = goods.groupby(['exporter','commoditycode']).agg({"export_value":"sum","old_pci":"mean"}).reset_index()
             
             # identify small flows
-            tot_goods = goods.groupby(['commoditycode']).agg({"export_value":"sum"})
+            tot_goods = goods.groupby(['commoditycode']).agg({"export_value":"sum"}).reset_index()
             tot_goods = tot_goods.sort_values(by='export_value')
             tot_goods['cumulative_sum'] = tot_goods['export_value'].cumsum()
             tot_goods['share'] = 100* (tot_goods['cumulative_sum'] / tot_goods['export_value'].max())
@@ -115,12 +123,45 @@ class UnilateralServices(_AtlasCleaning):
             goods = goods[~(goods.commoditycode.isin(small_flows))]
             goods['year'] = year
             
+            products = pd.concat([goods, avg_service_exports], axis=0)
+            df = products.merge(df, on=['exporter','year'], how='inner')
+            df['nflows']=df.groupby('exporter')['export_value'].transform('count')
+            df = df[~(df.nflows<=5)]
             
-            import pdb
-            pdb.set_trace()
+            # handle complexity
+            # handle nans?
+            # py-ecomplexity package requires time variable
+            df['year'] = 10
+            trade_cols ={'loc':'exporter', 'prod':'commoditycode', 'val':'export_value', 'time':'year'}
+            cdata = ecomplexity(df, trade_cols)
             
+            df = cdata.groupby('commoditycode').agg({"pci":"first","old_pci":"first", "ubiquity":"first"}).reset_index()
+            df['nexporters'] = cdata['exporter'].nunique()
             
+            mean_pci = df.describe()['pci'].loc['mean']
+            std_pci= df.describe()['pci'].loc['std']
+            df.loc[:, 'pci'] = (df['pci'] - mean_pci) / std_pci
+            
+            # ask Seba,validate above a threshold?
+            corr = df[['pci','old_pci']].corr()
+            
+            # keep commoditycode pci  oldpci ubiquity
+            df = df[df.commoditycode.isin(self.SERVICES)]
+            df = df.drop(columns='old_pci')
+            df['year'] = year
+                        
+            services_complexity = pd.concat([services_complexity, df])
+        return services_complexity
+    
+    def update_pci_to_avg(self):
+        self.complexity = self.complexity.set_index(['year', 'commoditycode']).drop(columns='nexporters')
+        self.complexity['pci_3yr_avg'] = self.complexity.groupby('commoditycode')['pci'].transform(lambda x: (x + x.shift(1) + x.shift(-1))/3)
+        self.complexity=self.complexity.reset_index()
         
+        self.df = self.df.rename(columns={"services":"commoditycode"})
+        self.df = self.df.merge(self.complexity, on=['year','commoditycode'], how='outer')
+        self.df['export_value'] = self.df.export_value.fillna(0)
+        self.df['import_value'] = self.df.import_value.fillna(0)        
         
                               
                     

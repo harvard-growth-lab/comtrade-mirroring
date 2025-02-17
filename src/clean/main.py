@@ -18,6 +18,7 @@ from clean.table_objects.accuracy import Accuracy
 from clean.table_objects.country_country_product_year import CountryCountryProductYear
 from clean.table_objects.complexity import Complexity
 from clean.objects.concordance_table import ConcordanceTable
+from clean.table_objects.unilateral_services import UnilateralServices
 
 import logging
 
@@ -222,6 +223,15 @@ def run_atlas_cleaning(ingestion_attrs):
         complexity_all, "final", f"{product_classification}_cpy_all", "CPY"
     )
     del complexity_all
+    
+    # unilateral_services = UnilateralServices(**ingestion_attrs)
+    # unilateral_services.save_parquet(
+    #         unilateral_services.df,
+    #         "final",
+    #         f"unilateral_services",
+    #         "Services"
+    #     )
+
 
     # comparison = complexity.compare_files()
     # logging.info(f"review of compared files {comparison}")
