@@ -38,10 +38,7 @@ class UnilateralServices(_AtlasCleaning):
         products = self.combine_services_and_goods()
         self.complexity = self.handle_complexity()
         self.update_pci_to_avg()
-        
-        import pdb
-        pdb.set_trace()
-                                      
+                                              
                               
     def preprocess_flows(self, trade_flow):
         """
@@ -156,10 +153,18 @@ class UnilateralServices(_AtlasCleaning):
     def update_pci_to_avg(self):
         self.complexity = self.complexity.set_index(['year', 'commoditycode']).drop(columns='nexporters')
         self.complexity['pci_3yr_avg'] = self.complexity.groupby('commoditycode')['pci'].transform(lambda x: (x + x.shift(1) + x.shift(-1))/3)
+        
         self.complexity=self.complexity.reset_index()
+        # handle first year of Services
+        self.complexity.loc[self.complexity.year==self.SERVICES_START_YEAR, 'pci_3yr_avg'] = self.complexity['pci']
+        # handle atlas data year
+        self.complexity.loc[self.complexity.year==self.end_year, 'pci_3yr_avg'] = self.complexity.groupby('commoditycode')['pci'].transform(lambda x: (x + x.shift(1))/2)
         
         self.df = self.df.rename(columns={"services":"commoditycode"})
         self.df = self.df.merge(self.complexity, on=['year','commoditycode'], how='outer')
+        self.df = self.df[self.df.year>=self.SERVICES_START_YEAR]
+        self.df = self.df.drop(columns='pci').rename(columns={"pci_3yr_avg":"pci"})
+
         self.df['export_value'] = self.df.export_value.fillna(0)
         self.df['import_value'] = self.df.import_value.fillna(0)        
         

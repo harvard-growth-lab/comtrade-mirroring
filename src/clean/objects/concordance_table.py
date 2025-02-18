@@ -109,8 +109,6 @@ class ConcordanceTable:
                 self.target_classification_code,
             ] = "XXXX"
             
-        import pdb
-        pdb.set_trace()
         self.df = self.df.drop(columns=["eql_distribution", self.classification_code])
         self.df[['value_final', 'value_exporter', 'value_importer']] = self.df[['value_final', 'value_exporter', 'value_importer']].round(0)
 

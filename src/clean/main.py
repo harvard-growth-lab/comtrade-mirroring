@@ -188,9 +188,12 @@ def run_atlas_cleaning(ingestion_attrs):
                 "processed",
                 f"SITC_{year}_country_country_product_year",
             )
-            ccpy.save_parquet(converted_table.df, "final", f"SITC_{year}", "SITC")
-            del converted_table.df
+            ccpy.save_parquet(sitc_ccpy.df, "final", f"SITC_{year}", "SITC")
+            del sitc_ccpy.df
         del ccpy.df
+    
+    # handle complexity
+    for year in range(start_year, end_year + 1):
 
         # complexity files
         complexity = Complexity(year, **ingestion_attrs)
@@ -224,13 +227,13 @@ def run_atlas_cleaning(ingestion_attrs):
     )
     del complexity_all
     
-    # unilateral_services = UnilateralServices(**ingestion_attrs)
-    # unilateral_services.save_parquet(
-    #         unilateral_services.df,
-    #         "final",
-    #         f"unilateral_services",
-    #         "Services"
-    #     )
+#     unilateral_services = UnilateralServices(**ingestion_attrs)
+#     unilateral_services.save_parquet(
+#             unilateral_services.df,
+#             "final",
+#             f"unilateral_services",
+#             "Services"
+#         )
 
 
     # comparison = complexity.compare_files()
@@ -365,7 +368,7 @@ def run_stata_code(df, stata_code):
 
 if __name__ == "__main__":
     # run_atlas_cleaning(ingestion_attrs)
-    run_atlas_cleaning(ingestion_attrs_H0)
-    # run_atlas_cleaning(ingestion_attrs_SITC)
+    # run_atlas_cleaning(ingestion_attrs_H0)
+    run_atlas_cleaning(ingestion_attrs_SITC)
     # run_atlas_cleaning(ingestion_attrs_H4)
     # run_atlas_cleaning(ingestion_attrs_H5)
