@@ -182,9 +182,9 @@ def run_atlas_cleaning(ingestion_attrs):
 
         # handle SITC CCPY by running H0 through conversion table
         if product_classification == "H0":
-            converted_table = ConcordanceTable(ccpy.df, product_classification, "S2")
+            sitc_ccpy = ConcordanceTable(ccpy.df, product_classification, "S2")
             ccpy.save_parquet(
-                converted_table.df,
+                sitc_ccpy.df,
                 "processed",
                 f"SITC_{year}_country_country_product_year",
             )
