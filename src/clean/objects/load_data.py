@@ -61,7 +61,7 @@ class DataLoader(_AtlasCleaning):
 
         df["eci_rank"] = df.groupby(["year"])["eci"].rank(ascending=False)
         # df.loc[df.inatlas==1, 'eci_rank_inatlas'] = df.groupby(["year"])['eci'].rank(ascending=False)
-        df = df.rename(columns={"code":"exporter"})
+        df = df.rename(columns={"code":"iso3_code"})
         return df
 
     def load_sitc_cpy_complexity(self):
@@ -93,7 +93,7 @@ class DataLoader(_AtlasCleaning):
         WDI does not provide sufficient data for Venezuela
         """
         return pd.read_csv(
-            Path(self.atlas_common_path) / "wdi_indicators" / "data" / "imf_data.csv"
+            Path(self.atlas_common_path) / "imf_indicators" / "data" / "imf_data.csv"
         )
 
 
@@ -153,3 +153,4 @@ class DataLoader(_AtlasCleaning):
         )
 
         return wdi
+    

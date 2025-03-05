@@ -30,7 +30,8 @@ class ConcordanceTable:
         self._prep_data_request()
         # run by year
         self._run_concordance()
-
+        
+        
     def _validate_request(self) -> None:
         def get_clcode_from_input(input_value):
             for key, value_list in self.clcodes.items():

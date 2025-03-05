@@ -17,6 +17,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 class GrowthProjections(_AtlasCleaning):
+    # FORECAST_YEAR = 2023
     FORWARD_YEAR = 10
     FEATURES = ['ln_gdppc_const','pop_growth_10', 'nr_growth_10', 'eci', 'oppval',  'eci_oppval']
     DEPENDENT_VARIABLE = 'gdppc_growth_10'
@@ -25,36 +26,47 @@ class GrowthProjections(_AtlasCleaning):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+        self.forecast_year = self.end_year
         self.data_loader = DataLoader(**kwargs)
         
-        wdi = self.data_loader.load_wdi_data().rename(columns={"code": "exporter"})
+        imf = self.data_loader.load_imf_data().rename(columns={"code": "iso3_code"})
+        # CUBA missing from IMF pull in from WDI
+        wdi = self.data_loader.load_wdi_data().rename(columns={"code": "iso3_code"})
         
-        growth_rate_df = self.calc_growth_rate(wdi)
+        self.world_indicators = pd.concat([wdi, imf[imf.iso3_code=="TWN"]])
+        
+        # validated
+        growth_rate_df = self.calc_growth_rate()
+        
+        # validated
         pop_rate_df = self.calc_pop_growth()
-        nr = self.data_loader.load_natural_resources()
-        natres_rate_df = self.calc_natural_resources_per_cap(wdi, nr)
+        
+        nr = self.data_loader.load_natural_resources().rename(columns={"exporter": "iso3_code"})
+        # validated
+        natres_rate_df = self.calc_natural_resources_per_cap(nr)
+        
         
         nr.loc[:, 'eci_oppval']= nr['eci'] * nr['oppval']
-        wdi.loc[:, 'ln_gdppc_const'] = np.log(wdi['gdppc_const'])
+        self.world_indicators.loc[:, 'ln_gdppc_const'] = np.log(self.world_indicators['gdppc_const'])
         
-        self.df = wdi[['year','exporter','ln_gdppc_const']].merge(growth_rate_df, on=['year','exporter'], how='left').merge(pop_rate_df, on=['year','exporter'], how='left').merge(natres_rate_df, on=['year','exporter'], how='left').merge(nr[['year','exporter','eci', 'oppval', 'eci_oppval']], on=['year','exporter'], how='left')
+        self.df = self.world_indicators[['year','iso3_code','ln_gdppc_const']].merge(growth_rate_df, on=['year','iso3_code'], how='left').merge(pop_rate_df, on=['year','iso3_code'], how='left').merge(natres_rate_df, on=['year','iso3_code'], how='left').merge(nr[['year','iso3_code','eci', 'oppval', 'eci_oppval']], on=['year','iso3_code'], how='left')
         
         self.df = self.df[self.df.year>1969]
-        self.df = self.filter_to_in_rankings()
+        self.df = self.filter_to_in_rankings(self.df)
         
-        self.forecast_year= 2021
         self.df_res = pd.DataFrame()
         for digit_year in range(0,10):
             
             pred_df, X, y = self.select_regression_data(digit_year)
+
             X, y = self.remove_outliers(digit_year, X, y)
+
             results, X, y = self.run_growth_projection_regression(digit_year, X, y)
-            self.predict_future_growth(digit_year, pred_df, results, X, y)
             
-        import pdb
-        pdb.set_trace()
+            self.predict_future_growth(digit_year, pred_df, results, X, y)
 
         self.calc_aggregated_final_growth_projection()
+        self.append_forecast_year_growth()
         
         
 
@@ -97,20 +109,23 @@ class GrowthProjections(_AtlasCleaning):
         self.dummy_vars = [#f"dummy_year_197{digit_year}", 
               f"dummy_year_198{digit_year}", 
               f"dummy_year_199{digit_year}",
-              f"dummy_year_200{digit_year}", 
+              f"dummy_year_200{digit_year}",
               f"dummy_year_201{digit_year}"]
         #self.dummy_vars.remove(f"dummy_year_197{digit_year}")
 
         X = sm.add_constant(X)
-        model = sm.OLS(y, X[['const'] + self.FEATURES + self.dummy_vars], missing='drop')
-        res = model.fit()
+        
+        res = sm.OLS(y, X[['const'] + self.FEATURES + self.dummy_vars], missing='drop').fit()
         print(f"model results from finding outliers {res.summary()}")
         
-        X.loc[:, 'predicted'] = res.predict(X[['const'] + self.FEATURES + self.dummy_vars])
-        X.loc[:, 'predicted'] = res.predict(X[['const'] + self.FEATURES + self.dummy_vars])
-        X.loc[:, 'abs_difference'] = abs(X['predicted']  - y)
-        rmse = RMSE(X[self.DEPENDENT_VARIABLE], X['predicted'])
+        valid_obs = ~np.isnan(y) & ~X[['const'] + self.FEATURES + self.dummy_vars].isna().any(axis=1)
+        X.loc[valid_obs, 'predicted'] = res.predict(X.loc[valid_obs, ['const'] + self.FEATURES + self.dummy_vars])
+        X.loc[valid_obs, 'abs_difference'] = abs(X.loc[valid_obs, 'predicted'] - X.loc[valid_obs, self.DEPENDENT_VARIABLE])
+        rmse = np.sqrt(res.mse_resid)
+
         X.loc[:, "exceeds_threshold"] = X['abs_difference'] > (rmse * self.THRESHOLD)
+        
+        # stata finds 9 outside of threshold and python finds 15, all of 9 inclusive in 15
         X = X[~(X.exceeds_threshold==True)]
 
         y = X[self.DEPENDENT_VARIABLE]
@@ -122,67 +137,79 @@ class GrowthProjections(_AtlasCleaning):
         self.reg_features = self.FEATURES.copy()
         self.reg_features.remove('pop_growth_10')
         gp_model = sm.OLS(y, X[['const'] + self.reg_features + self.dummy_vars], missing='drop')
-#             model_index = gp_model.data.row_labels
 
         historical_X = X.loc[gp_model.data.row_labels]
         historical_y = y.loc[gp_model.data.row_labels]
         groups_used = historical_X['iso3_code']
-        # res = gp_model.fit(cov_type='cluster', cov_kwds={'groups': X['iso3_code']})
         res = gp_model.fit(cov_type='cluster', cov_kwds={'groups': groups_used})        
         print(f"model results from running gp regression {res.summary()}")
         
-        baseline_year = f"dummy_year_201{self.forecast_year}"
-        # take the decade Fixed Effect of the latest dummy
         return res, historical_X, historical_y
 
 
     def predict_future_growth(self, digit_year, pred_df, res, X, y):
-        coeff = res.params[f"dummy_year_201{digit_year}"]
+        # TODO determine appropriate baseline year
+        try:
+            baseline = res.params.get(f"dummy_year_201{digit_year}", 0)
+            if baseline == 0:
+                baseline = res.params.get(f"dummy_year_200{digit_year}", 0)
+        except:
+            baseline = 0
+        
         X.loc[:, 'predicted_gdppc'] = res.predict(X[['const'] + self.reg_features + self.dummy_vars])
         X.loc[:, 'abs_difference_gdppc'] = abs(X['predicted']  - y)
+        X['digit_year'] = digit_year
         rmse = RMSE(y, X['predicted_gdppc'])
         
         pred_df.loc[:, 'const'] = 1
-        pred_df.loc[pred_df.year==2021, 'predicted_gdppc'] = res.predict(pred_df[['const'] + self.reg_features + self.dummy_vars]) + coeff
-        # df = pd.concat([historical_X, pred_df])
+        
+        pred_df.loc[pred_df.year==self.forecast_year, 'predicted_gdppc'] = res.predict(pred_df[['const'] + self.reg_features + self.dummy_vars]) + baseline
+
+        pred_df.loc[pred_df.year==self.forecast_year, 'predicted_gdppc'] = res.predict(pred_df[['const'] + self.reg_features + self.dummy_vars]) + baseline
         pred_df['digit_year'] = digit_year
-        pred_df['r2'] = res.rsquared
-
-        # Calculate total growth (tg)
-        pred_df['total_growth'] = ((1 + pred_df['predicted_gdppc']/1) * (1 + pred_df['pop_growth_10']/1) - 1)
-        dummy_cols = [col for col in pred_df.columns if col.startswith('dummy_')]
-        pred_df = pred_df.drop(columns=dummy_cols)
-
-        self.df_res = pd.concat([self.df_res, pred_df])
         
+        self.df_res = pd.concat([self.df_res, X, pred_df])
+        dummy_cols = [col for col in self.df_res.columns if col.startswith('dummy_')]
+        self.df_res = self.df_res.drop(columns=dummy_cols)
+        
+
     def calc_aggregated_final_growth_projection(self):
+        
         self.df_res['diff']=100*(self.df_res['gdppc_growth_10']-self.df_res['predicted_gdppc'])
-        self.df_res.loc[self.df_res.year==2021,'diff']=0
-        df.loc[df.year==2021,'temp1']=df['predicted_gdppc']
-        df.loc[df.year==2021,'temp2']=df['pop_growth_10']
-        df['point_est']=df.groupby(['digit_year','iso3_code'])['temp1'].transform('mean')
-        df['pop_est']=df.groupby(['digit_year','iso3_code'])['temp2'].transform('mean')
+        self.df_res.loc[self.df_res['year']==self.forecast_year,'diff']=0
+        self.df_res.loc[self.df_res['year'] == self.forecast_year, 'temp1'] = self.df_res.loc[self.df_res['year'] == self.forecast_year, 'predicted_gdppc']
+        self.df_res.loc[self.df_res['year'] == self.forecast_year, 'temp2'] = self.df_res.loc[self.df_res['year'] == self.forecast_year, 'pop_growth_10']
         
-        df['estimate'] = df['point_est'] + (df['diff']/100)
+        self.df_res['point_est']=self.df_res.groupby(['digit_year','iso3_code'])['temp1'].transform('mean')
         
-#         gen gdppoint = 100*(( 1+pointest/1)*(1+pop/1) -1 )
-#         gen gdpestimate = 100*(( 1+estimate/1)*(1+pop/1) -1 )
-#         replace laggrowthmkt10 = .  if year!=`fyear'
-#         egen meangdpest = mean(gdpestimate), by(baseyear iso)
-#         egen meanoverall = mean(gdpestimate), by( iso)
-#         format gdp* diff* mean* laggrowthmkt10 pghat %9.3fc
-
-#     cd $path
-#     save "$path/atlas_growth_forecasts_$byear.dta", replace 	
-
-        import pdb
-        pdb.set_trace()
-                 
+        self.df_res['pop_est']=self.df_res.groupby(['digit_year','iso3_code'])['temp2'].transform('mean')
+                
+        self.df_res['estimate'] = self.df_res['point_est'] + (self.df_res['diff']/100)
+        self.df_res['gdppoint'] = 100 * ((1 + self.df_res['point_est'] ) * ( 1 + self.df_res['pop_est']) - 1)
+        self.df_res['gdpestimate'] = 100 * ((1 + self.df_res['estimate'] ) * ( 1 + self.df_res['pop_est']) - 1)
+        # replace laggrowthmkt10 = .  if year!=`fyear'
+        self.df_res['meangdpest']=self.df_res.groupby(['digit_year','iso3_code'])['gdpestimate'].transform('mean')
+        self.df_res['meanoverall']=self.df_res.groupby(['iso3_code'])['gdpestimate'].transform('mean')
+        
+        
+    def append_forecast_year_growth(self):
+        growth_proj = pd.read_csv(Path(self.atlas_common_path) / "growth_projections" / "growth_projections.csv")
+        if self.forecast_year in growth_proj.year.unique():
+            growth_proj = growth_proj[~growth_proj.year==self.forecast_year]
+        forecast_year = self.df_res[self.df_res.year==self.forecast_year][['iso3_code', 'meanoverall', 'year']].drop_duplicates(subset=['iso3_code', 'meanoverall', 'year'])
+        forecast_year = forecast_year.rename(columns={"iso3_code":"abbrv", 
+                                                      "meanoverall": "growth_proj",
+                                                      "year":"year"})
+        
+        self.df = pd.concat([growth_proj, forecast_year])
+                               
     
-    def filter_to_in_rankings(self):
-        df = pd.read_parquet(Path(self.raw_data_path) / "growth_projection_countries.parquet")
-        self.df = df.merge(self.df, left_on='iso3_code', right_on='exporter', how='left')
-        return self.df[self.df.in_rankings==True]
+    def filter_to_in_rankings(self, df):
+        rank = pd.read_csv(
+            Path(self.atlas_common_path) / "static_files" / "data" / "in_rankings.csv"
+        )
+        df = df.merge(rank, on='iso3_code', how='left')
+        return df[df.in_rankings==True]
         
     
     def filter_year_pattern(self, digit_year):
@@ -197,53 +224,45 @@ class GrowthProjections(_AtlasCleaning):
         ]
 
 
-    def calc_growth_rate(self, wdi):
+    def calc_growth_rate(self):
         """
         stata's growth10
         """
-        df = wdi[['year', 'exporter','gdppc_const']].set_index('year')
+        df = self.world_indicators[['year', 'iso3_code','gdppc_const']].set_index('year')
         # gen deltaNRrealexports= ( (f10.nnrexppc/f10.deflactor) - (nnrexppc/deflactor) ) / ny_gdp_pcap_kd
-        df.loc[:, f"gdppc_growth_{self.FORWARD_YEAR}"] = (df.groupby('exporter')["gdppc_const"].shift(-10)/df['gdppc_const']) ** (1 / 10) - 1
+        df.loc[:, f"gdppc_growth_{self.FORWARD_YEAR}"] = (df.groupby('iso3_code')["gdppc_const"].shift(-10)/df['gdppc_const']) ** (1 / 10) - 1
         return df.reset_index()
 
     def calc_pop_growth(self):
         """
         stata's pghat
         """
-        wdi_population = self.data_loader.load_wdi_data()
-        wdi_population = wdi_population[["code", "year", "population"]].rename(columns={"code": "exporter"})
+        population = self.world_indicators[["iso3_code", "year", "population"]].rename(columns={"code": "iso3_code"})
         un_pop = self.data_loader.load_population_forecast()
-        un_pop = un_pop.rename(columns={"iso":"exporter"})
+        un_pop['population'] = un_pop['population'] * 1_000
+        un_pop = un_pop.rename(columns={"iso":"iso3_code"})
         
-        df = un_pop.merge(wdi_population, on=["exporter", "year"], how="left", suffixes=("_wdi", "_un"))
+        df = un_pop.merge(population, on=["iso3_code", "year"], how="left", suffixes=("_imf", "_un"))
         
-        # TODO: handle missing un population figures
         df['population_un'] = df.population_un.astype('float') 
-        df['population_wdi'] = df.population_wdi.astype('float') 
-        df.loc[df.population_un.isna(), 'population_un'] = df['population_wdi']
-        df = df[['year', 'exporter','population_un']].set_index('year')
+        df['population_imf'] = df.population_imf.astype('float') 
+        df.loc[df.population_un.isna(), 'population_un'] = df['population_imf']
         
-        
+        df = df[['year', 'iso3_code','population_un']].set_index('year')
         # gen pghat =1* ( (f10.pop_hat/pop_hat)^(1/10)-1)
-        df.loc[:, f"pop_growth_{self.FORWARD_YEAR}"] = 1 * (
-                (
-                    df.groupby('exporter')["population_un"].shift(-10)
-                    / df["population_un"]
-                )
-                ** (1 / self.FORWARD_YEAR)
-                - 1
-            )
+                        
+        df[f"pop_growth_{self.FORWARD_YEAR}"] = df.groupby('iso3_code')['population_un'].transform(lambda x: ((x.shift(-10)/x)**(1/10) -1))
         
         return df.reset_index()
 
     
-    def calc_natural_resources_per_cap(self, wdi, nr):
+    def calc_natural_resources_per_cap(self, nr):
         """
         stata's deltaNRrealexports
         calculates natural resource 10-change in exports normalized by gdp per cap
         """
         df = nr.merge(
-            wdi, on=["year", "exporter"], how="left"
+            self.world_indicators, on=["year", "iso3_code"], how="left"
         )
         # gen nnrexppc= nr_net_exports/ (ny_gdp_mktp_cd/ny_gdp_pcap_cd)
         df.loc[:, "nat_res_exportspc"] = df["net_exports"] / (df["gdp"] / df["gdppc"])
@@ -257,13 +276,13 @@ class GrowthProjections(_AtlasCleaning):
         )
 
         df.loc[:, "deflator"] = df["gdppc"] / df["gdppc_const"]
-        df = df[['year', 'exporter', 'nat_res_exportspc', 'gdppc_const' ,'deflator']].set_index('year')
-        df = df.sort_values(['year','exporter'])
+        df = df[['year', 'iso3_code', 'nat_res_exportspc', 'gdppc_const' ,'deflator']].set_index('year')
+        df = df.sort_values(['year','iso3_code'])
 
         df.loc[:, f"nr_growth_{self.FORWARD_YEAR}"] = (
                 (
-                    df.groupby('exporter')["nat_res_exportspc"].shift(-10)
-                    / df.groupby('exporter')["deflator"].shift(-10)
+                    df.groupby('iso3_code')["nat_res_exportspc"].shift(-10)
+                    / df.groupby('iso3_code')["deflator"].shift(-10)
                 )
                 - (
                     df["nat_res_exportspc"]
@@ -273,10 +292,4 @@ class GrowthProjections(_AtlasCleaning):
 
         df = df.reset_index()
         df[f"nr_growth_{self.FORWARD_YEAR}"] = df[f"nr_growth_{self.FORWARD_YEAR}"].fillna(0)
-        return df[['year', 'exporter',f"nr_growth_{self.FORWARD_YEAR}"]]
-    
-
-    def complexity_metrics(self):
-        """
-        """
-        pass
+        return df[['year', 'iso3_code',f"nr_growth_{self.FORWARD_YEAR}"]]

@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 from glob import glob
 import pandas as pd
 import pyarrow as pq
@@ -19,6 +20,7 @@ from clean.table_objects.country_country_product_year import CountryCountryProdu
 from clean.table_objects.complexity import Complexity
 from clean.objects.concordance_table import ConcordanceTable
 from clean.table_objects.unilateral_services import UnilateralServices
+from clean.table_objects.growth_projections import GrowthProjections
 
 import logging
 
@@ -31,63 +33,84 @@ pd.options.display.max_columns = None
 pd.options.display.max_rows = None
 pd.set_option("max_colwidth", 400)
 
+parser = argparse.ArgumentParser(description="Run the Atlas clean")
+parser.add_argument(
+    "-V", "--version", type=str, help="Data folder name to store cleaned output data"
+)
+
+parser.add_argument(
+    "-D",
+    "--download-type",
+    type=str,
+    help="from comtrade get data type: [as_reported, by_classification]"
+)
+
+args = parser.parse_args()
+
+data_version = (
+    args.version
+    if args.version
+    else f"rewrite_{(date.today() - timedelta(days=1)).strftime('%Y_%m_%d')}"
+)
+
+download_type = (
+    args.download_type
+    if args.download_type
+    else "by_classification"
+)
+
+
+# use and manipulate to run sections interactively
 ingestion_attrs = {
     "start_year": 1995,
     "end_year": 2023,
-    "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
+    "downloaded_files_path": f"../../../../atlas/data/{download_type}/aggregated_by_year/parquet",
     # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
     "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-    "final_output_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2025_01_15/input",
+    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/{data_version}/input",
     # used for comparison to atlas production data and generated data
     "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
     "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
     "product_classification": "H0",
 }
 
+ingestion_attrs_base = {
+    "downloaded_files_path": f"../../../../atlas/data/{download_type}/aggregated_by_year/parquet",
+    "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
+    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/{data_version}/input",
+    "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
+    "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
+}
+
 ingestion_attrs_H0 = {
     "start_year": 1995,
     "end_year": 2023,
-    "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
-    "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/rewrite_{(datetime.now() - timedelta(days=1)).strftime('%Y_%m_%d')}/input",
-    "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
-    "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
     "product_classification": "H0",
 }
 
 ingestion_attrs_H4 = {
     "start_year": 2012,
     "end_year": 2023,
-    "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
-    "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/rewrite_{(datetime.now() - timedelta(days=1)).strftime('%Y_%m_%d')}/input",
-    "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
-    "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
     "product_classification": "H4",
 }
 
 ingestion_attrs_H5 = {
     "start_year": 2017,
     "end_year": 2023,
-    "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
-    "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/rewrite_{(datetime.now() - timedelta(days=1)).strftime('%Y_%m_%d')}/input",
-    "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
-    "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
     "product_classification": "H5",
 }
 
 ingestion_attrs_SITC = {
     "start_year": 1965,
     "end_year": 2023,
-    "downloaded_files_path": "../../../../atlas/data/by_classification/aggregated_by_year/parquet",
-    "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/rewrite_{(datetime.now() - timedelta(days=1)).strftime('%Y_%m_%d')}/input",
-    "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
-    "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
     "product_classification": "SITC",
 }
 
+general_ingestion_attrs = {
+    "start_year": None,
+    "end_year": 2023,
+    "product_classification": None,
+}
 
 
 def run_atlas_cleaning(ingestion_attrs):
@@ -227,13 +250,27 @@ def run_atlas_cleaning(ingestion_attrs):
     )
     del complexity_all
     
-#     unilateral_services = UnilateralServices(**ingestion_attrs)
-#     unilateral_services.save_parquet(
-#             unilateral_services.df,
-#             "final",
-#             f"unilateral_services",
-#             "Services"
-#         )
+    
+def run_unilateral_services(ingestion_attrs):
+    unilateral_services = UnilateralServices(**ingestion_attrs)
+    unilateral_services.save_parquet(
+            unilateral_services.df,
+            "final",
+            f"unilateral_services",
+            "Services"
+        )
+    del unilateral_services.df
+
+
+def run_growth_projections(ingestion_attrs):
+    growth_projections = GrowthProjections(**ingestion_attrs)
+    growth_projections.save_parquet(
+            growth_projections.df,
+            "final",
+            f"growth_projections",
+            "growth_projections"
+        )
+    del growth_projections.df
 
 
     # comparison = complexity.compare_files()
@@ -367,8 +404,18 @@ def run_stata_code(df, stata_code):
 
 
 if __name__ == "__main__":
+    ingestion_attrs_H0.update(ingestion_attrs_base)
+    ingestion_attrs_SITC.update(ingestion_attrs_base)
+    ingestion_attrs_H4.update(ingestion_attrs_base)
+    ingestion_attrs_H5.update(ingestion_attrs_base)
+    general_ingestion_attrs.update(ingestion_attrs_base)
+    
     # run_atlas_cleaning(ingestion_attrs)
-    # run_atlas_cleaning(ingestion_attrs_H0)
+    
+    run_atlas_cleaning(ingestion_attrs_H0)
     run_atlas_cleaning(ingestion_attrs_SITC)
-    # run_atlas_cleaning(ingestion_attrs_H4)
+    run_atlas_cleaning(ingestion_attrs_H4)
     # run_atlas_cleaning(ingestion_attrs_H5)
+    
+    run_unilateral_services(general_ingestion_attrs)
+    run_growth_projections(general_ingestion_attrs)
