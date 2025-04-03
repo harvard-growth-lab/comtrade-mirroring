@@ -62,7 +62,7 @@ download_type = (
 
 # use and manipulate to run sections interactively
 ingestion_attrs = {
-    "start_year": 1995,
+    "start_year": 2023,
     "end_year": 2023,
     "downloaded_files_path": f"../../../../atlas/data/{download_type}/aggregated_by_year/parquet",
     # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
@@ -72,6 +72,7 @@ ingestion_attrs = {
     "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
     "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
     "product_classification": "H0",
+    "download_type" : "as_reported",
 }
 
 ingestion_attrs_base = {
@@ -80,6 +81,7 @@ ingestion_attrs_base = {
     "final_output_path": f"/n/hausmann_lab/lab/atlas/data/{data_version}/input",
     "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
     "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
+    "download_type" : "by_classification",
 }
 
 ingestion_attrs_H0 = {
@@ -101,7 +103,7 @@ ingestion_attrs_H5 = {
 }
 
 ingestion_attrs_SITC = {
-    "start_year": 1965,
+    "start_year": 1962,
     "end_year": 2023,
     "product_classification": "SITC",
 }
@@ -262,8 +264,8 @@ def run_unilateral_services(ingestion_attrs):
     del unilateral_services.df
 
 
-def run_growth_projections(ingestion_attrs):
-    growth_projections = GrowthProjections(**ingestion_attrs)
+def run_growth_projections(year, ingestion_attrs):
+    growth_projections = GrowthProjections(year, **ingestion_attrs)
     growth_projections.save_parquet(
             growth_projections.df,
             "final",
@@ -404,13 +406,16 @@ def run_stata_code(df, stata_code):
 
 
 if __name__ == "__main__":
+    # for testing sections and manipulating the attrs directly
+    # run_atlas_cleaning(ingestion_attrs)
+
+    
     ingestion_attrs_H0.update(ingestion_attrs_base)
     ingestion_attrs_SITC.update(ingestion_attrs_base)
     ingestion_attrs_H4.update(ingestion_attrs_base)
-    ingestion_attrs_H5.update(ingestion_attrs_base)
+    # ingestion_attrs_H5.update(ingestion_attrs_base)
     general_ingestion_attrs.update(ingestion_attrs_base)
     
-    # run_atlas_cleaning(ingestion_attrs)
     
     run_atlas_cleaning(ingestion_attrs_H0)
     run_atlas_cleaning(ingestion_attrs_SITC)
@@ -418,4 +423,5 @@ if __name__ == "__main__":
     # run_atlas_cleaning(ingestion_attrs_H5)
     
     run_unilateral_services(general_ingestion_attrs)
-    run_growth_projections(general_ingestion_attrs)
+    run_growth_projections(2022, general_ingestion_attrs)
+    run_growth_projections(2023, general_ingestion_attrs)

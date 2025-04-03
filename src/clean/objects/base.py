@@ -41,8 +41,10 @@ class _AtlasCleaning(object):
         comparison_file_path,
         atlas_common_path,
         product_classification,
+        download_type,
     ):
         # INPUTS
+        self.download_type = download_type
         self.product_classification = product_classification
 
         self.downloaded_files_path = downloaded_files_path

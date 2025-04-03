@@ -100,59 +100,31 @@ class AggregateTrade(_AtlasCleaning):
         """
         df = pd.DataFrame()
         try:
-            columns = self.COLUMNS_DICT
-            df = pd.read_csv(
+            columns = self.COLUMNS_DICT_COMPACTOR
+            df = pd.read_parquet(
                 os.path.join(
-                    self.raw_data_path, f"{self.product_class}_{self.year}_FAIL.zip"
+                    self.downloaded_files_path,
+                    self.product_class,
+                    f"{self.product_class}_{self.year}.parquet",
                 ),
-                usecols=self.COLUMNS_DICT.keys(),
-                dtype={
-                    "Year": int,
-                    "Aggregate Level": int,
-                    "Trade Flow Code": int,
-                    "Reporter": str,
-                    "Reporter ISO": str,
-                    "Partner": str,
-                    "Partner ISO": str,
-                    "Commodity Code": str,
-                    "Qty Unit Code": int,
-                    "Qty": float,
-                    "Trade Value (US$)": int,
-                },
+                columns=self.COLUMNS_DICT_COMPACTOR.keys(),
             )
-            logging.info("using original csv file not from compactor")
-            logging.info(f"size of original csv file {df.shape}")
-            df.loc[df["Reporter"] == "Other Asia, nes", "Reporter ISO"] = "TWN"
-            df.loc[df["Partner"] == "Other Asia, nes", "Partner ISO"] = "TWN"
-            df = df.drop(columns=["Reporter", "Partner"])
 
-        except FileNotFoundError:
+        except:
+            logging.error(f"{self.year} not stored as a parquet file")
             try:
                 columns = self.COLUMNS_DICT_COMPACTOR
-                df = pd.read_parquet(
+                df = pd.read_stata(
                     os.path.join(
                         self.downloaded_files_path,
                         self.product_class,
-                        f"{self.product_class}_{self.year}.parquet",
+                        f"{self.product_class}_{self.year}.dta",
                     ),
                     columns=self.COLUMNS_DICT_COMPACTOR.keys(),
                 )
-
             except:
-                logging.error(f"{self.year} not stored as a parquet file")
-                try:
-                    columns = self.COLUMNS_DICT_COMPACTOR
-                    df = pd.read_stata(
-                        os.path.join(
-                            self.downloaded_files_path,
-                            self.product_class,
-                            f"{self.product_class}_{self.year}.dta",
-                        ),
-                        columns=self.COLUMNS_DICT_COMPACTOR.keys(),
-                    )
-                except:
-                    error_message = f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate"
-                    raise ValueError(error_message)
+                error_message = f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate"
+                raise ValueError(error_message)
         df = df.dropna(axis=0, how="all")
         return df.rename(columns=columns)
 
@@ -327,7 +299,6 @@ class AggregateTrade(_AtlasCleaning):
         df = reporting_importer.merge(
             reporting_exporter, on=["importer", "exporter"], how="outer"
         )
-
         # drops data where all rows are zero
         df = df[
             ~(
@@ -346,16 +317,19 @@ class AggregateTrade(_AtlasCleaning):
         Raises:
         AssertionError: If there are duplicate exporters or importers in the world trade data.
         """
+        self.df = self.df[((self.df.importer != "WLD") & (self.df.exporter != "WLD"))]
+
         exp_to_world = self.df[self.df.importer == "WLD"][
             ["exporter", "exports_0"]
         ].rename(columns={"exports_0": "total_exports"})
+
+        assert exp_to_world["exporter"].is_unique
+        self.df = self.df.merge(exp_to_world, on="exporter", how="left")
+
         imp_to_world = self.df[self.df.exporter == "WLD"][
             ["importer", "imports_0"]
         ].rename(columns={"imports_0": "total_imports"})
 
-        self.df = self.df[((self.df.importer != "WLD") & (self.df.exporter != "WLD"))]
-        assert exp_to_world["exporter"].is_unique
-        self.df = self.df.merge(exp_to_world, on="exporter", how="left")
         assert imp_to_world["importer"].is_unique
         self.df = self.df.merge(imp_to_world, on="importer", how="left")
 
@@ -367,16 +341,19 @@ class AggregateTrade(_AtlasCleaning):
 
         Removes entries with negligible trade values.
         """
+            
         self.df["ratio_exp"] = (
             (self.df[f"exp2ansnoclas_4"] / self.df["total_exports"]).astype(float)
             # .fillna(0.0)
         )
+        trade_flows = ["imports", "exports"]
+            
         self.df["ratio_imp"] = (
             (self.df[f"imp2ansnoclas_4"] / self.df["total_imports"]).astype(float)
             # .fillna(0.0)
         )
-
-        for direction in ["exports", "imports"]:
+        
+        for direction in ['imports','exports']:
             for product_level in [0, 4]:
                 # subtract if areas not specified is greater than 25% of country trade to world
                 self.df[f"{direction}_{product_level}"] = np.where(

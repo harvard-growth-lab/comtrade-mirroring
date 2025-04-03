@@ -541,6 +541,13 @@ class CountryCountryProductYear(_AtlasCleaning):
         if drop_exporter:
             logging.info("dropping exporter")
             self.df[~(self.df.exporter.isin(drop_exporter))]
+            
+        # handle 9999 reporting from Saudi for Atlas Year 2023
+        if self.year==2023:
+            logging.info("updating Saudi's 2023 9999 trade value to oil")
+            logging.info(f"Saudi's 99999 export trade value: {self.df[(self.df.exporter=='SAU')&(self.df.commoditycode=='999999')]['export_value'].sum()}")
+            
+            self.df.loc[(self.df.exporter=="SAU")&(self.df.commoditycode=="999999"), 'commoditycode'] = "270900"
 
     def handle_venezuela(self):
         """
