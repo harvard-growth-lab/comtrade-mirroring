@@ -30,8 +30,7 @@ class ConcordanceTable:
         self._prep_data_request()
         # run by year
         self._run_concordance()
-        
-        
+
     def _validate_request(self) -> None:
         def get_clcode_from_input(input_value):
             for key, value_list in self.clcodes.items():
@@ -78,15 +77,17 @@ class ConcordanceTable:
                 )
 
             self.concordance_table = self.concordance_table.drop_duplicates()
-        self.df = self.df.rename(
-            columns={"commoditycode": self.classification_code}
-        )
+        self.df = self.df.rename(columns={"commoditycode": self.classification_code})
 
     def _run_concordance(self) -> None:
         """ """
-        self.concordance_table['cl_counts']=self.concordance_table.groupby(self.classification_code)[self.classification_code].transform('count')
-        self.concordance_table["eql_distribution"] = 1 / self.concordance_table['cl_counts']
-        
+        self.concordance_table["cl_counts"] = self.concordance_table.groupby(
+            self.classification_code
+        )[self.classification_code].transform("count")
+        self.concordance_table["eql_distribution"] = (
+            1 / self.concordance_table["cl_counts"]
+        )
+
         if (
             self.classification_code == "HS92"
             and self.target_classification_code == "SITC2"
@@ -109,9 +110,11 @@ class ConcordanceTable:
                 self.df[self.classification_code] == "XXXXXX",
                 self.target_classification_code,
             ] = "XXXX"
-            
+
         self.df = self.df.drop(columns=["eql_distribution", self.classification_code])
-        self.df[['value_final', 'value_exporter', 'value_importer']] = self.df[['value_final', 'value_exporter', 'value_importer']].round(0)
+        self.df[["value_final", "value_exporter", "value_importer"]] = self.df[
+            ["value_final", "value_exporter", "value_importer"]
+        ].round(0)
 
         self.df = (
             self.df.groupby(

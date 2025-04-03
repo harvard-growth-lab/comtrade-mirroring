@@ -16,8 +16,7 @@ logging.basicConfig(level=logging.INFO)
 class DataLoader(_AtlasCleaning):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
-    
+
     def load_natural_resources(self):
         """
         keep year iso eci oppval in_atlas diversity avubiquity total_exports
@@ -61,17 +60,15 @@ class DataLoader(_AtlasCleaning):
 
         df["eci_rank"] = df.groupby(["year"])["eci"].rank(ascending=False)
         # df.loc[df.inatlas==1, 'eci_rank_inatlas'] = df.groupby(["year"])['eci'].rank(ascending=False)
-        df = df.rename(columns={"code":"iso3_code"})
+        df = df.rename(columns={"code": "iso3_code"})
         return df
 
     def load_sitc_cpy_complexity(self):
-        """
-        """
+        """ """
         return pd.read_parquet(
-            Path(self.processed_data_path) / "SITC_complexity_all.parquet" 
+            Path(self.processed_data_path) / "SITC_complexity_all.parquet"
         )
 
-    
     def load_wdi_data(self):
         """
         keep year idc iso ny_gdp_pcap_kd eci inatlas oppval
@@ -79,15 +76,18 @@ class DataLoader(_AtlasCleaning):
         return pd.read_csv(
             Path(self.atlas_common_path) / "wdi_indicators" / "data" / "wdi_data.csv"
         )
-    
+
     def load_wdi_services_data(self):
         """
         keep year idc iso ny_gdp_pcap_kd eci inatlas oppval
         """
         return pd.read_csv(
-            Path(self.atlas_common_path) / "wdi_indicators" / "data" / "wdi_service_data.csv"
+            Path(self.atlas_common_path)
+            / "wdi_indicators"
+            / "data"
+            / "wdi_service_data.csv"
         )
-    
+
     def load_imf_data(self):
         """
         WDI does not provide sufficient data for Venezuela
@@ -95,7 +95,6 @@ class DataLoader(_AtlasCleaning):
         return pd.read_csv(
             Path(self.atlas_common_path) / "imf_indicators" / "data" / "imf_data.csv"
         )
-
 
     def load_population_forecast(self):
         """
@@ -153,4 +152,3 @@ class DataLoader(_AtlasCleaning):
         )
 
         return wdi
-    

@@ -16,6 +16,13 @@ from ecomplexity import ecomplexity
 
 logging.basicConfig(level=logging.INFO)
 
+# https://data.worldbank.org/indicator/BX.GSR.NFSV.CD
+# https://data.worldbank.org/indicator/BX.GSR.TRVL.ZS (travel and tourism services) %exports
+# https://data.worldbank.org/indicator/BX.GSR.CCIS.ZS (ICT services) %exports
+# https://data.worldbank.org/indicator/BX.GSR.INSF.ZS (insurance and financial) %exports
+# https://data.worldbank.org/indicator/BM.GSR.TRAN.ZS (transport services) % imports
+# https://data.worldbank.org/indicator/BM.GSR.CMCP.ZS
+
 
 class UnilateralServices(_AtlasCleaning):
     SERVICES_START_YEAR = 1980
@@ -110,7 +117,6 @@ class UnilateralServices(_AtlasCleaning):
         services["sumshare"] = services.groupby(["year", "iso"])["share"].transform(
             "sum"
         )
-        # following stata code
         services["nodata"] = services["totals"] > 1
         services = services.drop_duplicates(subset=["iso", "year"], keep="first")
         services = services.drop(
@@ -137,7 +143,7 @@ class UnilateralServices(_AtlasCleaning):
             df = df.reset_index().rename(columns={"iso": "exporter"})
             df = df[~(df.services == "unspecified")]
             df = df.rename(columns={"services": "commoditycode"})
-            # dataservices
+
             avg_service_exports = df.copy()
             df = (
                 df.groupby(["exporter", "year"])
@@ -186,9 +192,6 @@ class UnilateralServices(_AtlasCleaning):
             df["nflows"] = df.groupby("exporter")["export_value"].transform("count")
             df = df[~(df.nflows <= 5)]
 
-            # handle complexity
-            # handle nans?
-            # py-ecomplexity package requires time variable
             df["year"] = 10
             trade_cols = {
                 "loc": "exporter",
@@ -249,13 +252,3 @@ class UnilateralServices(_AtlasCleaning):
 
         self.df["export_value"] = self.df.export_value.fillna(0)
         self.df["import_value"] = self.df.import_value.fillna(0)
-
-
-# https://data.worldbank.org/indicator/BX.GSR.NFSV.CD
-
-# https://data.worldbank.org/indicator/BX.GSR.TRVL.ZS (travel and tourism services) %exports
-# https://data.worldbank.org/indicator/BX.GSR.CCIS.ZS (ICT services) %exports
-# https://data.worldbank.org/indicator/BX.GSR.INSF.ZS (insurance and financial) %exports
-# https://data.worldbank.org/indicator/BM.GSR.TRAN.ZS (transport services) % imports
-
-# https://data.worldbank.org/indicator/BM.GSR.CMCP.ZS

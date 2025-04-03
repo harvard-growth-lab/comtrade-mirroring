@@ -320,8 +320,10 @@ class CountryCountryProductYear(_AtlasCleaning):
            - Use a weighted average of export and import values.
 
         2. For other combinations of trade and accuracy scores:
-            - When trade score is 4 but accuracy score is 0, use the average of export and import values
-            - When either score is 0, use the available value (import or export) based on the non-zero score
+            - When trade score is 4 but accuracy score is 0, use the average of
+            export and import values
+            - When either score is 0, use the available value (import or export)
+            based on the non-zero score
         """
         self.df["final_value"] = (
             (
@@ -383,7 +385,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         """
         Adjusts final trade values to reconcile discrepancies with reported total trade figures
 
-        Reweights trade values across commodities to match reported totals while preserving relative proportions.
+        Reweights trade values across commodities to match reported totals while preserving
+        relative proportions.
 
         Adds a 'trade data discrepancies' category to account for large unexplained differences.
         """
@@ -474,12 +477,14 @@ class CountryCountryProductYear(_AtlasCleaning):
 
     def filter_and_handle_trade_data_discrepancies(self):
         """
-        Clean trade data by removing rows without meaningful values and fill missing commodity codes.
+        Clean trade data by removing rows without meaningful values and fill missing
+        commodity codes.
 
         This function:
         1. Removes rows where all of 'final_value', 'import_value', and 'export_value' are zero.
         2. Removes rows where all values are null.
-        3. Fills missing commodity codes with trade data discrepancy code based on the current product classification.
+        3. Fills missing commodity codes with trade data discrepancy code based on the
+        current product classification.
         """
         # drop rows that don't have data
         self.df = self.df.dropna(
@@ -503,9 +508,9 @@ class CountryCountryProductYear(_AtlasCleaning):
 
     def handle_not_specified(self):
         """
-        Handle trade data with unspecified commodity codes and filter out exporters where
-        ratio of 'not specified' trade to total trade for each exporter ratio exceeds 1/3 (33.33%)
-        unspecified trade.
+        Handle trade data with unspecified commodity codes and filter out exporters
+        where ratio of 'not specified' trade to total trade for each exporter ratio
+        exceeds 1/3 (33.33%) unspecified trade.
         """
 
         not_specified_val = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[
@@ -541,13 +546,18 @@ class CountryCountryProductYear(_AtlasCleaning):
         if drop_exporter:
             logging.info("dropping exporter")
             self.df[~(self.df.exporter.isin(drop_exporter))]
-            
+
         # handle 9999 reporting from Saudi for Atlas Year 2023
-        if self.year==2023:
+        if self.year == 2023:
             logging.info("updating Saudi's 2023 9999 trade value to oil")
-            logging.info(f"Saudi's 99999 export trade value: {self.df[(self.df.exporter=='SAU')&(self.df.commoditycode=='999999')]['export_value'].sum()}")
-            
-            self.df.loc[(self.df.exporter=="SAU")&(self.df.commoditycode=="999999"), 'commoditycode'] = "270900"
+            logging.info(
+                f"Saudi's 99999 export trade value: {self.df[(self.df.exporter=='SAU')&(self.df.commoditycode=='999999')]['export_value'].sum()}"
+            )
+
+            self.df.loc[
+                (self.df.exporter == "SAU") & (self.df.commoditycode == "999999"),
+                "commoditycode",
+            ] = "270900"
 
     def handle_venezuela(self):
         """

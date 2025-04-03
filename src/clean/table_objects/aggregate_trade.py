@@ -53,8 +53,6 @@ class AggregateTrade(_AtlasCleaning):
         self.product_class = product_class
         # load data
         self.df = self.load_comtrade_downloader_file()
-        # conditional incase df is empty
-        # moved to compactor
         self.ans_and_recode_other_asia_to_taiwan()
         self.check_commodity_code_length()
 
@@ -137,7 +135,7 @@ class AggregateTrade(_AtlasCleaning):
         self.df = self.df[
             self.df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_class])
         ]
-        # TODO how do I handle reimports and reexports (SEBA question)
+        # TODO we keep RM and RX but never do anything with them, keep ask Seba
         trade_flow_mapping = {"M": 1, "X": 2, "RM": 3, "RX": 4}
 
         self.df["trade_flow"] = self.df["trade_flow"].astype(str)
@@ -164,7 +162,6 @@ class AggregateTrade(_AtlasCleaning):
         except:
             logging.info("Countries did not report Taiwan as a partner")
 
-        # from comtrade reads. py
         ans_partners = self.ans_partners["PartnerCodeIsoAlpha3"].tolist()
         self.df.loc[self.df["partner_iso"].isin(ans_partners), "partner_iso"] = "ANS"
         self.df.loc[self.df["partner_iso"].isna(), "partner_iso"] = "ANS"
@@ -194,7 +191,6 @@ class AggregateTrade(_AtlasCleaning):
             )
         )
         self.df.loc[mask, "reporter_ansnoclas"] = self.df["trade_value"]
-        # self.df["reporter_ansnoclas"] = self.df["reporter_ansnoclas"]#.fillna(0)
 
     def handle_germany_reunification(self):
         # drop DEU/DDR trade because within country trade
@@ -242,7 +238,6 @@ class AggregateTrade(_AtlasCleaning):
         ]
 
         # generates one obs per unique pair of reporter and partner for both
-        # trade_value and reporter_ansnoclas
         df = df.pivot_table(
             index=["reporter_iso", "partner_iso"],
             columns="trade_flow",
@@ -299,7 +294,6 @@ class AggregateTrade(_AtlasCleaning):
         df = reporting_importer.merge(
             reporting_exporter, on=["importer", "exporter"], how="outer"
         )
-        # drops data where all rows are zero
         df = df[
             ~(
                 (df[f"imports_{level}"] == 0)
@@ -341,19 +335,19 @@ class AggregateTrade(_AtlasCleaning):
 
         Removes entries with negligible trade values.
         """
-            
+
         self.df["ratio_exp"] = (
             (self.df[f"exp2ansnoclas_4"] / self.df["total_exports"]).astype(float)
             # .fillna(0.0)
         )
         trade_flows = ["imports", "exports"]
-            
+
         self.df["ratio_imp"] = (
             (self.df[f"imp2ansnoclas_4"] / self.df["total_imports"]).astype(float)
             # .fillna(0.0)
         )
-        
-        for direction in ['imports','exports']:
+
+        for direction in ["imports", "exports"]:
             for product_level in [0, 4]:
                 # subtract if areas not specified is greater than 25% of country trade to world
                 self.df[f"{direction}_{product_level}"] = np.where(
@@ -364,5 +358,4 @@ class AggregateTrade(_AtlasCleaning):
                 )
         self.df["export_value_fob"] = self.df[["exports_0", f"exports_4"]].mean(axis=1)
         self.df["import_value_cif"] = self.df[["imports_0", f"imports_4"]].mean(axis=1)
-        # evaluate removing this, filtering out less than $1,000
         self.df[self.df[["export_value_fob", "import_value_cif"]].max(axis=1) >= 1_000]

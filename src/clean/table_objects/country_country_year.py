@@ -9,7 +9,6 @@ import copy
 logging.basicConfig(level=logging.INFO)
 
 
-# generates a country country year table
 class CountryCountryYear(_AtlasCleaning):
     niter = 25  # Iterations A_e
     trade_value_threshold = 10**4
@@ -180,7 +179,6 @@ class CountryCountryYear(_AtlasCleaning):
             ]
         self.df = self.df.drop(columns=["nflows"])
 
-        # leave for testing
         assert (
             self.df["exporter"].nunique() == self.df["importer"].nunique()
         ), f"Number of exporters does not equal number of importers"
@@ -200,11 +198,6 @@ class CountryCountryYear(_AtlasCleaning):
                 self.df[col] / fred[fred.year == self.year]["deflator"].iloc[0]
             )
 
-            # fill na here verified
-        # foreach j in exportvalue_fob importvalue_fob importvalue_cif {
-        # 	replace `j' = `j' / (index)
-        # 	replace `j' = 0 if `j' == .
-        # }
         self.df[["export_value_fob", "import_value_fob", "import_value_cif"]] = self.df[
             ["export_value_fob", "import_value_fob", "import_value_cif"]
         ].fillna(0)

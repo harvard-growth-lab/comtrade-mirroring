@@ -15,7 +15,6 @@ logging.basicConfig(level=logging.INFO)
 
 
 class GrowthProjections(_AtlasCleaning):
-    
     YEAR_MIN = 1980
     # IMF reports on Taiwan, WDI does not
     IMF_COUNTRIES = ["TWN"]
@@ -39,20 +38,19 @@ class GrowthProjections(_AtlasCleaning):
         self.forecast_year = forecast_year
         self.data_loader = DataLoader(**kwargs)
 
-        # if primary is WDI then from IMF need Taiwan 
+        # if primary is WDI then from IMF need Taiwan
         # if primary is IMF then from WDI need CUB
         imf = self.data_loader.load_imf_data().rename(columns={"code": "iso3_code"})
         imf = imf.drop(columns=["country_id"])
         imf_countries = imf[imf.iso3_code.isin(self.IMF_COUNTRIES)]
-        imf_crisis = self.handle_economic_crises(imf[imf.iso3_code.isin(self.COUNTRIES_IN_ECONOMIC_CRISIS)])
+        imf_crisis = self.handle_economic_crises(
+            imf[imf.iso3_code.isin(self.COUNTRIES_IN_ECONOMIC_CRISIS)]
+        )
         imf = pd.concat([imf_countries, imf_crisis])
         wdi = self.data_loader.load_wdi_data().rename(columns={"code": "iso3_code"})
         wdi = wdi[~(wdi.iso3_code.isin(self.COUNTRIES_IN_ECONOMIC_CRISIS))]
-                        
-        self.world_indicators = pd.concat(
-            [wdi, imf]
-        )
-        
+
+        self.world_indicators = pd.concat([wdi, imf])
 
         # validated
         growth_rate_df = self.calc_growth_rate()
@@ -83,9 +81,8 @@ class GrowthProjections(_AtlasCleaning):
             )
         )
 
-        # self.df = self.df[self.df.year > 1969]
         self.df = self.filter_to_in_rankings(self.df)
-        
+
         self.df_res = pd.DataFrame()
         for digit_year in range(0, 10):
             pred_df, X, y = self.select_regression_data(digit_year)
@@ -97,12 +94,14 @@ class GrowthProjections(_AtlasCleaning):
             self.predict_future_growth(digit_year, pred_df, results, X, y)
 
         df = self.calc_aggregated_final_growth_projection()
-        df_iso = self.calc_aggregated_final_growth_projection(['KOR','SGP','CHN'])
-        df = df[~(df.iso3_code.isin(['KOR','SGP','CHN']))]
+        df_iso = self.calc_aggregated_final_growth_projection(["KOR", "SGP", "CHN"])
+        df = df[~(df.iso3_code.isin(["KOR", "SGP", "CHN"]))]
         df = pd.concat([df, df_iso])
-        
-        df.to_csv(f"data/growth_projections/detail_gp_{self.forecast_year}.csv", index=False)
-        
+
+        df.to_csv(
+            f"data/growth_projections/detail_gp_{self.forecast_year}.csv", index=False
+        )
+
         self.append_forecast_year_growth(df)
 
     def handle_economic_crises(self, df):
@@ -112,19 +111,23 @@ class GrowthProjections(_AtlasCleaning):
         df_adj = pd.DataFrame()
         for country in self.COUNTRIES_IN_ECONOMIC_CRISIS:
             country_df = df[df.iso3_code == country]
-            country_df.loc[country_df.year==self.YEAR_MIN, "gdp_adj"] = (
+            country_df.loc[country_df.year == self.YEAR_MIN, "gdp_adj"] = (
                 country_df["gdppc"] * country_df["population"]
             )
-            country_df = country_df.set_index('year')
+            country_df = country_df.set_index("year")
             for year in sorted(country_df.index)[1:]:  # Skip first year
                 prev_year = year - 1
                 if prev_year in country_df.index:
                     growth_factor = 1 + (country_df.loc[year, "gdp_const_growth"] / 100)
-                    country_df.loc[year, "gdp_adj"] = country_df.loc[prev_year, "gdp_adj"] * growth_factor
+                    country_df.loc[year, "gdp_adj"] = (
+                        country_df.loc[prev_year, "gdp_adj"] * growth_factor
+                    )
 
-            country_df = country_df.drop(columns="gdp").rename(columns={"gdp_adj": "gdp"})
+            country_df = country_df.drop(columns="gdp").rename(
+                columns={"gdp_adj": "gdp"}
+            )
             country_df = country_df.reset_index()
-            df_adj = pd.concat([df_adj, country_df])     
+            df_adj = pd.concat([df_adj, country_df])
         return df_adj
 
     def select_regression_data(self, digit_year):
@@ -138,14 +141,12 @@ class GrowthProjections(_AtlasCleaning):
             - oppval
             - eci_opp
         """
-        # hold on to only years ending in digit_year
-
-        # data selection
         dff = self.filter_year_pattern(digit_year)
-        print(f"shape of filtered data frame {dff.shape}")
         dff["year"] = dff.year.astype("int")
         dff["dummy_year"] = dff.loc[:, "year"]
-        dff = pd.get_dummies(dff, drop_first=True, columns=["dummy_year"], dtype="int") # 
+        dff = pd.get_dummies(
+            dff, drop_first=True, columns=["dummy_year"], dtype="int"
+        )  #
         # forecast year data
         pred_df = dff[dff.year == self.forecast_year]
 
@@ -171,18 +172,18 @@ class GrowthProjections(_AtlasCleaning):
             f"dummy_year_199{digit_year}",
             f"dummy_year_200{digit_year}",
             f"dummy_year_201{digit_year}",
-            f"dummy_year_202{digit_year}"
+            f"dummy_year_202{digit_year}",
         ]
-        
+
         X = sm.add_constant(X)
-        
+
         if f"dummy_year_202{digit_year}" not in X.columns:
             self.dummy_vars.remove(f"dummy_year_202{digit_year}")
 
         res = sm.OLS(
             y, X[["const"] + self.FEATURES + self.dummy_vars], missing="drop"
         ).fit()
-        print(f"model results from finding outliers {res.summary()}")        
+        print(f"model results from finding outliers {res.summary()}")
 
         valid_obs = ~np.isnan(y) & ~X[
             ["const"] + self.FEATURES + self.dummy_vars
@@ -200,9 +201,11 @@ class GrowthProjections(_AtlasCleaning):
         # stata finds 9 outside of threshold and python finds 15, all of 9 inclusive in 15
         self.outliers = X[(X.exceeds_threshold == True)]
         X = X[~(X.exceeds_threshold == True)]
-        
-        # remove countries in economics crisis 
-        self.economic_crisis_countries = X[X.iso3_code.isin(self.COUNTRIES_IN_ECONOMIC_CRISIS)]
+
+        # remove countries in economics crisis
+        self.economic_crisis_countries = X[
+            X.iso3_code.isin(self.COUNTRIES_IN_ECONOMIC_CRISIS)
+        ]
         X = X[~(X.iso3_code.isin(self.COUNTRIES_IN_ECONOMIC_CRISIS))]
 
         y = X[self.DEPENDENT_VARIABLE]
@@ -214,9 +217,11 @@ class GrowthProjections(_AtlasCleaning):
         self.reg_features.remove("pop_growth_10")
 
         gp_model = sm.OLS(
-            X[self.DEPENDENT_VARIABLE], X[["const"] + self.reg_features + self.dummy_vars], missing="drop"
+            X[self.DEPENDENT_VARIABLE],
+            X[["const"] + self.reg_features + self.dummy_vars],
+            missing="drop",
         )
-        
+
         historical_X = X.loc[gp_model.data.row_labels]
         historical_y = X[self.DEPENDENT_VARIABLE].loc[gp_model.data.row_labels]
         groups_used = historical_X["iso3_code"]
@@ -225,7 +230,6 @@ class GrowthProjections(_AtlasCleaning):
 
         return res, historical_X, historical_y
 
-    
     def predict_future_growth(self, digit_year, pred_df, res, X, y):
         # TODO determine appropriate baseline year
         try:
@@ -252,35 +256,37 @@ class GrowthProjections(_AtlasCleaning):
             + baseline
         )
         pred_df["digit_year"] = digit_year
-        
+
         self.df_res = pd.concat([self.df_res, X, pred_df])
         dummy_cols = [col for col in self.df_res.columns if col.startswith("dummy_")]
         self.df_res = self.df_res.drop(columns=dummy_cols)
 
     def calc_aggregated_final_growth_projection(self, iso_codes=[]):
-        
         if iso_codes:
-            self.df_res =self.df_res[self.df_res.iso3_code.isin(iso_codes)]
-            self.df_res = self.df_res[self.df_res.year>1989]
-                
-        self.df_res.loc[(self.df_res.iso3_code=="TWN") & (self.df_res.pop_growth_10.isna()), 'pop_growth_10'] = 0
-        
+            self.df_res = self.df_res[self.df_res.iso3_code.isin(iso_codes)]
+            self.df_res = self.df_res[self.df_res.year > 1989]
+
+        self.df_res.loc[
+            (self.df_res.iso3_code == "TWN") & (self.df_res.pop_growth_10.isna()),
+            "pop_growth_10",
+        ] = 0
+
         self.df_res["diff"] = 100 * (
             self.df_res["gdppc_growth_10"] - self.df_res["predicted_gdppc"]
         )
         self.df_res.loc[self.df_res["year"] == self.forecast_year, "diff"] = 0
-        
+
         ## TODO: clean this up
         self.df_res.loc[
             self.df_res["year"] == self.forecast_year, "predicted_gdppc_forecast_year"
         ] = self.df_res.loc[
             self.df_res["year"] == self.forecast_year, "predicted_gdppc"
         ]
-        
+
         self.df_res.loc[
             self.df_res["year"] == self.forecast_year, "pop_growth_10_forecast_year"
         ] = self.df_res.loc[self.df_res["year"] == self.forecast_year, "pop_growth_10"]
-        
+
         self.df_res["point_est"] = self.df_res.groupby(["digit_year", "iso3_code"])[
             "predicted_gdppc_forecast_year"
         ].transform("mean")
@@ -288,18 +294,19 @@ class GrowthProjections(_AtlasCleaning):
         self.df_res["pop_est"] = self.df_res.groupby(["digit_year", "iso3_code"])[
             "pop_growth_10_forecast_year"
         ].transform("mean")
-        ########################
 
         self.df_res["estimate"] = self.df_res["point_est"] + (self.df_res["diff"] / 100)
-        
+
         # generate a per cap growth projection that doesn't account for population growth
-        self.df_res["digit_year_gdppc_growth_estimate"] = 100 * (self.df_res.groupby(["digit_year", "iso3_code"])[
-            "estimate"
-        ].transform("mean"))
-        self.df_res["gdppc_growth_estimate"] = 100 * (self.df_res.groupby(["iso3_code"])[
-            "estimate"
-        ].transform("mean"))
-        
+        self.df_res["digit_year_gdppc_growth_estimate"] = 100 * (
+            self.df_res.groupby(["digit_year", "iso3_code"])["estimate"].transform(
+                "mean"
+            )
+        )
+        self.df_res["gdppc_growth_estimate"] = 100 * (
+            self.df_res.groupby(["iso3_code"])["estimate"].transform("mean")
+        )
+
         self.df_res["gdppoint"] = 100 * (
             (1 + self.df_res["point_est"]) * (1 + self.df_res["pop_est"]) - 1
         )
@@ -307,17 +314,14 @@ class GrowthProjections(_AtlasCleaning):
             (1 + self.df_res["estimate"]) * (1 + self.df_res["pop_est"]) - 1
         )
         # replace laggrowthmkt10 = .  if year!=`fyear'
-        self.df_res["digit_year_growth_estimate"] = self.df_res.groupby(["digit_year", "iso3_code"])[
-            "gdpestimate"
-        ].transform("mean")
+        self.df_res["digit_year_growth_estimate"] = self.df_res.groupby(
+            ["digit_year", "iso3_code"]
+        )["gdpestimate"].transform("mean")
         self.df_res["growth_estimate"] = self.df_res.groupby(["iso3_code"])[
             "gdpestimate"
         ].transform("mean")
         # update atlas common data with updated projections
         return self.df_res.copy()
-        
-        
-
 
     def append_forecast_year_growth(self, df):
         growth_proj = pd.read_csv(
@@ -331,18 +335,22 @@ class GrowthProjections(_AtlasCleaning):
             ["iso3_code", "growth_estimate", "year"]
         ].drop_duplicates(subset=["iso3_code", "growth_estimate", "year"])
         forecast_year = forecast_year.rename(
-            columns={"iso3_code": "abbrv", "growth_estimate": "growth_proj", "year": "year"}
+            columns={
+                "iso3_code": "abbrv",
+                "growth_estimate": "growth_proj",
+                "year": "year",
+            }
         )
-        
+
         self.df = pd.concat([growth_proj, forecast_year])
-        
+
         # update atlas common data with updated projections
         self.df.to_csv(
             Path(self.atlas_common_path)
             / "growth_projections"
-            / "growth_projections.csv"
-        , index=False)
-
+            / "growth_projections.csv",
+            index=False,
+        )
 
     def filter_to_in_rankings(self, df):
         rank = pd.read_csv(

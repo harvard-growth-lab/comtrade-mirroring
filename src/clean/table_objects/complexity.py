@@ -65,7 +65,6 @@ class Complexity(_AtlasCleaning):
             os.path.join(self.raw_data_path, "obs_atlas.dta")
         )
 
-        # TODO: include functionality for generating SITC ccpy with ~800 products
         if self.product_class == "SITC":
             self.handle_sitc()
         else:
@@ -101,17 +100,11 @@ class Complexity(_AtlasCleaning):
         Rectangularizes trade data and fills in nan values with zeroes. This step
         is a preprocessing step before using Growth Lab's py-ecomplexity package
         """
-        # try:
-        #     self.df = self.df.rename(columns={"commodity_code": "commoditycode"})
-        # except:
-        #     logging.info("update ccpy, can remove commodity code rename")
-
         self.df = self.df[["exporter", "importer", "commoditycode", "value_final"]]
         self.df = self.df.rename(columns={"value_final": "export_value"})
         # aggregate to four digit level
         self.df["commoditycode"] = self.df["commoditycode"].astype(str).str[:4]
 
-        # show the import and export value for each exporter
         self.df = (
             self.df.groupby(["exporter", "importer", "commoditycode"])
             .sum()
@@ -314,21 +307,17 @@ class Complexity(_AtlasCleaning):
             "loc": "exporter",
             "prod": "commoditycode",
             "val": "export_value",
-            # "val": "mcp_input",
         }
 
         # calculate complexity
         logging.info("Calculating the complexity of selected countries and products")
         reliable_df = ecomplexity(
             self.df[["year", "exporter", "commoditycode", "export_value"]],
-            # self.df[["year", "exporter", "commoditycode", "mcp_input"]],
             trade_cols,
-            # presence_test="manual",
         )
 
         pci_df = ecomplexity(
             self.df[["year", "exporter", "commoditycode", "export_value"]],
-            # self.df[["year", "exporter", "commoditycode", "mcp_input"]],
             trade_cols,
             output_normalized_pci=False,
         )
@@ -345,7 +334,6 @@ class Complexity(_AtlasCleaning):
 
         # ecomplexity output
         reliable_df = reliable_df.drop(columns=["year"])
-        # proximity_df = proximity(self.df, trade_cols)
 
         self.df = self.df.merge(
             reliable_df.drop(columns="export_value"),
@@ -371,8 +359,6 @@ class Complexity(_AtlasCleaning):
             )
         )
         df = combinations.merge(df, on=["exporter", "commoditycode"], how="left")
-        # fill na with zero
-        # df["export_value"] = all_countries["export_value"].fillna(0)
         return df
 
     def most_reliable_country_metrics(self):
@@ -483,7 +469,6 @@ class Complexity(_AtlasCleaning):
             ["export_value", "import_value"]
         ].fillna(0)
 
-        ## fill in commoditycode 'XXXX' with all zeroes (last column with all zeroes)
         all_cp.loc[all_cp.commoditycode == "XXXX", "export_value"] = 0
 
         # all_cp = all_cp.sort_values(by=["exporter", "commoditycode"])
@@ -504,8 +489,6 @@ class Complexity(_AtlasCleaning):
             on=["exporter"],
             how="outer",
         )
-
-        # all_cp = all_cp.sort_values(by=["exporter", "commoditycode"])
 
         # eci comes from mata, not the all_countries eci
         all_cp["pci"] = all_cp["mcp"] * all_cp["eci"]
@@ -547,7 +530,6 @@ class Complexity(_AtlasCleaning):
         ) / 2 - np.identity(all_cp_mcp.shape[1])
 
         # mata density3 = proximity' :/ (J(Nps,Nps,1) * proximity')
-        # all_cp_proximity = all_cp_proximity.fillna(0)
         all_cp_density = all_cp_proximity.T.div(
             np.dot(
                 np.ones((all_cp_mcp.shape[1], all_cp_mcp.shape[1]), dtype=int),

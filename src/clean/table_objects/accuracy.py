@@ -18,8 +18,6 @@ class Accuracy(_AtlasCleaning):
     def __init__(self, year, **kwargs):
         super().__init__(**kwargs)
 
-        # Set parameters
-        # self.ncountries = ncountries
         self.year = year
         self.df = pd.DataFrame()
 
@@ -141,13 +139,8 @@ class Accuracy(_AtlasCleaning):
             ) / importer_accuracy.std()
 
         if self.af == 0:
-            # this is set to run
             logging.info("calculating mean of exporter accuracy and importer accuracy")
 
-            # import pdb
-            # pdb.set_trace()
-            # accuracy_scores = exporter_accuracy.merge(importer_accuracy, on = ['iso'], how = 'outer')
-            # accuracy_scores['accuracy_score'] = accuracy_scores.mean(axis=1)
             accuracy_score = (
                 exporter_accuracy["exporter_accuracy"]
                 + importer_accuracy["importer_accuracy"]
@@ -249,8 +242,6 @@ class Accuracy(_AtlasCleaning):
         self, exporter_accuracy_percentiles, importer_accuracy_percentiles
     ):
         """ """
-        # import pdb
-        # pdb.set_trace()
         self.df["weight"] = np.exp(self.df["exporter_accuracy_score"]) / (
             np.exp(self.df["exporter_accuracy_score"])
             + np.exp(self.df["importer_accuracy_score"])
@@ -277,11 +268,6 @@ class Accuracy(_AtlasCleaning):
                 0,
             ),
         )
-
-        # self.df["discrep"] = np.exp(
-        #     np.abs(np.log(self.df["export_value_fob"] / self.df["import_value_fob"]))
-        # )
-        # self.df["discrep"] = self.df["discrep"].fillna(0.0)
 
     def calculate_estimated_value(self, export_percentiles, import_percentiles):
         """

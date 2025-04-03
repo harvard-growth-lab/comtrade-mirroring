@@ -42,7 +42,7 @@ parser.add_argument(
     "-D",
     "--download-type",
     type=str,
-    help="from comtrade get data type: [as_reported, by_classification]"
+    help="from comtrade get data type: [as_reported, by_classification]",
 )
 
 args = parser.parse_args()
@@ -53,11 +53,7 @@ data_version = (
     else f"rewrite_{(date.today() - timedelta(days=1)).strftime('%Y_%m_%d')}"
 )
 
-download_type = (
-    args.download_type
-    if args.download_type
-    else "by_classification"
-)
+download_type = args.download_type if args.download_type else "by_classification"
 
 
 # use and manipulate to run sections interactively
@@ -72,7 +68,7 @@ ingestion_attrs = {
     "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
     "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
     "product_classification": "H0",
-    "download_type" : "as_reported",
+    "download_type": "as_reported",
 }
 
 ingestion_attrs_base = {
@@ -81,7 +77,7 @@ ingestion_attrs_base = {
     "final_output_path": f"/n/hausmann_lab/lab/atlas/data/{data_version}/input",
     "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
     "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
-    "download_type" : "by_classification",
+    "download_type": "by_classification",
 }
 
 ingestion_attrs_H0 = {
@@ -144,7 +140,7 @@ def run_atlas_cleaning(ingestion_attrs):
             classifications = get_classifications(year)
         else:
             classifications = [product_classification]
-        
+
         logging.info(
             f"Aggregating data for {year} and these classifications {classifications}"
         )
@@ -159,10 +155,10 @@ def run_atlas_cleaning(ingestion_attrs):
         logging.info(f"Beginning {year}... for {product_classification}")
         # if product_classification == "SITC":
         #     product_classification = get_classifications(year)[0]
-        if product_classification=="SITC" and year > 1994:
+        if product_classification == "SITC" and year > 1994:
             # use cleaned CCPY H0 data for SITC
             continue
-            
+
         # compute distance requires three years of aggregated data
         logging.info(f"Beginning compute distance for year {year}")
         df = compute_distance(year, product_classification, dist)
@@ -216,10 +212,9 @@ def run_atlas_cleaning(ingestion_attrs):
             ccpy.save_parquet(sitc_ccpy.df, "final", f"SITC_{year}", "SITC")
             del sitc_ccpy.df
         del ccpy.df
-    
+
     # handle complexity
     for year in range(start_year, end_year + 1):
-
         # complexity files
         complexity = Complexity(year, **ingestion_attrs)
 
@@ -240,7 +235,7 @@ def run_atlas_cleaning(ingestion_attrs):
     complexity_all = pd.concat(
         [pd.read_parquet(file) for file in complexity_all_years], axis=0
     )
-    
+
     atlas_base_obj = _AtlasCleaning(**ingestion_attrs)
     atlas_base_obj.save_parquet(
         df=complexity_all,
@@ -251,29 +246,22 @@ def run_atlas_cleaning(ingestion_attrs):
         complexity_all, "final", f"{product_classification}_cpy_all", "CPY"
     )
     del complexity_all
-    
-    
+
+
 def run_unilateral_services(ingestion_attrs):
     unilateral_services = UnilateralServices(**ingestion_attrs)
     unilateral_services.save_parquet(
-            unilateral_services.df,
-            "final",
-            f"unilateral_services",
-            "Services"
-        )
+        unilateral_services.df, "final", f"unilateral_services", "Services"
+    )
     del unilateral_services.df
 
 
 def run_growth_projections(year, ingestion_attrs):
     growth_projections = GrowthProjections(year, **ingestion_attrs)
     growth_projections.save_parquet(
-            growth_projections.df,
-            "final",
-            f"growth_projections",
-            "growth_projections"
-        )
+        growth_projections.df, "final", f"growth_projections", "growth_projections"
+    )
     del growth_projections.df
-
 
     # comparison = complexity.compare_files()
     # logging.info(f"review of compared files {comparison}")
@@ -409,19 +397,17 @@ if __name__ == "__main__":
     # for testing sections and manipulating the attrs directly
     # run_atlas_cleaning(ingestion_attrs)
 
-    
     ingestion_attrs_H0.update(ingestion_attrs_base)
     ingestion_attrs_SITC.update(ingestion_attrs_base)
     ingestion_attrs_H4.update(ingestion_attrs_base)
     # ingestion_attrs_H5.update(ingestion_attrs_base)
     general_ingestion_attrs.update(ingestion_attrs_base)
-    
-    
+
     run_atlas_cleaning(ingestion_attrs_H0)
     run_atlas_cleaning(ingestion_attrs_SITC)
     run_atlas_cleaning(ingestion_attrs_H4)
     # run_atlas_cleaning(ingestion_attrs_H5)
-    
+
     run_unilateral_services(general_ingestion_attrs)
     run_growth_projections(2022, general_ingestion_attrs)
     run_growth_projections(2023, general_ingestion_attrs)
