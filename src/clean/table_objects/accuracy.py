@@ -1,5 +1,5 @@
 import pandas as pd
-from clean.table_objects.base import _AtlasCleaning
+from clean.objects.base import _AtlasCleaning
 import os
 import numpy as np
 from sklearn.decomposition import PCA
@@ -18,13 +18,13 @@ class Accuracy(_AtlasCleaning):
     def __init__(self, year, **kwargs):
         super().__init__(**kwargs)
 
-        # Set parameters
-        # self.ncountries = ncountries
         self.year = year
         self.df = pd.DataFrame()
 
         # load data
-        nominal_dollars_df = self.load_parquet("intermediate", "ccy_nominal_dollars")
+        nominal_dollars_df = self.load_parquet(
+            "intermediate", f"{self.product_classification}_ccy_nominal_dollars"
+        )
 
         self.ccy = self.load_parquet(
             f"intermediate",
@@ -139,13 +139,8 @@ class Accuracy(_AtlasCleaning):
             ) / importer_accuracy.std()
 
         if self.af == 0:
-            # this is set to run
             logging.info("calculating mean of exporter accuracy and importer accuracy")
 
-            # import pdb
-            # pdb.set_trace()
-            # accuracy_scores = exporter_accuracy.merge(importer_accuracy, on = ['iso'], how = 'outer')
-            # accuracy_scores['accuracy_score'] = accuracy_scores.mean(axis=1)
             accuracy_score = (
                 exporter_accuracy["exporter_accuracy"]
                 + importer_accuracy["importer_accuracy"]
@@ -247,8 +242,6 @@ class Accuracy(_AtlasCleaning):
         self, exporter_accuracy_percentiles, importer_accuracy_percentiles
     ):
         """ """
-        # import pdb
-        # pdb.set_trace()
         self.df["weight"] = np.exp(self.df["exporter_accuracy_score"]) / (
             np.exp(self.df["exporter_accuracy_score"])
             + np.exp(self.df["importer_accuracy_score"])
@@ -276,19 +269,11 @@ class Accuracy(_AtlasCleaning):
             ),
         )
 
-        # self.df["discrep"] = np.exp(
-        #     np.abs(np.log(self.df["export_value_fob"] / self.df["import_value_fob"]))
-        # )
-        # self.df["discrep"] = self.df["discrep"].fillna(0.0)
-
     def calculate_estimated_value(self, export_percentiles, import_percentiles):
         """
         Series of filtered data based on Nan values with applied conditions to determine
         estimated trade value. Uses accuracy scores and relative percentage of imports and exports
         """
-
-        # import pdb
-        # pdb.set_trace()
         # est trade value only if accuracy scores and trade values are not nan
         filtered_df = self.df[
             (
@@ -297,14 +282,13 @@ class Accuracy(_AtlasCleaning):
                 & (self.df["import_value_fob"].notna())
                 & (self.df["export_value_fob"].notna())
             )
-        ]
+        ].copy()
 
-        filtered_df["est_trade_value"] = (
+        filtered_df.loc[:, "est_trade_value"] = (
             filtered_df["export_value_fob"] * filtered_df["weight"]
         ) + (filtered_df["import_value_fob"] * (1 - filtered_df["weight"]))
 
         self.df = self.df.combine_first(filtered_df)
-        # self.df = self.df.merge(filtered_df[['exporter', 'importer', 'est_trade_value']], on=['exporter', 'importer'], how='left')
 
         # est trade value only if accuracy scores are not nan
         filtered_df = self.df[
@@ -315,14 +299,14 @@ class Accuracy(_AtlasCleaning):
             )
         ]
 
-        filtered_df["est_trade_value"] = filtered_df[
+        filtered_df.loc[:, "est_trade_value"] = filtered_df[
             (
                 (filtered_df["exporter_accuracy_score"] < export_percentiles[0.50])
                 & (filtered_df["importer_accuracy_score"] >= import_percentiles[0.90])
             )
         ]["import_value_fob"]
 
-        filtered_df["est_trade_value"] = filtered_df[
+        filtered_df.loc[:, "est_trade_value"] = filtered_df[
             (
                 (filtered_df["est_trade_value"].isna())
                 & (filtered_df["exporter_accuracy_score"] >= export_percentiles[0.90])
@@ -330,7 +314,7 @@ class Accuracy(_AtlasCleaning):
             )
         ]["export_value_fob"]
 
-        filtered_df["est_trade_value"] = filtered_df[
+        filtered_df.loc[:, "est_trade_value"] = filtered_df[
             (
                 (filtered_df["est_trade_value"].isna())
                 & (self.df["exporter_accuracy_score"] < export_percentiles[0.25])
@@ -338,7 +322,7 @@ class Accuracy(_AtlasCleaning):
             )
         ]["import_value_fob"]
 
-        filtered_df["est_trade_value"] = filtered_df[
+        filtered_df.loc[:, "est_trade_value"] = filtered_df[
             (
                 (filtered_df["est_trade_value"].isna())
                 & (self.df["exporter_accuracy_score"] >= export_percentiles[0.75])
@@ -346,7 +330,7 @@ class Accuracy(_AtlasCleaning):
             )
         ]["export_value_fob"]
 
-        filtered_df["est_trade_value"] = filtered_df[
+        filtered_df.loc[:, "est_trade_value"] = filtered_df[
             (
                 (filtered_df["est_trade_value"].isna())
                 & (self.df["exporter_weight"] == 1)

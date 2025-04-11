@@ -1,5 +1,5 @@
 import pandas as pd
-from clean.table_objects.base import _AtlasCleaning
+from clean.objects.base import _AtlasCleaning
 import os
 import numpy as np
 from time import gmtime, strftime, localtime
@@ -40,7 +40,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.product_classification = kwargs["product_classification"]
         self.year = year
 
-        if self.product_classification == "SITC":
+        if self.product_classification == "SITC" and year > 1994:
             self.df = pd.read_parquet(
                 os.path.join(
                     self.final_output_path, "SITC", f"SITC_{self.year}.parquet"
@@ -220,9 +220,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         re = self.df[self.df.trade_flow == 2]
         ri = self.df[self.df.trade_flow == 1]
 
-        # import pdb
-        # pdb.set_trace()
-
         self.df = re.merge(
             ri,
             left_on=["reporter_iso", "partner_iso", "commoditycode"],
@@ -230,8 +227,6 @@ class CountryCountryProductYear(_AtlasCleaning):
             how="outer",
             suffixes=("_reporting_exp", "_reporting_imp"),
         )
-        # import pdb
-        # pdb.set_trace()
 
         # Handle asymmetrical imports/exports
         self.df["reporter_iso_reporting_exp"] = self.df[
@@ -240,9 +235,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.df["partner_iso_reporting_exp"] = self.df[
             "partner_iso_reporting_exp"
         ].combine_first(self.df["reporter_iso_reporting_imp"])
-
-        # import pdb
-        # pdb.set_trace()
 
         self.df = self.df.drop(
             columns=[
@@ -328,11 +320,11 @@ class CountryCountryProductYear(_AtlasCleaning):
            - Use a weighted average of export and import values.
 
         2. For other combinations of trade and accuracy scores:
-            - When trade score is 4 but accuracy score is 0, use the average of export and import values
-            - When either score is 0, use the available value (import or export) based on the non-zero score
+            - When trade score is 4 but accuracy score is 0, use the average of
+            export and import values
+            - When either score is 0, use the available value (import or export)
+            based on the non-zero score
         """
-        # import pdb
-        # pdb.set_trace()
         self.df["final_value"] = (
             (
                 (
@@ -387,15 +379,14 @@ class CountryCountryProductYear(_AtlasCleaning):
                 * ((self.df["trade_score"] == 1) * (self.df["accuracy"] == 2))
             )
         )
-        # import pdb
-        # pdb.set_trace()
         self.df = self.df.drop(columns=["trade_score", "accuracy"])
 
     def reweight_final_trade_value(self, accuracy):
         """
         Adjusts final trade values to reconcile discrepancies with reported total trade figures
 
-        Reweights trade values across commodities to match reported totals while preserving relative proportions.
+        Reweights trade values across commodities to match reported totals while preserving
+        relative proportions.
 
         Adds a 'trade data discrepancies' category to account for large unexplained differences.
         """
@@ -486,12 +477,14 @@ class CountryCountryProductYear(_AtlasCleaning):
 
     def filter_and_handle_trade_data_discrepancies(self):
         """
-        Clean trade data by removing rows without meaningful values and fill missing commodity codes.
+        Clean trade data by removing rows without meaningful values and fill missing
+        commodity codes.
 
         This function:
         1. Removes rows where all of 'final_value', 'import_value', and 'export_value' are zero.
         2. Removes rows where all values are null.
-        3. Fills missing commodity codes with trade data discrepancy code based on the current product classification.
+        3. Fills missing commodity codes with trade data discrepancy code based on the
+        current product classification.
         """
         # drop rows that don't have data
         self.df = self.df.dropna(
@@ -515,9 +508,9 @@ class CountryCountryProductYear(_AtlasCleaning):
 
     def handle_not_specified(self):
         """
-        Handle trade data with unspecified commodity codes and filter out exporters where
-        ratio of 'not specified' trade to total trade for each exporter ratio exceeds 1/3 (33.33%)
-        unspecified trade.
+        Handle trade data with unspecified commodity codes and filter out exporters
+        where ratio of 'not specified' trade to total trade for each exporter ratio
+        exceeds 1/3 (33.33%) unspecified trade.
         """
 
         not_specified_val = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[
@@ -554,6 +547,18 @@ class CountryCountryProductYear(_AtlasCleaning):
             logging.info("dropping exporter")
             self.df[~(self.df.exporter.isin(drop_exporter))]
 
+        # handle 9999 reporting from Saudi for Atlas Year 2023
+        if self.year == 2023:
+            logging.info("updating Saudi's 2023 9999 trade value to oil")
+            logging.info(
+                f"Saudi's 99999 export trade value: {self.df[(self.df.exporter=='SAU')&(self.df.commoditycode=='999999')]['export_value'].sum()}"
+            )
+
+            self.df.loc[
+                (self.df.exporter == "SAU") & (self.df.commoditycode == "999999"),
+                "commoditycode",
+            ] = "270900"
+
     def handle_venezuela(self):
         """
         Comtrade stopped patching trade data for Venezuela starting in 2020.
@@ -562,20 +567,22 @@ class CountryCountryProductYear(_AtlasCleaning):
         The value is calculated by determining oil production less country's oil consumption
         using the price per barrel from the https://www.energyinst.org/statistical-review
         """
-        self.df = self.df[
-            ~(
+        reported_total = self.df[
+            (
                 (self.df.exporter == "VEN")
-                & (self.df.importer == "ANS")
                 & (self.df.commoditycode == self.OIL[self.product_classification])
             )
-        ]
+        ]["value_final"].sum()
 
         ven_opec = pd.read_csv("data/ven_fix/venezuela_270900_exports.csv")
         ven_opec = ven_opec[ven_opec.year == self.year]
-        ven_opec = ven_opec.astype({"year": "int64"})
-        ven_opec["commoditycode"] = self.OIL[self.product_classification]
         if ven_opec.empty and self.year > 2019:
             raise ValueError(
                 f"Need to add the export value for oil in {self.year} for Venezuela"
             )
+        # the difference of total Venezuela exports, subtracts trade value
+        # if anyone imports did report Venezuela oil trade
+        ven_opec["value_final"] = ven_opec["value_final"] - reported_total
+        ven_opec = ven_opec.astype({"year": "int64"})
+        ven_opec["commoditycode"] = self.OIL[self.product_classification]
         self.df = pd.concat([self.df, ven_opec], axis=0, ignore_index=True, sort=False)

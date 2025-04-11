@@ -1,5 +1,5 @@
 import pandas as pd
-from clean.table_objects.base import _AtlasCleaning
+from clean.objects.base import _AtlasCleaning
 import os
 import numpy as np
 from sklearn.decomposition import PCA
@@ -9,7 +9,6 @@ import copy
 logging.basicConfig(level=logging.INFO)
 
 
-# generates a country country year table
 class CountryCountryYear(_AtlasCleaning):
     niter = 25  # Iterations A_e
     trade_value_threshold = 10**4
@@ -42,13 +41,14 @@ class CountryCountryYear(_AtlasCleaning):
 
         nominal_dollars_df = self.limit_cif_markup(nominal_dollars_df)
         # # save intermediate ccy file (saved as temp_accuracy.dta in stata file)
-        self.save_parquet(nominal_dollars_df, "intermediate", "ccy_nominal_dollars")
+        self.save_parquet(
+            nominal_dollars_df,
+            "intermediate",
+            f"{self.product_classification}_ccy_nominal_dollars",
+        )
 
         # read in economic indicators
-        cpi, population = self.add_economic_indicators()
-        cpi = self.inflation_adjustment(cpi)
-        # import pdb
-        # pdb.set_trace()
+        population = self.add_economic_indicators()
 
         # merge data to have all possible combinations for exporter, importer
         all_combinations_ccy_index = pd.MultiIndex.from_product(
@@ -85,15 +85,12 @@ class CountryCountryYear(_AtlasCleaning):
         self.normalize_trade_flows()
 
     def clean_data(self):
-        # self.df = self.df.dropna(subset=["exporter", "importer"])
         self.df = self.df[~((self.df.exporter == "WLD") | (self.df.importer == "WLD"))]
         self.df = self.df[~((self.df.exporter == "nan") | (self.df.importer == "nan"))]
 
         self.df = self.df[~((self.df.exporter == "ANS") & (self.df.importer == "ANS"))]
         self.df = self.df[self.df.exporter != self.df.importer]
         # drop trade values less than trade value threshold
-        # import pdb
-        # pdb.set_trace()
         self.df = self.df[
             self.df[["import_value_fob", "export_value_fob"]].max(axis=1, skipna=True)
             >= self.trade_value_threshold
@@ -115,15 +112,17 @@ class CountryCountryYear(_AtlasCleaning):
     def filter_by_population_threshold(self, population: pd.DataFrame()):
         """
         Drop all exporter and importers with populations below the population limit
+        to reduce noise when determining accuracy scores
         """
+
         population = population[population.year == self.year].drop(columns=["year"])
-        population.loc[population["imf_pop"].isna(), "imf_pop"] = population[
-            "sp_pop_totl"
-        ]
+        population.loc[population["imf_pop"].isna(), "imf_pop"] = population["wdi_pop"]
         population = population.rename(columns={"imf_pop": "imf_wdi_pop"})
+
         countries_under_threshold = population[
             population.imf_wdi_pop < self.population_threshold
         ]["iso"].tolist()
+
         self.df = self.df[
             ~(
                 (self.df.exporter.isin(countries_under_threshold))
@@ -180,7 +179,6 @@ class CountryCountryYear(_AtlasCleaning):
             ]
         self.df = self.df.drop(columns=["nflows"])
 
-        # leave for testing
         assert (
             self.df["exporter"].nunique() == self.df["importer"].nunique()
         ), f"Number of exporters does not equal number of importers"
@@ -190,24 +188,22 @@ class CountryCountryYear(_AtlasCleaning):
         Convert all trade dollars to base year (2010 - US) and zero out trade between countries
         below the flow limit
         """
-        cpi_index_base = self.inflation[self.inflation.year == self.year]
-        self.df["cpi_index_base"] = cpi_index_base.cpi_index_base.iloc[0]
+        # cpi_index_base = self.inflation[self.inflation.year == self.year]
+        # self.df["cpi_index_base"] = cpi_index_base.cpi_index_base.iloc[0]
+        fred = self.load_parquet("intermediate", "fred_index")
 
         # converts exports, import values to constant dollar values
         for col in ["export_value_fob", "import_value_fob"]:
-            self.df[col] = self.df[col] / self.df.cpi_index_base
+            self.df[col] = (
+                self.df[col] / fred[fred.year == self.year]["deflator"].iloc[0]
+            )
 
-            # fill na here verified
-        # foreach j in exportvalue_fob importvalue_fob importvalue_cif {
-        # 	replace `j' = `j' / (index)
-        # 	replace `j' = 0 if `j' == .
-        # }
         self.df[["export_value_fob", "import_value_fob", "import_value_cif"]] = self.df[
             ["export_value_fob", "import_value_fob", "import_value_cif"]
         ].fillna(0)
 
         self.df = self.df.drop(
-            columns=["cpi_index_base", "import_value_cif"]  # , "cif_ratio"]
+            columns=["import_value_cif"]  # , "cif_ratio"] "cpi_index_base",
         )
         # in stata v_e and v_i
         self.df = self.df.rename(
@@ -238,8 +234,6 @@ class CountryCountryYear(_AtlasCleaning):
         and divides by sum of imports and exports replaces nans with 0
         """
         # in stata s_ij, should be fob and
-        # import pdb
-        # pdb.set_trace()
         self.df["reporting_discrepancy"] = (
             (abs(self.df["exports_const_usd"] - self.df["imports_const_usd"]))
             / (self.df["exports_const_usd"] + self.df["imports_const_usd"])
@@ -306,52 +300,31 @@ class CountryCountryYear(_AtlasCleaning):
 
     def add_economic_indicators(self):
         """
-        population and cpi from wdi
-        # TODO: convert to IMF data, use wdi initially to compare values
+        population and produce price index from FRED (st. louis)
         """
-        wdi = (
-            pd.read_stata(
-                self.wdi_path, columns=["year", "iso", "fp_cpi_totl_zg", "sp_pop_totl"]
-            )
-            .rename(columns={"fp_cpi_totl_zg": "cpi"})
-            .reset_index(drop=True)
+        fred = pd.read_csv(
+            os.path.join(self.atlas_common_path, "fred", "data", "fred_ppiidc.csv")
         )
-        # price index
-        wdi_cpi = wdi[(wdi.year >= 1962) & (wdi.iso == "USA")].drop(
-            ["sp_pop_totl"], axis=1
+        logging.info(
+            f"base year set to {fred.atlas_base_year.unique()}, should be same as atlas data year"
         )
+        fred = fred[["year", "deflator"]]
+        fred = fred[fred.year >= 1962]
+        self.save_parquet(fred, "intermediate", "fred_index")
 
         # population
-        wdi_pop = wdi.drop(["cpi"], axis=1)
+        wdi_pop = (
+            pd.read_stata(self.wdi_path, columns=["year", "iso", "sp_pop_totl"])
+            .reset_index(drop=True)
+            .rename(columns={"sp_pop_totl": "wdi_pop"})
+        )
 
         imf_pop = pd.read_csv(
             os.path.join(self.raw_data_path, "imf_data.csv"),
             usecols=["code", "year", "population"],
         ).rename(columns={"population": "imf_pop"})
 
-        # if empty fill in with imf population data
-        pop = wdi_pop.merge(
-            imf_pop, left_on=["iso", "year"], right_on=["code", "year"], how="outer"
+        pop = imf_pop.merge(
+            wdi_pop, left_on=["code", "year"], right_on=["iso", "year"], how="outer"
         ).drop(columns=["code"])
-        return wdi_cpi, pop
-
-    def inflation_adjustment(self, cpi):
-        """ """
-        cpi = cpi.reset_index(drop=True)
-
-        for i, row in cpi.iterrows():
-            if i == 0:
-                cpi.at[i, "cpi_index"] = 100.0
-            else:
-                cpi.at[i, "cpi_index"] = cpi.iloc[i - 1]["cpi_index"] * (
-                    1 + row.cpi / 100
-                )
-
-        # sets base year at 2010
-        base_year_cpi_index = cpi.loc[cpi.year == self.CPI_BASE_YEAR, "cpi_index"].iloc[
-            0
-        ]
-        cpi["cpi_index_base"] = cpi["cpi_index"] / base_year_cpi_index
-
-        self.save_parquet(cpi, "intermediate", "inflation_index")
-        return cpi
+        return pop
