@@ -58,8 +58,8 @@ download_type = args.download_type if args.download_type else "by_classification
 
 # use and manipulate to run sections interactively
 ingestion_attrs = {
-    "start_year": 2023,
-    "end_year": 2023,
+    "start_year": 2015,
+    "end_year": 2020,
     "downloaded_files_path": f"../../../../atlas/data/{download_type}/aggregated_by_year/parquet",
     # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
     "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
@@ -68,7 +68,7 @@ ingestion_attrs = {
     "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
     "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
     "product_classification": "H0",
-    "download_type": "as_reported",
+    "download_type": "by_classification",
 }
 
 ingestion_attrs_base = {
@@ -397,17 +397,18 @@ if __name__ == "__main__":
     # for testing sections and manipulating the attrs directly
     # run_atlas_cleaning(ingestion_attrs)
 
-    ingestion_attrs_H0.update(ingestion_attrs_base)
-    ingestion_attrs_SITC.update(ingestion_attrs_base)
+    # ingestion_attrs_H0.update(ingestion_attrs_base)
+    # ingestion_attrs_SITC.update(ingestion_attrs_base)
     ingestion_attrs_H4.update(ingestion_attrs_base)
     # ingestion_attrs_H5.update(ingestion_attrs_base)
     general_ingestion_attrs.update(ingestion_attrs_base)
 
-    run_atlas_cleaning(ingestion_attrs_H0)
-    run_atlas_cleaning(ingestion_attrs_SITC)
-    run_atlas_cleaning(ingestion_attrs_H4)
+    # run_atlas_cleaning(ingestion_attrs_H0)
+    # run_atlas_cleaning(ingestion_attrs_SITC)
+    # run_atlas_cleaning(ingestion_attrs_H4)
     # run_atlas_cleaning(ingestion_attrs_H5)
+    # run_atlas_cleaning(ingestion_attrs)
 
-    run_unilateral_services(general_ingestion_attrs)
-    run_growth_projections(2022, general_ingestion_attrs)
+    # run_unilateral_services(general_ingestion_attrs)
+    # run_growth_projections(2022, general_ingestion_attrs)
     run_growth_projections(2023, general_ingestion_attrs)
