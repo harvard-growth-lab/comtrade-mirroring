@@ -1,6 +1,5 @@
 import pandas as pd
 from clean.objects.base import _AtlasCleaning
-from clean.objects.load_data import DataLoader
 
 import os
 import numpy as np
@@ -31,9 +30,7 @@ class UnilateralServices(_AtlasCleaning):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self.data_loader = DataLoader(**kwargs)
-
-        self.df = self.data_loader.load_wdi_services_data()
+        self.df = pd.read_csv(os.path.join(self.atlas_common_path, "wdi_indicators", "data", "wdi_service_data.csv"))
         self.df = self.df.fillna(0)
         self.df = self.df.rename(columns={"iso3_code": "iso"})
         self.preprocess_flows("export")
@@ -97,7 +94,10 @@ class UnilateralServices(_AtlasCleaning):
 
     def combine_services_and_goods(self):
         """ """
-        goods = self.data_loader.load_sitc_cpy_complexity()
+        goods = pd.read_parquet(
+            Path(self.processed_data_path) / "SITC_complexity_all.parquet" 
+        )
+
         grouped_goods = goods.groupby(["year", "exporter"]).agg({"export_value": "sum"})
         grouped_goods.loc[:, "total_exports"] = grouped_goods.groupby("year")[
             "export_value"
@@ -153,7 +153,9 @@ class UnilateralServices(_AtlasCleaning):
             df = df.rename(columns={"export_value": "total_services"})
             df = df[~((df.total_services.isna()) | (df.total_services == 0))]
 
-            goods = self.data_loader.load_sitc_cpy_complexity()
+            goods = pd.read_parquet(
+                Path(self.processed_data_path) / "SITC_complexity_all.parquet" 
+            )
             goods = goods[goods.year.isin([year, lag_year])].copy()
             goods = goods[
                 ~((goods.commoditycode == "XXXX") | (goods.commoditycode == "9310"))
