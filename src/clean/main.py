@@ -91,12 +91,6 @@ ingestion_attrs_converted_base = {
 }
 
 
-ingestion_attrs_converted_H0 = {
-    "start_year": 1962,
-    "end_year": 2023,
-    "product_classification": "H0",
-}
-
 ingestion_attrs_H0 = {
     "start_year": 1995,
     "end_year": 2023,
@@ -127,6 +121,12 @@ general_ingestion_attrs = {
     "product_classification": None,
 }
 
+# ingestion_attrs_temp = {
+#     "start_year": 1995,
+#     "end_year": 2023,
+#     "product_classification": "SITC",
+# }
+
 
 def run_atlas_cleaning(ingestion_attrs):
     """
@@ -150,11 +150,13 @@ def run_atlas_cleaning(ingestion_attrs):
     dist = pd.read_stata(os.path.join("data", "raw", "dist_cepii.dta"))
     
     for year in range(start_year, end_year + 1):
-        if product_classification == "SITC" and year > 1994:
+        if product_classification == "SITC" and year > 1994 and download_type == "by_classification":
             # use cleaned CCPY H0 data for SITC
             continue
-        elif product_classification == "SITC":
+        elif product_classification == "SITC" and download_type == "by_classification":
             classifications = get_classifications(year)
+        elif product_classification == "SITC" and download_type == "as_reported":
+            classifications = ["S2"]
         else:
             classifications = [product_classification]
 
@@ -170,11 +172,12 @@ def run_atlas_cleaning(ingestion_attrs):
 
     for year in range(start_year, end_year + 1):
         logging.info(f"Beginning {year}... for {product_classification}")
-        # if product_classification == "SITC":
-        #     product_classification = get_classifications(year)[0]
-        if product_classification == "SITC" and year > 1994:
+        if product_classification == "SITC" and year > 1994 and download_type == "by_classification":
             # use cleaned CCPY H0 data for SITC
             continue
+        elif product_classification == "SITC" and download_type == "by_classification":
+            product_classification = get_classifications(year)[0]
+
 
         # compute distance requires three years of aggregated data
         logging.info(f"Beginning compute distance for year {year}")
@@ -218,7 +221,7 @@ def run_atlas_cleaning(ingestion_attrs):
         )
         ccpy.save_parquet(ccpy.df, "final", f"{product_classification}_{year}")
 
-        if product_classification == "SITC" and year <= 1975:
+        if product_classification == "SITC" and year <= 1975 and download_type == "by_classification":
             sitcv2_ccpy = ConcordanceTable(ccpy.df, "S1", "S2")
             ccpy.save_parquet(
                 sitcv2_ccpy.df,
@@ -230,7 +233,7 @@ def run_atlas_cleaning(ingestion_attrs):
 
 
         # handle SITC CCPY by running H0 through conversion table
-        elif product_classification == "H0":
+        elif product_classification == "H0" and download_type == "by_classification":
             sitc_ccpy = ConcordanceTable(ccpy.df, product_classification, "S2")
             ccpy.save_parquet(
                 sitc_ccpy.df,
@@ -290,20 +293,27 @@ def run_unilateral_services(ingestion_attrs):
 if __name__ == "__main__":
     # for testing sections and manipulating the attrs directly
     # run_atlas_cleaning(ingestion_attrs)
-
-    ingestion_attrs_H0.update(ingestion_attrs_base)
-    ingestion_attrs_SITC.update(ingestion_attrs_base)
-    ingestion_attrs_H4.update(ingestion_attrs_base)
-    # ingestion_attrs_H5.update(ingestion_attrs_base)
-    general_ingestion_attrs.update(ingestion_attrs_base)
     
-    # ingestion_attrs_converted_H0.update(ingestion_attrs_converted_base)
-    # run_atlas_cleaning(ingestion_attrs_converted_H0)
+    if data_version == "as_reported":
+    
+        ingestion_attrs_H0.update(ingestion_attrs_converted_base)
+        ingestion_attrs_SITC.update(ingestion_attrs_converted_base)
+        ingestion_attrs_H4.update(ingestion_attrs_converted_base)
+        general_ingestion_attrs.update(ingestion_attrs_converted_base)
+        
+    elif data_version == "by_classification":
+        
+        ingestion_attrs_H0.update(ingestion_attrs_base)
+        ingestion_attrs_SITC.update(ingestion_attrs_base)
+        ingestion_attrs_H4.update(ingestion_attrs_base)
+        ingestion_attrs_H5.update(ingestion_attrs_base)
+        general_ingestion_attrs.update(ingestion_attrs_base)
+
 
     run_atlas_cleaning(ingestion_attrs_H0)
-    run_atlas_cleaning(ingestion_attrs_SITC)
     run_atlas_cleaning(ingestion_attrs_H4)
+    run_atlas_cleaning(ingestion_attrs_SITC)
     # run_atlas_cleaning(ingestion_attrs_H5)
-    # run_atlas_cleaning(ingestion_attrs)
-
+    run_atlas_cleaning(ingestion_attrs)
+    
     run_unilateral_services(general_ingestion_attrs)
