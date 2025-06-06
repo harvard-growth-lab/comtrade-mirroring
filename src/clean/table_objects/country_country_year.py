@@ -5,6 +5,10 @@ import numpy as np
 from sklearn.decomposition import PCA
 import logging
 import copy
+from fredapi import Fred
+from datetime import datetime
+
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -20,8 +24,11 @@ class CountryCountryYear(_AtlasCleaning):
     alog = 0  # Apply logs
     af = 0  # Combine A_e and A_i in single measure
     seed = 1  # Initial value for the A's
-    CPI_BASE_YEAR = 2010
+    # CPI_BASE_YEAR = 2010
     CIF_RATIO = 0.075
+    FRED_INDEX_MONTH = 12
+    LATEST_YEAR = datetime.now().year - 2 if datetime.now().month > 4 else datetime.now().year - 3
+
 
     def __init__(self, year, **kwargs):
         super().__init__(**kwargs)
@@ -48,7 +55,8 @@ class CountryCountryYear(_AtlasCleaning):
         )
 
         # read in economic indicators
-        population, fred = self.add_economic_indicators()
+        fred = self.calculate_fred_inflation()
+        population, fred = self.add_economic_indicators(fred)
 
         # merge data to have all possible combinations for exporter, importer
         all_combinations_ccy_index = pd.MultiIndex.from_product(
@@ -294,13 +302,10 @@ class CountryCountryYear(_AtlasCleaning):
                 / self.df[f"{trade_flow}_nflows"]
             )
 
-    def add_economic_indicators(self):
+    def add_economic_indicators(self, fred):
         """
         population and produce price index from FRED (st. louis)
         """
-        fred = pd.read_csv(
-            os.path.join(self.atlas_common_path, "fred", "data", "fred_ppiidc.csv")
-        )
         logging.info(
             f"base year set to {fred.atlas_base_year.unique()}, should be same as atlas data year"
         )
@@ -323,3 +328,22 @@ class CountryCountryYear(_AtlasCleaning):
             wdi_pop, left_on=["code", "year"], right_on=["iso", "year"], how="outer"
         ).drop(columns=["code"])
         return pop, fred
+    
+
+    def calculate_fred_inflation(self):
+
+        base_year = self.LATEST_YEAR
+        fred = Fred(api_key=os.environ.get("FRED_API_KEY"))
+        # https://fred.stlouisfed.org/series/PPIIDC
+        # Producer Price Index by Commodity: Industrial Commodities
+        df = fred.get_series_latest_release("PPIIDC")
+        df.name = "ppiidc_index"
+        df.index.name = "YY-MM-DD"
+        df = df.reset_index()
+        df = df[df["YY-MM-DD"].dt.month == self.FRED_INDEX_MONTH]
+        df["year"] = df["YY-MM-DD"].dt.year
+        base = df.loc[df["YY-MM-DD"].dt.year == base_year, "ppiidc_index"].iloc[0]
+        df["atlas_base_year"] = base_year
+        df["deflator"] = df["ppiidc_index"] / base
+        return df
+

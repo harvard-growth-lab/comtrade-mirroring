@@ -13,6 +13,7 @@ from datetime import date, timedelta, datetime
 from clean.utils.CIF_calculations import compute_distance
 
 from clean.objects.base import _AtlasCleaning
+from clean.table_objects.country_country_year import CountryCountryYear as Base
 from clean.table_objects.aggregate_trade import AggregateTrade
 from clean.utils.classification_handler import get_classifications, merge_classifications
 from clean.table_objects.country_country_year import CountryCountryYear
@@ -58,17 +59,9 @@ download_type = args.download_type if args.download_type else "by_classification
 
 # use and manipulate to run sections interactively
 ingestion_attrs = {
-    "start_year": 2015,
-    "end_year": 2020,
-    "downloaded_files_path": f"../../../../atlas/data/{download_type}/aggregated_by_year/parquet",
-    # "root_dir": "/Users/ELJ479/projects/atlas_cleaning/src",
-    "root_dir": "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src",
-    "final_output_path": f"/n/hausmann_lab/lab/atlas/data/{data_version}/input",
-    # used for comparison to atlas production data and generated data
-    "comparison_file_path": "/n/hausmann_lab/lab/atlas/data/rewrite_2024_11_18/input",
-    "atlas_common_path": "/n/hausmann_lab/lab/atlas/atlas-common-data/atlas_common_data",
-    "product_classification": "H0",
-    "download_type": "by_classification",
+    "start_year": 2021,
+    "end_year": 2022,
+    "product_classification": "H0"
 }
 
 ingestion_attrs_base = {
@@ -140,6 +133,10 @@ def run_atlas_cleaning(ingestion_attrs):
             - end_year (int): Data coverage from the latest year.
             - root_dir (str): root directory path
     """
+    LATEST_YEAR = datetime.now().year - 2 if datetime.now().month > 4 else datetime.now().year - 3
+    
+    base_obj = Base(LATEST_YEAR, **ingestion_attrs)
+    
     print(f"start time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
     start_year = ingestion_attrs["start_year"]
     end_year = ingestion_attrs["end_year"]
@@ -182,17 +179,14 @@ def run_atlas_cleaning(ingestion_attrs):
         # compute distance requires three years of aggregated data
         logging.info(f"Beginning compute distance for year {year}")
         df = compute_distance(year, product_classification, dist)
+        
 
         # country country year intermediate file, passed into CCY object
-        df.to_parquet(
-            os.path.join(
-                ingestion_attrs["root_dir"],
-                "data",
-                "intermediate",
-                f"{product_classification}_{year}.parquet",
-            ),
-            index=False,
-        )
+        base_obj.save_parquet(
+            df,
+            "intermediate",
+            f"{product_classification}_{year}.parquet",
+            )
         del df
 
         ccy = CountryCountryYear(year, **ingestion_attrs)
@@ -293,9 +287,13 @@ def run_unilateral_services(ingestion_attrs):
 if __name__ == "__main__":
     # for testing sections and manipulating the attrs directly
     # run_atlas_cleaning(ingestion_attrs)
-    
+    ingestion_attrs.update(ingestion_attrs_converted_base)
+    run_atlas_cleaning(ingestion_attrs)
+
+    print(f"data version {data_version}")
     if data_version == "as_reported":
     
+        
         ingestion_attrs_H0.update(ingestion_attrs_converted_base)
         ingestion_attrs_SITC.update(ingestion_attrs_converted_base)
         ingestion_attrs_H4.update(ingestion_attrs_converted_base)
@@ -303,6 +301,7 @@ if __name__ == "__main__":
         
     elif data_version == "by_classification":
         
+        ingestion_attrs.update(ingestion_attrs_base)
         ingestion_attrs_H0.update(ingestion_attrs_base)
         ingestion_attrs_SITC.update(ingestion_attrs_base)
         ingestion_attrs_H4.update(ingestion_attrs_base)
@@ -310,10 +309,9 @@ if __name__ == "__main__":
         general_ingestion_attrs.update(ingestion_attrs_base)
 
 
-    run_atlas_cleaning(ingestion_attrs_H0)
-    run_atlas_cleaning(ingestion_attrs_H4)
-    run_atlas_cleaning(ingestion_attrs_SITC)
+    # run_atlas_cleaning(ingestion_attrs_H0)
+    # run_atlas_cleaning(ingestion_attrs_H4)
+    # run_atlas_cleaning(ingestion_attrs_SITC)
     # run_atlas_cleaning(ingestion_attrs_H5)
-    run_atlas_cleaning(ingestion_attrs)
     
-    run_unilateral_services(general_ingestion_attrs)
+    # run_unilateral_services(general_ingestion_attrs)

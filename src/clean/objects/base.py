@@ -2,10 +2,13 @@
 
 import os
 from os import path
+from pathlib import Path
 import pandas as pd
 import typing
 import glob
 import pyarrow.parquet as pq
+import logging
+import shutil
 
 pd.options.display.max_columns = None
 pd.options.display.max_rows = None
@@ -13,6 +16,7 @@ pd.set_option("max_colwidth", 400)
 
 
 class _AtlasCleaning(object):
+
     # Classification names & levels
     PRODUCT_CLASSIFICATIONS = ["H0", "HS", "S1", "S2", "ST"]
 
@@ -47,15 +51,23 @@ class _AtlasCleaning(object):
         self.download_type = download_type
         self.product_classification = product_classification
 
-        self.downloaded_files_path = downloaded_files_path
-        self.root_dir = root_dir
-        self.data_path = os.path.join(self.root_dir, "data")
-        self.final_output_path = os.path.join(final_output_path)
-        self.comparison_file_path = os.path.join(comparison_file_path)
-        self.atlas_common_path = os.path.join(atlas_common_path)
-        self.raw_data_path = os.path.join(self.data_path, "raw")
-        self.intermediate_data_path = os.path.join(self.data_path, "intermediate")
-        self.processed_data_path = os.path.join(self.data_path, "processed")
+        self.downloaded_files_path = Path(downloaded_files_path)
+        self.root_dir = Path(root_dir)
+        self.data_path = self.root_dir / "data"
+        self.final_output_path = Path(final_output_path)
+        # self.comparison_file_path = os.path.join(comparison_file_path)
+        # self.atlas_common_path = os.path.join(atlas_common_path)
+        self.raw_data_path = self.data_path / "raw"
+        self.intermediate_data_path = self.data_path / "new_intermediate"
+        self.processed_data_path = self.data_path / "processed"
+
+        self.path_mapping = {
+            'raw': self.raw_data_path,
+            'intermediate': self.intermediate_data_path, 
+            'processed': self.processed_data_path,
+            'final': self.final_output_path,
+        }
+
 
         # data inputs
         self.dist_cepii = pd.read_stata(
@@ -83,6 +95,61 @@ class _AtlasCleaning(object):
             "atlas_common_path": self.atlas_common_path,
             "product_classification": self.product_classification,
         }
+    
+    def cleanup_intermediate_files(self, force=False):
+        """
+        Delete all files and subdirectories in an intermediate file folder.
+        
+        Args:
+            intermediate_folder (str or Path): Path to the intermediate files folder
+            force (bool): If True, ignore errors and force deletion. Default False.
+        
+        Returns:
+            bool: True if cleanup successful, False otherwise
+        """
+        try:
+            # Check if folder exists
+            if not self.intermediate_data_path.exists():
+                logging.warning(f"Intermediate folder does not exist: {self.intermediate_data_path}")
+                return True
+            
+            if not self.intermediate_data_path.is_dir():
+                logging.error(f"Path is not a directory: {self.intermediate_data_path}")
+                return False
+            
+            # Count items before deletion
+            items_to_delete = list(self.intermediate_data_path.iterdir())
+            item_count = len(items_to_delete)
+            
+            if item_count == 0:
+                logging.info(f"Intermediate folder is already empty: {self.intermediate_data_path}")
+                return True
+            
+            # Delete all contents
+            deleted_count = 0
+            for item in items_to_delete:
+                try:
+                    if item.is_file():
+                        item.unlink()  # Delete file
+                        deleted_count += 1
+                    elif item.is_dir():
+                        shutil.rmtree(item)  # Delete directory and contents
+                        deleted_count += 1
+                except Exception as e:
+                    if force:
+                        logging.warning(f"Failed to delete {item}, continuing: {e}")
+                        continue
+                    else:
+                        logging.error(f"Failed to delete {item}: {e}")
+                        return False
+            
+            logging.info(f"Successfully cleaned up {deleted_count}/{item_count} items from {folder_path}")
+            return True
+            
+        except Exception as e:
+            logging.error(f"Error during cleanup: {e}")
+            return False
+
 
     def load_parquet(self, data_folder, table_name: str):
         read_dir = os.path.join(self.root_dir, "data", data_folder)
@@ -96,15 +163,14 @@ class _AtlasCleaning(object):
         table_name: str,
         product_classification="",
     ):
+        save_dir = self.path_mapping[data_folder]
+        save_dir.mkdir(exist_ok=True)
         if product_classification == "":
             product_classification = self.product_classification
-        if data_folder == "final":
-            os.makedirs(self.final_output_path, exist_ok=True)
-            save_dir = os.path.join(self.final_output_path, f"{product_classification}")
-        else:
-            save_dir = os.path.join(self.data_path, data_folder)
-        os.makedirs(save_dir, exist_ok=True)
-        save_path = os.path.join(save_dir, f"{table_name}.parquet")
+        if save_dir.name == "final":
+            save_dir = save_dir / product_classification
+
+        save_path = save_dir / f"{table_name}.parquet"
         df.to_parquet(save_path, index=False)
 
     def compare_files(
