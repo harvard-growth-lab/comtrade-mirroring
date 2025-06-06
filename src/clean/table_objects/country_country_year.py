@@ -48,7 +48,7 @@ class CountryCountryYear(_AtlasCleaning):
         )
 
         # read in economic indicators
-        population = self.add_economic_indicators()
+        population, fred = self.add_economic_indicators()
 
         # merge data to have all possible combinations for exporter, importer
         all_combinations_ccy_index = pd.MultiIndex.from_product(
@@ -73,7 +73,7 @@ class CountryCountryYear(_AtlasCleaning):
 
         self.filter_by_population_threshold(population)
 
-        self.compare_base_year_trade_values()
+        self.compare_base_year_trade_values(fred)
 
         # Calculate trade statistics
         self.calculate_trade_reporting_discrepancy()
@@ -183,15 +183,11 @@ class CountryCountryYear(_AtlasCleaning):
             self.df["exporter"].nunique() == self.df["importer"].nunique()
         ), f"Number of exporters does not equal number of importers"
 
-    def compare_base_year_trade_values(self):
+    def compare_base_year_trade_values(self, fred):
         """
         Convert all trade dollars to base year (2010 - US) and zero out trade between countries
         below the flow limit
         """
-        # cpi_index_base = self.inflation[self.inflation.year == self.year]
-        # self.df["cpi_index_base"] = cpi_index_base.cpi_index_base.iloc[0]
-        fred = self.load_parquet("intermediate", "fred_index")
-
         # converts exports, import values to constant dollar values
         for col in ["export_value_fob", "import_value_fob"]:
             self.df[col] = (
@@ -310,7 +306,6 @@ class CountryCountryYear(_AtlasCleaning):
         )
         fred = fred[["year", "deflator"]]
         fred = fred[fred.year >= 1962]
-        self.save_parquet(fred, "intermediate", "fred_index")
 
         # population
         wdi_pop = (
@@ -327,4 +322,4 @@ class CountryCountryYear(_AtlasCleaning):
         pop = imf_pop.merge(
             wdi_pop, left_on=["code", "year"], right_on=["iso", "year"], how="outer"
         ).drop(columns=["code"])
-        return pop
+        return pop, fred
