@@ -57,7 +57,6 @@ data_version = (
 download_type = args.download_type if args.download_type else "by_classification"
 
 
-# use and manipulate to run sections interactively
 ingestion_attrs = {
     "start_year": 2021,
     "end_year": 2022,
@@ -291,23 +290,22 @@ if __name__ == "__main__":
     run_atlas_cleaning(ingestion_attrs)
 
     print(f"data version {data_version}")
-    if data_version == "as_reported":
+#     if download_type == "as_reported":
     
+#         ingestion_attrs_H0.update(ingestion_attrs_converted_base)
+#         ingestion_attrs_SITC.update(ingestion_attrs_converted_base)
+#         ingestion_attrs_H4.update(ingestion_attrs_converted_base)
+#         general_ingestion_attrs.update(ingestion_attrs_converted_base)
         
-        ingestion_attrs_H0.update(ingestion_attrs_converted_base)
-        ingestion_attrs_SITC.update(ingestion_attrs_converted_base)
-        ingestion_attrs_H4.update(ingestion_attrs_converted_base)
-        general_ingestion_attrs.update(ingestion_attrs_converted_base)
+#     elif download_type == "by_classification":
         
-    elif data_version == "by_classification":
+#         ingestion_attrs.update(ingestion_attrs_base)
+#         ingestion_attrs_H0.update(ingestion_attrs_base)
+#         ingestion_attrs_SITC.update(ingestion_attrs_base)
+#         ingestion_attrs_H4.update(ingestion_attrs_base)
+#         ingestion_attrs_H5.update(ingestion_attrs_base)
+#         general_ingestion_attrs.update(ingestion_attrs_base)
         
-        ingestion_attrs.update(ingestion_attrs_base)
-        ingestion_attrs_H0.update(ingestion_attrs_base)
-        ingestion_attrs_SITC.update(ingestion_attrs_base)
-        ingestion_attrs_H4.update(ingestion_attrs_base)
-        ingestion_attrs_H5.update(ingestion_attrs_base)
-        general_ingestion_attrs.update(ingestion_attrs_base)
-
 
     # run_atlas_cleaning(ingestion_attrs_H0)
     # run_atlas_cleaning(ingestion_attrs_H4)
@@ -315,4 +313,3 @@ if __name__ == "__main__":
     # run_atlas_cleaning(ingestion_attrs_H5)
     
     # run_unilateral_services(general_ingestion_attrs)
-    clean_files

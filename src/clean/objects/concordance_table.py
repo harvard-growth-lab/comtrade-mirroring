@@ -12,12 +12,18 @@ class ConcordanceTable:
     This is used when comtrade trade data is downloaded by classification code
     """
 
-    clcodes = {"HS92": ["H0", "HS92"], "SITC2": ["S2", "SITC2"], "SITC1": ["S1", "SITC1"]}
+    clcodes = {
+        "HS92": ["H0", "HS92"],
+        "SITC2": ["S2", "SITC2"],
+        "SITC1": ["S1", "SITC1"],
+    }
     clcode_length = {"HS92": 6, "SITC2": 4, "SITC1": 4}
     trade_val_cols = ["value_final", "value_exporter", "value_importer"]
 
     concordance_table = pd.read_excel(
-        "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src/data/raw/HS-SITC-BEC Correlations_2022.xlsx", dtype={"HS92":str, "SITC1":str, "SITC2": str})
+        "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src/data/raw/HS-SITC-BEC Correlations_2022.xlsx",
+        dtype={"HS92": str, "SITC1": str, "SITC2": str},
+    )
 
     def __init__(self, df, classification_code, target_classification_code):
         self.df = df
@@ -50,10 +56,16 @@ class ConcordanceTable:
             [self.classification_code, self.target_classification_code]
         ]
         if self.classification_code.startswith("S"):
-            self.concordance_table[self.classification_code] = self.concordance_table[self.classification_code].apply(lambda x: x[:4] if len(str(x)) == 5 else x)
-        
+            self.concordance_table[self.classification_code] = self.concordance_table[
+                self.classification_code
+            ].apply(lambda x: x[:4] if len(str(x)) == 5 else x)
+
         if self.target_classification_code.startswith("S"):
-            self.concordance_table[self.target_classification_code] = self.concordance_table[self.target_classification_code].apply(lambda x: x[:4] if len(str(x)) == 5 else x)
+            self.concordance_table[
+                self.target_classification_code
+            ] = self.concordance_table[self.target_classification_code].apply(
+                lambda x: x[:4] if len(str(x)) == 5 else x
+            )
 
         self.concordance_table = self.concordance_table.drop_duplicates()
         for col in [self.classification_code, self.target_classification_code]:

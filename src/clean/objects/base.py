@@ -16,7 +16,6 @@ pd.set_option("max_colwidth", 400)
 
 
 class _AtlasCleaning(object):
-
     # Classification names & levels
     PRODUCT_CLASSIFICATIONS = ["H0", "HS", "S1", "S2", "ST"]
 
@@ -62,12 +61,11 @@ class _AtlasCleaning(object):
         self.processed_data_path = self.data_path / "processed"
 
         self.path_mapping = {
-            'raw': self.raw_data_path,
-            'intermediate': self.intermediate_data_path, 
-            'processed': self.processed_data_path,
-            'final': self.final_output_path,
+            "raw": self.raw_data_path,
+            "intermediate": self.intermediate_data_path,
+            "processed": self.processed_data_path,
+            "final": self.final_output_path,
         }
-
 
         # data inputs
         self.dist_cepii = pd.read_stata(
@@ -95,36 +93,40 @@ class _AtlasCleaning(object):
             "atlas_common_path": self.atlas_common_path,
             "product_classification": self.product_classification,
         }
-    
+
     def cleanup_intermediate_files(self, force=False):
         """
         Delete all files and subdirectories in an intermediate file folder.
-        
+
         Args:
             intermediate_folder (str or Path): Path to the intermediate files folder
             force (bool): If True, ignore errors and force deletion. Default False.
-        
+
         Returns:
             bool: True if cleanup successful, False otherwise
         """
         try:
             # Check if folder exists
             if not self.intermediate_data_path.exists():
-                logging.warning(f"Intermediate folder does not exist: {self.intermediate_data_path}")
+                logging.warning(
+                    f"Intermediate folder does not exist: {self.intermediate_data_path}"
+                )
                 return True
-            
+
             if not self.intermediate_data_path.is_dir():
                 logging.error(f"Path is not a directory: {self.intermediate_data_path}")
                 return False
-            
+
             # Count items before deletion
             items_to_delete = list(self.intermediate_data_path.iterdir())
             item_count = len(items_to_delete)
-            
+
             if item_count == 0:
-                logging.info(f"Intermediate folder is already empty: {self.intermediate_data_path}")
+                logging.info(
+                    f"Intermediate folder is already empty: {self.intermediate_data_path}"
+                )
                 return True
-            
+
             # Delete all contents
             deleted_count = 0
             for item in items_to_delete:
@@ -142,14 +144,15 @@ class _AtlasCleaning(object):
                     else:
                         logging.error(f"Failed to delete {item}: {e}")
                         return False
-            
-            logging.info(f"Successfully cleaned up {deleted_count}/{item_count} items from {folder_path}")
+
+            logging.info(
+                f"Successfully cleaned up {deleted_count}/{item_count} items from {folder_path}"
+            )
             return True
-            
+
         except Exception as e:
             logging.error(f"Error during cleanup: {e}")
             return False
-
 
     def load_parquet(self, data_folder, table_name: str):
         read_dir = os.path.join(self.root_dir, "data", data_folder)
