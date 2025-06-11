@@ -85,13 +85,13 @@ ingestion_attrs_converted_base = {
 
 
 ingestion_attrs_H0 = {
-    "start_year": 1995,
+    "start_year": 2022,
     "end_year": 2023,
     "product_classification": "H0",
 }
 
 ingestion_attrs_H4 = {
-    "start_year": 2012,
+    "start_year": 2022,
     "end_year": 2023,
     "product_classification": "H4",
 }
@@ -103,7 +103,7 @@ ingestion_attrs_H5 = {
 }
 
 ingestion_attrs_SITC = {
-    "start_year": 1962,
+    "start_year": 2022,
     "end_year": 2023,
     "product_classification": "SITC",
 }
@@ -315,3 +315,4 @@ if __name__ == "__main__":
     # run_atlas_cleaning(ingestion_attrs_H5)
     
     # run_unilateral_services(general_ingestion_attrs)
+    clean_files
