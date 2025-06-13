@@ -67,7 +67,7 @@ class AggregateTrade(_AtlasCleaning):
         self.df = self.df[
             ["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
         ]
-    
+
         self.save_parquet(
             self.df, "intermediate", f"{self.product_class}_{self.year}_aggregated"
         )
@@ -91,20 +91,21 @@ class AggregateTrade(_AtlasCleaning):
 
         except:
             raise ValueError(
-                f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate")
-            
+                f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate"
+            )
+
         df = df.dropna(axis=0, how="all")
         return df.rename(columns=columns)
 
     def filter_data(self) -> None:
         """
-        Updates data in place. Filters trade data by trade flows and product detail hierarchy level based on product 
+        Updates data in place. Filters trade data by trade flows and product detail hierarchy level based on product
         classification
-        
+
         Trade Flow Mapping:
         Maps string codes to integer values:
             - "M" (Import) → 1
-            - "X" (Export) → 2  
+            - "X" (Export) → 2
             - "RM" (Re-import) → 3
             - "RX" (Re-export) → 4
 
@@ -114,7 +115,7 @@ class AggregateTrade(_AtlasCleaning):
                 self.df["product_level"] = self.df["product_level"].astype(int)
             except (ValueError, TypeError) as e:
                 logging.error("failed to cast SITC product level as type int")
-                
+
         self.df = self.df[
             self.df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_class])
         ]
@@ -123,13 +124,12 @@ class AggregateTrade(_AtlasCleaning):
         self.df["trade_flow"] = self.df["trade_flow"].astype(str)
         self.df.loc[:, "trade_flow"] = self.df["trade_flow"].map(trade_flow_mapping)
         self.df["trade_flow"] = self.df["trade_flow"].astype("int8")
-        
 
     def handle_ans_and_other_asia_to_taiwan_recoding(self) -> None:
         """
         Updates data in place.
-        
-        - Reclassify iso code S19 to Taiwan         
+
+        - Reclassify iso code S19 to Taiwan
         - Loads list of ANS (Areas Not Specified) partners and reclassifies these to a single ANS code
         """
         try:
@@ -149,20 +149,22 @@ class AggregateTrade(_AtlasCleaning):
         """
         Enforces product level integer and commodity code length alignment
         """
-        codes = self.df.loc[:, 'commodity_code'].astype(str)
-        levels = self.df.loc[:, 'product_level'].astype(int)
-        
-        padded_codes = [code.zfill(0 if code == "TOTAL" else level) for code, level in zip(codes, levels)]
-        self.df.loc[:, 'commodity_code'] = padded_codes
-    
-    
+        codes = self.df.loc[:, "commodity_code"].astype(str)
+        levels = self.df.loc[:, "product_level"].astype(int)
+
+        padded_codes = [
+            code.zfill(0 if code == "TOTAL" else level)
+            for code, level in zip(codes, levels)
+        ]
+        self.df.loc[:, "commodity_code"] = padded_codes
+
     def flag_unspecified_products(self) -> None:
         """
         Insert new trade value column handling all Area Not Specified trade partners with
-        an unspecified product. 
-        
+        an unspecified product.
+
         In this case there isn't information about the trade partner
-        or the product being traded 
+        or the product being traded
         """
         mask = (
             (self.df["partner_iso"] == "ANS")
@@ -174,7 +176,6 @@ class AggregateTrade(_AtlasCleaning):
         )
         self.df.loc[mask, "reporter_ansnoclas"] = self.df["trade_value"]
 
-        
     def standardize_historical_country_codes(self) -> None:
         """
         Updates data in place.
@@ -212,16 +213,15 @@ class AggregateTrade(_AtlasCleaning):
         self.df.loc[self.df["reporter_iso"].isin(["ZA1"]), "reporter_iso"] = "ZAF"
         self.df.loc[self.df["partner_iso"].isin(["ZA1"]), "partner_iso"] = "ZAF"
 
-        
     def create_bilateral_trade_matrix(self, product_level: int) -> pd.DataFrame:
         """
         Aggregate trade data into bilateral trade flows at specified product level.
 
-        Creates a bilateral trade matrix where each row represents a unique 
+        Creates a bilateral trade matrix where each row represents a unique
         importer-exporter pair with both reported imports and exports. This allows
         for comparison of mirror statistics (same trade flow reported by both
         trading partners).
-        
+
         Trade flow codes:
         - Flow 1: Imports (reporter is importer)
         - Flow 2: Exports (reporter is exporter)
@@ -297,7 +297,7 @@ class AggregateTrade(_AtlasCleaning):
         assert not reporting_exporter.duplicated(
             subset=["importer", "exporter"]
         ).any(), "reporting importer is not a unique pair"
-        
+
         # outer so we don't lose World (WLD)
         df = reporting_importer.merge(
             reporting_exporter, on=["importer", "exporter"], how="outer"
@@ -311,18 +311,17 @@ class AggregateTrade(_AtlasCleaning):
             )
         ]
 
-
     def integrate_world_totals(self) -> None:
         """
-        
+
         Add world-level trade totals to bilateral trade data and remove world aggregates.
-    
+
         This method processes the dataset to:
         1. Remove rows where either partner is "WLD" (world aggregate)
         2. Extract total exports by country (from exporter-to-world records)
-        3. Extract total imports by country (from importer-from-world records)  
+        3. Extract total imports by country (from importer-from-world records)
         4. Merge these totals back into the bilateral trade dataset
-    
+
         The resulting dataset contains bilateral trade flows with each
         country's total trade volumes.
         """
@@ -347,7 +346,7 @@ class AggregateTrade(_AtlasCleaning):
         The adjustments address common issues in international trade data where
         countries report significant trade with unspecified partner areas, which
         can inflate bilateral trade statistics and create misleading patterns.
-        
+
         This method performs several data quality adjustments:
             1. Calculates the ratio of "area not specified" (ANS) trade to total trade
             2. Adjusts trade values downward when ANS ratios exceed 25% threshold
@@ -355,13 +354,13 @@ class AggregateTrade(_AtlasCleaning):
             4. Filters out bilateral pairs with negligible trade volumes
         """
         self.df["ratio_exp"] = (
-            (self.df[f"exp2ansnoclas_4"] / self.df["total_exports"]).astype(float)
-        )
+            self.df[f"exp2ansnoclas_4"] / self.df["total_exports"]
+        ).astype(float)
         trade_flows = ["imports", "exports"]
 
         self.df["ratio_imp"] = (
-            (self.df[f"imp2ansnoclas_4"] / self.df["total_imports"]).astype(float)
-        )
+            self.df[f"imp2ansnoclas_4"] / self.df["total_imports"]
+        ).astype(float)
 
         for direction in ["imports", "exports"]:
             for product_level in [0, 4]:
@@ -374,5 +373,5 @@ class AggregateTrade(_AtlasCleaning):
                 )
         self.df["export_value_fob"] = self.df[["exports_0", f"exports_4"]].mean(axis=1)
         self.df["import_value_cif"] = self.df[["imports_0", f"imports_4"]].mean(axis=1)
-        # drops trade under $1,000 
+        # drops trade under $1,000
         self.df[self.df[["export_value_fob", "import_value_cif"]].max(axis=1) >= 1_000]

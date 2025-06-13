@@ -33,7 +33,7 @@ class Complexity(_AtlasCleaning):
         self.load_data()
 
         self.preprocess_data()
-        
+
         self.filter_countries_and_noisy_commodities()
 
         mcp = self.calculate_mcp()
@@ -131,7 +131,7 @@ class Complexity(_AtlasCleaning):
         )
 
         self.df = self.df.merge(imports, on=["exporter", "commoditycode"], how="outer")
-        
+
         self.df = self.rectangularize_data(self.df)
         self.df[["import_value", "export_value"]] = self.df[
             ["import_value", "export_value"]
@@ -299,7 +299,6 @@ class Complexity(_AtlasCleaning):
         self.df = self.df[~self.df["commoditycode"].isin(drop_products_list)]
 
     def calculate_ecomplexity(self):
-        
         self.df["year"] = self.year
 
         # pass export value matrix into Shreyas's ecomplexity package

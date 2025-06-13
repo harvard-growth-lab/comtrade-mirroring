@@ -40,7 +40,11 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.product_classification = kwargs["product_classification"]
         self.year = year
 
-        if self.product_classification == "SITC" and year > 1994 and self.download_type == "by_classification":
+        if (
+            self.product_classification == "SITC"
+            and year > 1994
+            and self.download_type == "by_classification"
+        ):
             self.df = pd.read_parquet(
                 os.path.join(
                     self.final_output_path, "SITC", f"SITC_{self.year}.parquet"

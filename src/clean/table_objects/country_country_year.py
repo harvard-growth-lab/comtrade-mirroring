@@ -12,9 +12,9 @@ from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 
+
 class CountryCountryYear(_AtlasCleaning):
-    
-    MAX_EXPORTER_CIF_RATIO = .2
+    MAX_EXPORTER_CIF_RATIO = 0.2
     # Producer Price Index by Commodity: Industrial Commodities
     FRED_SERIES_ID = "PPIIDC"
     FRED_INDEX_MONTH = 12
@@ -23,10 +23,12 @@ class CountryCountryYear(_AtlasCleaning):
     # for accuracy metrics filter out countries below thresholds
     POPULATION_THRESHOLD = 0.5 * 10**6
     TRADE_FLOW_THRESHOLD = 10
-    TRADE_VALUE_MIN_THRESHOLD = 10**4 # Minimum value to assume that there is a flow
+    TRADE_VALUE_MIN_THRESHOLD = 10**4  # Minimum value to assume that there is a flow
     MAX_ITERATIONS = 6
 
-    def __init__(self, year: int, df: pd.DataFrame, fred_api_key=None, **kwargs) -> None:
+    def __init__(
+        self, year: int, df: pd.DataFrame, fred_api_key=None, **kwargs
+    ) -> None:
         super().__init__(**kwargs)
 
         self.year = year
@@ -34,7 +36,9 @@ class CountryCountryYear(_AtlasCleaning):
 
         self.fred_api_key = fred_api_key or os.environ.get("FRED_API_KEY")
         if not self.fred_api_key:
-            raise ValueError("FRED API key required: pass fred_api_key or set FRED_API_KEY env var")
+            raise ValueError(
+                "FRED API key required: pass fred_api_key or set FRED_API_KEY env var"
+            )
 
         self.filter_bilateral_trade_data()
 
@@ -48,7 +52,7 @@ class CountryCountryYear(_AtlasCleaning):
         self.expand_to_all_country_pairs()
 
         # thresholds filter countries prior to calculating accuracy scores
-        # to prevent anomalies from skewing country data 
+        # to prevent anomalies from skewing country data
         self.filter_by_population_threshold(population)
         # deflate values to atlas data year for improved comparison
         self.deflate_trade_values_to_latest_year(fred)
@@ -63,7 +67,7 @@ class CountryCountryYear(_AtlasCleaning):
     def filter_bilateral_trade_data(self) -> None:
         """
         Remove invalid trade records and filter for meaningful bilateral trade flows.
-   
+
         Filters the trade data to exclude:
         - World aggregate records (where exporter or importer is 'WLD')
         - Records with missing country codes (where exporter or importer is 'nan')
@@ -84,7 +88,7 @@ class CountryCountryYear(_AtlasCleaning):
 
     def cap_cif_markup_ratio(self, df: pd.DataFrame) -> None:
         """
-        Caps the mean CIF ratio for a single exporter and replaces 
+        Caps the mean CIF ratio for a single exporter and replaces
         missing CIF ratios with the capped ratio value
 
         Saves nominal trade value data before country filters
@@ -100,11 +104,10 @@ class CountryCountryYear(_AtlasCleaning):
             f"{self.product_classification}_ccy_nominal_dollars",
         )
 
-
     def fetch_ppiidc_deflators(self) -> pd.DataFrame:
         """
         Calculate inflation deflators using FRED Producer Price Index data.
-    
+
         Fetches the Producer Price Index for Industrial Commodities (PPIIDC) from
         the Federal Reserve Economic Data (FRED) API and calculates deflators
         relative to the latest year as the base year.
@@ -117,11 +120,10 @@ class CountryCountryYear(_AtlasCleaning):
             ppiidc_series = fred.get_series_latest_release(self.FRED_SERIES_ID)
         except Exception as e:
             raise ValueError(f"Failed to fetch FRED series {self.FRED_SERIES_ID}: {e}")
-                
-        df = pd.DataFrame({
-        'date': ppiidc_series.index,
-        'ppiidc_index': ppiidc_series.values
-        })
+
+        df = pd.DataFrame(
+            {"date": ppiidc_series.index, "ppiidc_index": ppiidc_series.values}
+        )
 
         # use December (12) index
         df = df[df["date"].dt.month == self.FRED_INDEX_MONTH]
@@ -132,7 +134,6 @@ class CountryCountryYear(_AtlasCleaning):
         df = df[["year", "deflator"]]
         df = df[df.year >= self.SITC_START_YEAR]
         return df
-
 
     def fetch_population_data(self):
         """
@@ -151,10 +152,7 @@ class CountryCountryYear(_AtlasCleaning):
         imf_pop = imf_obj.query_imf_api(["LP"])
         imf_pop = imf_pop.rename(columns={"population": "imf_pop"})
 
-        return imf_pop.merge(
-            wdi_pop, on=["iso3_code", "year"], how="outer"
-        )
-    
+        return imf_pop.merge(wdi_pop, on=["iso3_code", "year"], how="outer")
 
     def expand_to_all_country_pairs(self) -> None:
         """
@@ -182,7 +180,6 @@ class CountryCountryYear(_AtlasCleaning):
         )
         self.df = self.df.drop(columns=["year"])
 
-
     def filter_by_population_threshold(self, population: pd.DataFrame) -> None:
         """
         Drop all exporter and importers with populations below the population limit
@@ -208,7 +205,7 @@ class CountryCountryYear(_AtlasCleaning):
     def filter_countries_below_trade_flow_threshold(self) -> None:
         """
         Remove countries with insufficient trade relationships.
-        
+
         Iteratively filters out countries that have fewer trade partners than the
         minimum threshold. Validate each remaining country is both an exporter and
         an importer
@@ -243,7 +240,6 @@ class CountryCountryYear(_AtlasCleaning):
 
         self.df = self.df.drop(columns=["nflows"])
 
-
     def ensure_bidirectional_presence(self) -> None:
         """
         Remove countries that only appear as exporter or importer
@@ -263,11 +259,10 @@ class CountryCountryYear(_AtlasCleaning):
             self.df["exporter"].nunique() == self.df["importer"].nunique()
         ), f"Number of exporters does not equal number of importers"
 
-
     def deflate_trade_values_to_latest_year(self, fred: pd.DataFrame) -> None:
         """
         Convert nominal trade values to constant USD and apply flow thresholds.
-    
+
         Deflates trade values to constant dollars using FRED price deflators,
         applies minimum flow thresholds, and removes countries with no qualifying trade.
         """
@@ -281,9 +276,7 @@ class CountryCountryYear(_AtlasCleaning):
             ["export_value_fob", "import_value_fob", "import_value_cif"]
         ].fillna(0)
 
-        self.df = self.df.drop(
-            columns=["import_value_cif"]
-        )
+        self.df = self.df.drop(columns=["import_value_cif"])
         self.df = self.df.rename(
             columns={
                 "export_value_fob": "exports_const_usd",
@@ -296,10 +289,12 @@ class CountryCountryYear(_AtlasCleaning):
         Remove countries with no trade flows above threshold.
         """
         self.df.loc[
-            self.df.exports_const_usd < self.TRADE_VALUE_MIN_THRESHOLD, "exports_const_usd"
+            self.df.exports_const_usd < self.TRADE_VALUE_MIN_THRESHOLD,
+            "exports_const_usd",
         ] = 0.0
         self.df.loc[
-            self.df.imports_const_usd < self.TRADE_VALUE_MIN_THRESHOLD, "imports_const_usd"
+            self.df.imports_const_usd < self.TRADE_VALUE_MIN_THRESHOLD,
+            "imports_const_usd",
         ] = 0.0
 
         self.df = self.df.groupby("exporter").filter(
@@ -325,7 +320,6 @@ class CountryCountryYear(_AtlasCleaning):
             / (self.df["exports_const_usd"] + self.df["imports_const_usd"])
         ).fillna(0)
 
-
     def calculate_trade_share_percentages(self) -> None:
         """
         Calculate bilateral trade shares using averaged trade flows.
@@ -333,7 +327,7 @@ class CountryCountryYear(_AtlasCleaning):
         Computes each trade flow's share of a country's total trade by first
         averaging reported export and import values (excluding zeros), then
         calculating what percentage this represents of each country's total trade.
-        
+
         This method addresses reporting discrepancies by using the average of
         non-zero reported values rather than relying solely on one country's report.
         """
@@ -356,15 +350,14 @@ class CountryCountryYear(_AtlasCleaning):
         )
         self.df = self.df.drop(columns=["trade_flow_average"])
 
-
     def calculate_country_reporting_quality_metrics(self) -> None:
-        """ 
+        """
         Calculate reporting quality metrics for each country as exporter and importer.
-    
+
         Computes normalized measures of how consistently each country reports trade
         data compared to their trading partners. This helps identify countries with
         systematic reporting issues.
-        
+
         For each country in both roles (exporter/importer), calculates:
             1. Number of active trade relationships (flows)
             2. Average reporting discrepancy across all partners
@@ -392,5 +385,3 @@ class CountryCountryYear(_AtlasCleaning):
                 ].transform("sum")
                 / self.df[f"{trade_flow}_nflows"]
             )
-
-
