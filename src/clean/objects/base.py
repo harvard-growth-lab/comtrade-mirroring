@@ -9,6 +9,7 @@ import glob
 import pyarrow.parquet as pq
 import logging
 import shutil
+from datetime import datetime
 
 pd.options.display.max_columns = None
 pd.options.display.max_rows = None
@@ -46,6 +47,8 @@ class _AtlasCleaning(object):
         product_classification,
         download_type,
     ):
+        self.latest_year = datetime.now().year - 2 if datetime.now().month > 4 else datetime.now().year - 3
+
         # INPUTS
         self.download_type = download_type
         self.product_classification = product_classification

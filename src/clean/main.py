@@ -13,7 +13,6 @@ from datetime import date, timedelta, datetime
 from clean.utils.CIF_calculations import compute_distance
 
 from clean.objects.base import _AtlasCleaning
-from clean.table_objects.country_country_year import CountryCountryYear as Base
 from clean.table_objects.aggregate_trade import AggregateTrade
 from clean.utils.classification_handler import (
     get_classifications,
@@ -60,7 +59,7 @@ data_version = (
 download_type = args.download_type if args.download_type else "by_classification"
 
 
-ingestion_attrs = {"start_year": 2021, "end_year": 2022, "product_classification": "H0"}
+ingestion_attrs = {"start_year": 2022, "end_year": 2022, "product_classification": "H0"}
 
 ingestion_attrs_base = {
     "downloaded_files_path": f"../../../../atlas/data/by_classification/aggregated_by_year/parquet",
@@ -135,8 +134,6 @@ def run_atlas_cleaning(ingestion_attrs):
         datetime.now().year - 2 if datetime.now().month > 4 else datetime.now().year - 3
     )
 
-    base_obj = Base(LATEST_YEAR, **ingestion_attrs)
-
     print(f"start time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
     start_year = ingestion_attrs["start_year"]
     end_year = ingestion_attrs["end_year"]
@@ -183,19 +180,10 @@ def run_atlas_cleaning(ingestion_attrs):
         elif product_classification == "SITC" and download_type == "by_classification":
             product_classification = get_classifications(year)[0]
 
-        # compute distance requires three years of aggregated data
         logging.info(f"Beginning compute distance for year {year}")
         df = compute_distance(year, product_classification, dist)
 
-        # country country year intermediate file, passed into CCY object
-        base_obj.save_parquet(
-            df,
-            "intermediate",
-            f"{product_classification}_{year}.parquet",
-        )
-        del df
-
-        ccy = CountryCountryYear(year, **ingestion_attrs)
+        ccy = CountryCountryYear(year, df, **ingestion_attrs)
 
         ccy.save_parquet(
             ccy.df,

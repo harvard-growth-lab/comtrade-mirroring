@@ -68,13 +68,11 @@ class AggregateTrade(_AtlasCleaning):
             ["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
         ]
     
-        import pdb; pdb.set_trace()
-
         self.save_parquet(
             self.df, "intermediate", f"{self.product_class}_{self.year}_aggregated"
         )
 
-    def load_downloaded_trade_file(self) -> pd.DataFrame():
+    def load_downloaded_trade_file(self) -> pd.DataFrame:
         """
         loads year of aggregated trade data downloaded from Comtrade's API
         in a given product classification vintage
@@ -215,7 +213,7 @@ class AggregateTrade(_AtlasCleaning):
         self.df.loc[self.df["partner_iso"].isin(["ZA1"]), "partner_iso"] = "ZAF"
 
         
-    def create_bilateral_trade_matrix(self, product_level: int) -> pd.DataFrame():
+    def create_bilateral_trade_matrix(self, product_level: int) -> pd.DataFrame:
         """
         Aggregate trade data into bilateral trade flows at specified product level.
 
