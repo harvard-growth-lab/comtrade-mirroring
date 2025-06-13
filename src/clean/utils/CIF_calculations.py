@@ -5,6 +5,7 @@ import numpy as np
 import pyfixest as pf
 
 import logging
+
 logging.basicConfig(level=logging.INFO)
 
 TRADE_FLOOR = 10**6
@@ -13,13 +14,14 @@ TAU_UPPER_LIMIT = 0.2
 CIF_FOB_EQUIVALENCE_THRESHOLD = 0.05
 
 
-def compute_distance(year: int, product_classification: str, 
-                     dist: pd.DataFrame) -> pd.DataFrame:
+def compute_distance(
+    year: int, product_classification: str, dist: pd.DataFrame
+) -> pd.DataFrame:
     """
-    Based on geographic distances betweeen trade partners (dist df) estimate the 
+    Based on geographic distances betweeen trade partners (dist df) estimate the
     cost of insurance freight (CIF) as a percentage of FOB (Free on Board) import value
-    
-    loads trade data, merges with distance data, estimates 
+
+    loads trade data, merges with distance data, estimates
     trade costs using regression, and adjusts import values accordingly.
 
     Notes:
@@ -57,9 +59,15 @@ def compute_distance(year: int, product_classification: str,
 
     compute_dist_df = df.copy(deep=True)
     # select the greater of the two, either the top 1% or 1,000,000
-    # filter out small trade values that will skew the regression 
-    exp_p1 = max(compute_dist_df["export_value_fob"].quantile(TRADE_VALUE_FLOOR_PERCENTILE), TRADE_FLOOR)
-    imp_p1 = max(compute_dist_df["import_value_cif"].quantile(TRADE_VALUE_FLOOR_PERCENTILE), TRADE_FLOOR)
+    # filter out small trade values that will skew the regression
+    exp_p1 = max(
+        compute_dist_df["export_value_fob"].quantile(TRADE_VALUE_FLOOR_PERCENTILE),
+        TRADE_FLOOR,
+    )
+    imp_p1 = max(
+        compute_dist_df["import_value_cif"].quantile(TRADE_VALUE_FLOOR_PERCENTILE),
+        TRADE_FLOOR,
+    )
     # use to set min boundaries
     compute_dist_df = compute_dist_df[
         ~(compute_dist_df["export_value_fob"] < exp_p1)
@@ -84,14 +92,19 @@ def compute_distance(year: int, product_classification: str,
 
     # trade costs can't be negative
     df.loc[(df["year"] == year) & (df["tau"] < 0) & (df["tau"].notna()), "tau"] = 0
-    df.loc[(df["year"] == year) & (df["tau"] > TAU_UPPER_LIMIT) & (df["tau"].notna()), "tau"] = TAU_UPPER_LIMIT
+    df.loc[
+        (df["year"] == year) & (df["tau"] > TAU_UPPER_LIMIT) & (df["tau"].notna()),
+        "tau",
+    ] = TAU_UPPER_LIMIT
     tau_mean = df[df["year"] == year]["tau"].mean()
     df.loc[(df["year"] == year) & (df["tau"].isna()), "tau"] = tau_mean
 
     df = df[df.year == year]
 
     # when trade costs are small treat CIF and FOB as equivalent, close enough
-    df.loc[abs(df["lnoneplust"]) < CIF_FOB_EQUIVALENCE_THRESHOLD, "import_value_fob"] = df["import_value_cif"]
+    df.loc[
+        abs(df["lnoneplust"]) < CIF_FOB_EQUIVALENCE_THRESHOLD, "import_value_fob"
+    ] = df["import_value_cif"]
 
     df.loc[
         ((df["lnoneplust"] > 0) | (df["lnoneplust"].isna()))
@@ -113,22 +126,23 @@ def compute_distance(year: int, product_classification: str,
         ]
     ]
 
+
 def compute_reghdfe(df: pd.DataFrame) -> dict[str, float]:
-    df['idc_o'] = pd.Categorical(df['exporter']).codes
-    df['idc_d'] = pd.Categorical(df['importer']).codes
+    df["idc_o"] = pd.Categorical(df["exporter"]).codes
+    df["idc_d"] = pd.Categorical(df["importer"]).codes
 
     model = pf.feols(
-        'lnoneplust ~ 1 + lndist + contig | year^idc_o + year^idc_d',
+        "lnoneplust ~ 1 + lndist + contig | year^idc_o + year^idc_d",
         data=df,
-        vcov='iid'
+        vcov="iid",
     )
 
     coeff = model.coef()
     se = model.se()
 
-    y_resid = df['lnoneplust'].values
-    X = df[['lndist', 'contig']].values
-    pred_no_fe = X @ np.array([model.coef()['lndist'], model.coef()['contig']])
+    y_resid = df["lnoneplust"].values
+    X = df[["lndist", "contig"]].values
+    pred_no_fe = X @ np.array([model.coef()["lndist"], model.coef()["contig"]])
     implicit_constant = (y_resid - pred_no_fe).mean()
 
     return {

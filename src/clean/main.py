@@ -15,7 +15,10 @@ from clean.utils.CIF_calculations import compute_distance
 from clean.objects.base import _AtlasCleaning
 from clean.table_objects.country_country_year import CountryCountryYear as Base
 from clean.table_objects.aggregate_trade import AggregateTrade
-from clean.utils.classification_handler import get_classifications, merge_classifications
+from clean.utils.classification_handler import (
+    get_classifications,
+    merge_classifications,
+)
 from clean.table_objects.country_country_year import CountryCountryYear
 from clean.table_objects.accuracy import Accuracy
 from clean.table_objects.country_country_product_year import CountryCountryProductYear
@@ -57,11 +60,7 @@ data_version = (
 download_type = args.download_type if args.download_type else "by_classification"
 
 
-ingestion_attrs = {
-    "start_year": 2021,
-    "end_year": 2022,
-    "product_classification": "H0"
-}
+ingestion_attrs = {"start_year": 2021, "end_year": 2022, "product_classification": "H0"}
 
 ingestion_attrs_base = {
     "downloaded_files_path": f"../../../../atlas/data/by_classification/aggregated_by_year/parquet",
@@ -132,10 +131,12 @@ def run_atlas_cleaning(ingestion_attrs):
             - end_year (int): Data coverage from the latest year.
             - root_dir (str): root directory path
     """
-    LATEST_YEAR = datetime.now().year - 2 if datetime.now().month > 4 else datetime.now().year - 3
-    
+    LATEST_YEAR = (
+        datetime.now().year - 2 if datetime.now().month > 4 else datetime.now().year - 3
+    )
+
     base_obj = Base(LATEST_YEAR, **ingestion_attrs)
-    
+
     print(f"start time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
     start_year = ingestion_attrs["start_year"]
     end_year = ingestion_attrs["end_year"]
@@ -144,9 +145,13 @@ def run_atlas_cleaning(ingestion_attrs):
 
     # load data
     dist = pd.read_stata(os.path.join("data", "raw", "dist_cepii.dta"))
-    
+
     for year in range(start_year, end_year + 1):
-        if product_classification == "SITC" and year > 1994 and download_type == "by_classification":
+        if (
+            product_classification == "SITC"
+            and year > 1994
+            and download_type == "by_classification"
+        ):
             # use cleaned CCPY H0 data for SITC
             continue
         elif product_classification == "SITC" and download_type == "by_classification":
@@ -168,24 +173,26 @@ def run_atlas_cleaning(ingestion_attrs):
 
     for year in range(start_year, end_year + 1):
         logging.info(f"Beginning {year}... for {product_classification}")
-        if product_classification == "SITC" and year > 1994 and download_type == "by_classification":
+        if (
+            product_classification == "SITC"
+            and year > 1994
+            and download_type == "by_classification"
+        ):
             # use cleaned CCPY H0 data for SITC
             continue
         elif product_classification == "SITC" and download_type == "by_classification":
             product_classification = get_classifications(year)[0]
 
-
         # compute distance requires three years of aggregated data
         logging.info(f"Beginning compute distance for year {year}")
         df = compute_distance(year, product_classification, dist)
-        
 
         # country country year intermediate file, passed into CCY object
         base_obj.save_parquet(
             df,
             "intermediate",
             f"{product_classification}_{year}.parquet",
-            )
+        )
         del df
 
         ccy = CountryCountryYear(year, **ingestion_attrs)
@@ -214,7 +221,11 @@ def run_atlas_cleaning(ingestion_attrs):
         )
         ccpy.save_parquet(ccpy.df, "final", f"{product_classification}_{year}")
 
-        if product_classification == "SITC" and year <= 1975 and download_type == "by_classification":
+        if (
+            product_classification == "SITC"
+            and year <= 1975
+            and download_type == "by_classification"
+        ):
             sitcv2_ccpy = ConcordanceTable(ccpy.df, "S1", "S2")
             ccpy.save_parquet(
                 sitcv2_ccpy.df,
@@ -223,7 +234,6 @@ def run_atlas_cleaning(ingestion_attrs):
             )
             ccpy.save_parquet(sitcv2_ccpy.df, "final", f"SITC_{year}", "SITC")
             del sitcv2_ccpy.df
-
 
         # handle SITC CCPY by running H0 through conversion table
         elif product_classification == "H0" and download_type == "by_classification":
@@ -275,12 +285,8 @@ def run_unilateral_services(ingestion_attrs):
     )
     del unilateral_services.df
 
-
-
     # comparison = complexity.compare_files()
     # logging.info(f"review of compared files {comparison}")
-
-
 
 
 if __name__ == "__main__":
@@ -291,25 +297,25 @@ if __name__ == "__main__":
 
     print(f"data version {data_version}")
 #     if download_type == "as_reported":
-    
+
 #         ingestion_attrs_H0.update(ingestion_attrs_converted_base)
 #         ingestion_attrs_SITC.update(ingestion_attrs_converted_base)
 #         ingestion_attrs_H4.update(ingestion_attrs_converted_base)
 #         general_ingestion_attrs.update(ingestion_attrs_converted_base)
-        
+
 #     elif download_type == "by_classification":
-        
+
 #         ingestion_attrs.update(ingestion_attrs_base)
 #         ingestion_attrs_H0.update(ingestion_attrs_base)
 #         ingestion_attrs_SITC.update(ingestion_attrs_base)
 #         ingestion_attrs_H4.update(ingestion_attrs_base)
 #         ingestion_attrs_H5.update(ingestion_attrs_base)
 #         general_ingestion_attrs.update(ingestion_attrs_base)
-        
 
-    # run_atlas_cleaning(ingestion_attrs_H0)
-    # run_atlas_cleaning(ingestion_attrs_H4)
-    # run_atlas_cleaning(ingestion_attrs_SITC)
-    # run_atlas_cleaning(ingestion_attrs_H5)
-    
-    # run_unilateral_services(general_ingestion_attrs)
+
+# run_atlas_cleaning(ingestion_attrs_H0)
+# run_atlas_cleaning(ingestion_attrs_H4)
+# run_atlas_cleaning(ingestion_attrs_SITC)
+# run_atlas_cleaning(ingestion_attrs_H5)
+
+# run_unilateral_services(general_ingestion_attrs)
