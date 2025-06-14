@@ -1,75 +1,65 @@
 import pandas as pd
 from clean.objects.base import _AtlasCleaning
-import os
 import numpy as np
 from sklearn.decomposition import PCA
 import logging
 import copy
+from typing import Tuple
 
 logging.basicConfig(level=logging.INFO)
 
 
 # generates a country country year table
 class Accuracy(_AtlasCleaning):
-    anorm = 0  # Normalize the score
-    alog = 0  # Apply logs
-    af = 0  # weight exporter_accuracy and importer_accuracy in single measure
+    MAX_ITERATIONS = 25
+    APPLY_STANDARDIZATION = False
+    APPLY_LOG_TRANSFORMATION = False
+    # weight exporter_accuracy and importer_accuracy in single measure
+    USE_PCA_COMBINATION = False  
+    PERCENTILES_TO_CALC = [0.10, 0.25, 0.50, 0.75, 0.90]
+    MIN_TRADE_VAL = 10**3
 
-    def __init__(self, year, **kwargs):
+    def __init__(self, year, ccy, **kwargs):
         super().__init__(**kwargs)
 
         self.year = year
         self.df = pd.DataFrame()
 
-        # load data
         nominal_dollars_df = self.load_parquet(
-            "intermediate", f"{self.product_classification}_ccy_nominal_dollars"
+            "intermediate", f"{self.product_classification}_{self.year}_ccy_nominal_dollars"
         )
+        # country country year filtered in real dollars with atlas year as base year
+        self.ccy = ccy
 
-        self.ccy = self.load_parquet(
-            f"intermediate",
-            f"{self.product_classification}_{self.year}_country_country_year",
-        )
-        # Compute accuracy scores, called temp.dta in stata
         ccy_accuracy = self.compute_accuracy_scores()
 
-        (
-            exporter_accuracy_percentiles,
-            importer_accuracy_percentiles,
-        ) = self.calculate_accuracy_percentiles(nominal_dollars_df, ccy_accuracy)
+        accuracy_percentiles = self.calculate_accuracy_percentiles(nominal_dollars_df, ccy_accuracy)
 
-        # Estimate trade values
-        self.calculate_weights(
-            exporter_accuracy_percentiles, importer_accuracy_percentiles
-        )
-        self.calculate_estimated_value(
-            exporter_accuracy_percentiles, importer_accuracy_percentiles
-        )
+        self.calculate_weights(accuracy_percentiles)
+
+        self.calculate_estimated_value(accuracy_percentiles)
+
         self.finalize_output()
 
-    def compute_accuracy_scores(self):
+    def compute_accuracy_scores(self) -> pd.DataFrame:
         """
-        Compute accuracy scores for exporters and importers based on trade reporting discrepancies.
+        This function converges to stable accuracy scores that reflect
+        each country's reliability in trade reporting relative to its partners.
 
-        The accuracy scores are based on the consistency of trade reporting between countries and the number
-        of trade partners each country has. Countries with more consistent reporting and more trade partners
-        tend to receive higher accuracy scores.
+        The accuracy scores are based on the consistency of trade reporting between 
+        countries and the number of trade partners each country has. Countries 
+        with more consistent reporting and more trade partners tend to receive higher 
+        accuracy scores.
 
-        This function performs the following steps:
-            1. Creates a matrix of reporting discrepancies between exporters and importers.
-            2. Converts the discrepancy matrix and trade flow counts to numpy arrays for efficient computation.
-            3. Iteratively calculates accuracy scores for exporters and importers using a probabilistic method.
-            4. Applies optional logarithmic transformation and normalization to the accuracy scores.
-            5. Combines exporter and importer accuracy scores into a final accuracy score.
-            6. Optionally applies Principal Component Analysis (PCA) for dimension reduction.
-            7. Normalizes the final accuracy score if specified.
+        Algorithm Overview:
+            1. Build discrepancy matrices from bilateral trade data
+            2. Initialize accuracy scores to 1.0
+            3. Iteratively refine scores using a probabilistic approach
+            4. Apply optional transformations (log, normalization)
+            5. Combine exporter/importer scores using averaging or PCA
+            6. Return consolidated accuracy metrics
         """
-        exporters = pd.DataFrame(self.ccy["exporter"].unique())
-        importers = pd.DataFrame(self.ccy["importer"].unique())
-        self.ncountries = len(exporters)
-
-        # prepare matrices to maintain indices
-        # stata name: es_ij: exporters, is_ij: importers
+        self.ncountries = self.ccy["exporter"].nunique()
 
         # if both countries did not report trade with each other than reporting_discrep is zero
         trdiscrep_exp = self.ccy.pivot(
@@ -90,7 +80,7 @@ class Accuracy(_AtlasCleaning):
         importer_accuracy = pd.DataFrame(index=iso_index)
         importer_accuracy["importer_accuracy"] = 1
 
-        for i in range(0, 25):  # 25 try
+        for i in range(0, self.MAX_ITERATIONS):
             # @ is element-wise multiplication
             exporter_probability = 1 / (
                 (trdiscrep_imp @ importer_accuracy["importer_accuracy"]) / nflows_exp
@@ -102,64 +92,73 @@ class Accuracy(_AtlasCleaning):
             importer_accuracy["importer_accuracy"] = importer_probability
             exporter_accuracy["exporter_accuracy"] = exporter_probability
 
-        # unstack
-        trdiscrep_exp = (
-            trdiscrep_exp.stack()
-            .reset_index()
-            .groupby("exporter")
-            .agg("sum")
-            .drop(columns=["importer"])
-            / self.ncountries
+
+        trdiscrep_exp = trdiscrep_exp.sum(axis=1) / self.ncountries
+        trdiscrep_imp = trdiscrep_imp.sum(axis=1) / self.ncountries
+
+        exporter_accuracy = self._apply_transformations(exporter_accuracy)
+        importer_accuracy = self._apply_transformations(importer_accuracy)
+        accuracy_score = self._combine_scores(exporter_accuracy, importer_accuracy)
+
+        return self._construct_result_df(
+            nflows_exp, nflows_imp, trdiscrep_exp, trdiscrep_imp, exporter_accuracy,
+            importer_accuracy, accuracy_score
         )
-        trdiscrep_exp = trdiscrep_exp.rename(columns={0: "trdiscrep_exp"})
+    
 
-        trdiscrep_imp = (
-            trdiscrep_imp.stack()
-            .reset_index()
-            .groupby("importer")
-            .agg("sum")
-            .drop(columns=["exporter"])
-            / self.ncountries
-        )
-        trdiscrep_imp = trdiscrep_imp.rename(
-            columns={0: "trdiscrep_imp"}, index={"importer": "exporter"}
-        )
-        exporters = exporters.rename(columns={0: "exporter"})
+    def _apply_transformations(self, accuracy_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Applies log and standardization transformations if enabled
+        """
+        if self.APPLY_LOG_TRANSFORMATION:
+            accuracy_df = np.ln(accuracy_df)
 
-        # fix some df has single exporter for year 2015
-        if self.alog == 1:
-            exporter_accuracy = np.ln(exporter_accuracy)
-            importer_accuracy = np.ln(importer_accuracy)
-        if self.anorm == 1:
-            exporter_accuracy = (
-                exporter_accuracy - exporter_accuracy.mean()
-            ) / exporter_accuracy.std()
-            importer_accuracy = (
-                importer_accuracy - importer_accuracy.mean()
-            ) / importer_accuracy.std()
+        if self.APPLY_STANDARDIZATION:
+            accuracy_df = (
+                accuracy_df - accuracy_df.mean()
+            ) / accuracy_df.std()
+        return accuracy_df
+    
 
-        if self.af == 0:
-            logging.info("calculating mean of exporter accuracy and importer accuracy")
-
+    def _combine_scores(self, exporter_accuracy: pd.DataFrame,
+                         importer_accuracy: pd.DataFrame) -> pd.DataFrame:
+        """
+        Combine exporter and importer scores using averaging or PCA.
+        """
+        if not self.USE_PCA_COMBINATION:
             accuracy_score = (
                 exporter_accuracy["exporter_accuracy"]
                 + importer_accuracy["importer_accuracy"]
             ) / 2
 
-        elif self.af == 1:
+        elif self.USE_PCA_COMBINATION:
             accuracy_score = PCA().fit_transform(exporter_accuracy, importer_accuracy)
 
-        if self.anorm == 1:
+        if self.APPLY_STANDARDIZATION:
             accuracy_score = (
                 accuracy_score - accuracy_score.mean()
             ) / accuracy_score.std()
+        return accuracy_score
+    
 
+    def _construct_result_df(self,
+            nflows_exp: pd.Series, nflows_imp :pd.Series, 
+            trdiscrep_exp: pd.Series, trdiscrep_imp: pd.Series, 
+            exporter_accuracy: pd.DataFrame, importer_accuracy: pd.DataFrame, 
+            accuracy_score: pd.Series) -> pd.DataFrame:
+        """
+        Construct the final result dataframe with all metrics.
+        """
+        trdiscrep_imp = trdiscrep_imp.rename("trdiscrep_imp")
+        trdiscrep_exp = trdiscrep_exp.rename("trdiscrep_exp")
+        accuracy_score = accuracy_score.rename("acc_final")
+        # rename indices to concat columns
         ccy_accuracy = pd.concat(
             [
                 nflows_exp,
                 nflows_imp.rename(index={"importer": "exporter"}),
-                trdiscrep_exp["trdiscrep_exp"],
-                trdiscrep_imp.rename(index={"importer": "exporter"})["trdiscrep_imp"],
+                trdiscrep_exp,
+                trdiscrep_imp.rename(index={"importer": "exporter"}),
                 exporter_accuracy["exporter_accuracy"],
                 importer_accuracy.rename(index={"importer": "exporter"})[
                     "importer_accuracy"
@@ -171,19 +170,94 @@ class Accuracy(_AtlasCleaning):
 
         ccy_accuracy["year"] = self.year
         ccy_accuracy = ccy_accuracy.reset_index().rename(
-            columns={"index": "iso", 0: "acc_final"}
+            columns={"index": "iso"}
         )
         return ccy_accuracy
 
-    def calculate_accuracy_percentiles(self, ccy, ccy_accuracy):
-        """ """
+    def calculate_accuracy_percentiles(self, ccy_nominal : pd.DataFrame, 
+                                        ccy_accuracy : pd.DataFrame) -> pd.DataFrame:
+        """ 
+        Calculate accuracy percentiles for exporters and importers by 
+        merging nominal trade data with accuracy scores and computing 
+        statistical percentiles. 
+
+        Returns:
+            - exporter_accuracy_percentiles
+            - importer_accuracy_percentiles    
+        """
+        self._combine_ccy_with_accuracy_scores(ccy_nominal, ccy_accuracy)
+
+        # unique entity tags to avoid double-counting in percentile calculations
+        for entity in ["exporter", "importer"]:
+            self.df[f"tag_{entity[0]}"] = (~self.df[entity].duplicated()).astype(int)
+
+        # remove trade values less than 1000, fob
+        self.df.loc[self.df["import_value_fob"] < self.MIN_TRADE_VAL, "import_value_fob"] = np.nan
+        self.df.loc[self.df["export_value_fob"] < self.MIN_TRADE_VAL, "export_value_fob"] = np.nan
+
+        # calculating percentiles grouped by unique exporter and then importer
+        exporter_accuracy_percentiles = (
+            self.df[self.df.tag_e == 1]["exporter_accuracy_score"]
+            .quantile(self.PERCENTILES_TO_CALC)
+            .round(3)
+        )
+        importer_accuracy_percentiles = (
+            self.df[self.df.tag_i == 1]["importer_accuracy_score"]
+            .quantile(self.PERCENTILES_TO_CALC)
+            .round(3)
+        )
+
+        columns_to_cast = [
+            "exporter_accuracy_score",
+            "acc_imp_for_exporter",
+            "acc_exp_for_importer",
+            "importer_accuracy_score",
+        ]
+        for col in columns_to_cast:
+            self.df[col] = pd.to_numeric(self.df[col], errors="coerce")
+        return pd.concat([exporter_accuracy_percentiles,importer_accuracy_percentiles], axis=1)
+
+
+    def calculate_weights(self, accuracy_percentiles: pd.DataFrame) -> None:
+        """ 
+        Calculate softmax weights and binary weight flag based on accuracy scores.
+
+         - 'exporter_weight': Binary flag (1 if above threshold, 0 otherwise)
+        - 'importer_weight': Binary flag (1 if above threshold, 0 otherwise)
+
+        """
+        # gives higher weight to exporters with better accuracy relative to importers
+        self.df["weight"] = np.exp(self.df["exporter_accuracy_score"]) / (
+            np.exp(self.df["exporter_accuracy_score"])
+            + np.exp(self.df["importer_accuracy_score"])
+        )
+
+        exporter_threshold = accuracy_percentiles.loc[.10]['exporter_accuracy_score']
+        importer_threshold = accuracy_percentiles.loc[.10]['importer_accuracy_score']
+        
+        # binary inclusion flags for countries above accuracy thresholds
+        self.df["exporter_weight"] = (
+            self.df["exporter_accuracy_score"].notna() & 
+            (self.df["exporter_accuracy_score"] > exporter_threshold)
+        ).astype(int)
+
+        self.df["importer_weight"] = (
+            self.df["importer_accuracy_score"].notna() & 
+            (self.df["importer_accuracy_score"] > importer_threshold)
+        ).astype(int)
+
+
+    def _combine_ccy_with_accuracy_scores(self, 
+                                          ccy : pd.DataFrame, 
+                                          ccy_accuracy : pd.DataFrame) -> None:
+        """
+        Merges trade data (ccy) with accuracy data (ccy_accuracy) for 
+        both exporters and importers
+        """
         self.df = ccy.merge(
-            # merging exporter accuracy scores
             ccy_accuracy[["iso", "exporter_accuracy", "importer_accuracy"]].rename(
                 columns={
-                    # stata exporter_A_e
                     "exporter_accuracy": "exporter_accuracy_score",
-                    # stata exporter_A_i
                     "importer_accuracy": "acc_imp_for_exporter",
                 }
             ),
@@ -195,9 +269,7 @@ class Accuracy(_AtlasCleaning):
         self.df = self.df.merge(
             ccy_accuracy[["iso", "exporter_accuracy", "importer_accuracy"]].rename(
                 columns={
-                    # stata importer_A_e
                     "exporter_accuracy": "acc_exp_for_importer",
-                    # stata importer_A_i
                     "importer_accuracy": "importer_accuracy_score",
                 }
             ),
@@ -206,159 +278,141 @@ class Accuracy(_AtlasCleaning):
             how="left",
             suffixes=("", "_for_importer"),
         ).drop(columns=["iso"])
-
         self.df = self.df[self.df.importer != self.df.exporter]
 
-        for entity in ["exporter", "importer"]:
-            self.df[f"tag_{entity[0]}"] = (~self.df[entity].duplicated()).astype(int)
 
-        # remove trade values less than 1000, fob
-        self.df.loc[self.df["import_value_fob"] < 1000, "import_value_fob"] = np.nan
-        self.df.loc[self.df["export_value_fob"] < 1000, "export_value_fob"] = np.nan
-
-        # calculating percentiles grouped by unique exporter and then importer
-        exporter_accuracy_percentiles = (
-            self.df[self.df.tag_e == 1]["exporter_accuracy_score"]
-            .quantile([0.10, 0.25, 0.50, 0.75, 0.90])
-            .round(3)
-        )
-        importer_accuracy_percentiles = (
-            self.df[self.df.tag_i == 1]["importer_accuracy_score"]
-            .quantile([0.10, 0.25, 0.50, 0.75, 0.90])
-            .round(3)
-        )
-        columns_to_cast = [
-            "exporter_accuracy_score",
-            "acc_imp_for_exporter",
-            "acc_exp_for_importer",
-            "importer_accuracy_score",
-        ]
-
-        for col in columns_to_cast:
-            self.df[col] = pd.to_numeric(self.df[col], errors="coerce")
-        return exporter_accuracy_percentiles, importer_accuracy_percentiles
-
-    def calculate_weights(
-        self, exporter_accuracy_percentiles, importer_accuracy_percentiles
-    ):
-        """ """
-        self.df["weight"] = np.exp(self.df["exporter_accuracy_score"]) / (
-            np.exp(self.df["exporter_accuracy_score"])
-            + np.exp(self.df["importer_accuracy_score"])
-        )
-
-        # include set of countries
-        self.df = self.df.assign(
-            exporter_weight=np.where(
-                (self.df.exporter_accuracy_score.notna())
-                & (
-                    self.df.exporter_accuracy_score
-                    > exporter_accuracy_percentiles[0.10]
-                ),
-                1,
-                0,
-            ),
-            importer_weight=np.where(
-                (self.df.importer_accuracy_score.notna())
-                & (
-                    self.df.importer_accuracy_score
-                    > importer_accuracy_percentiles[0.10]
-                ),
-                1,
-                0,
-            ),
-        )
-
-    def calculate_estimated_value(self, export_percentiles, import_percentiles):
+    def calculate_estimated_value(self, accuracy_percentiles: pd.DataFrame) -> None:
         """
-        Series of filtered data based on Nan values with applied conditions to determine
-        estimated trade value. Uses accuracy scores and relative percentage of imports and exports
+        Calculate estimated trade values using a hierarchical approach based on 
+        accuracy scores.
+        
+        The estimation follows this priority order:
+            1. Weighted average of import/export values (when both accuracy scores and values exist)
+            2. Single value selection based on relative accuracy percentiles
+            3. Maximum value when both countries meet weight criteria
+            4. Import value when only importer meets weight criteria
+            5. Export value when only exporter meets weight criteria
+            6. Minimum of available values as fallback
         """
-        # est trade value only if accuracy scores and trade values are not nan
-        filtered_df = self.df[
+        self.df["est_trade_value"] = np.nan
+
+        percentiles = self._extract_percentile_thresholds(accuracy_percentiles)
+        self._apply_weighted_average()
+        self._apply_percentile_based_selection(percentiles)
+        self._apply_weight_based_selection()
+        self._apply_minimum_fallback()
+        
+
+    def _extract_percentile_thresholds(self, accuracy_percentiles: pd.DataFrame) -> dict:
+        """Extract percentile thresholds into a dictionary for ease of use."""
+        return {
+            'exporter_90': accuracy_percentiles.loc[0.90, 'exporter_accuracy_score'],
+            'exporter_75': accuracy_percentiles.loc[0.75, 'exporter_accuracy_score'],
+            'exporter_50': accuracy_percentiles.loc[0.50, 'exporter_accuracy_score'],
+            'exporter_25': accuracy_percentiles.loc[0.25, 'exporter_accuracy_score'],
+            'importer_90': accuracy_percentiles.loc[0.90, 'importer_accuracy_score'],
+            'importer_75': accuracy_percentiles.loc[0.75, 'importer_accuracy_score'],
+            'importer_50': accuracy_percentiles.loc[0.50, 'importer_accuracy_score'],
+            'importer_25': accuracy_percentiles.loc[0.25, 'importer_accuracy_score'],
+        }
+    
+
+    def _apply_weighted_average(self) -> None:
+        """Apply weighted average when both accuracy scores and trade values are available."""
+        mask = (
+            self.df["importer_accuracy_score"].notna() &
+            self.df["exporter_accuracy_score"].notna() &
+            self.df["import_value_fob"].notna() &
+            self.df["export_value_fob"].notna()
+        )
+        
+        self.df.loc[mask, "est_trade_value"] = (
+            self.df.loc[mask, "export_value_fob"] * self.df.loc[mask, "weight"] +
+            self.df.loc[mask, "import_value_fob"] * (1 - self.df.loc[mask, "weight"])
+        )
+
+    def _apply_percentile_based_selection(self, percentiles: dict) -> None:
+        """Apply single value selection based on accuracy percentile comparisons."""
+        # Base condition: accuracy scores available but no estimated value yet
+        base_mask = (
+            self.df["importer_accuracy_score"].notna() &
+            self.df["exporter_accuracy_score"].notna() &
+            self.df["est_trade_value"].isna()
+        )
+        
+        # Define selection rules: (condition, value_column)
+        selection_rules = [
+            # High importer accuracy, low exporter accuracy
             (
-                (self.df["importer_accuracy_score"].notna())
-                & (self.df["exporter_accuracy_score"].notna())
-                & (self.df["import_value_fob"].notna())
-                & (self.df["export_value_fob"].notna())
-            )
-        ].copy()
-
-        filtered_df.loc[:, "est_trade_value"] = (
-            filtered_df["export_value_fob"] * filtered_df["weight"]
-        ) + (filtered_df["import_value_fob"] * (1 - filtered_df["weight"]))
-
-        self.df = self.df.combine_first(filtered_df)
-
-        # est trade value only if accuracy scores are not nan
-        filtered_df = self.df[
+                (self.df["exporter_accuracy_score"] < percentiles['exporter_50']) &
+                (self.df["importer_accuracy_score"] >= percentiles['importer_90']),
+                "import_value_fob"
+            ),
+            # High exporter accuracy, low importer accuracy  
             (
-                (self.df["importer_accuracy_score"].notna())
-                & (self.df["exporter_accuracy_score"].notna())
-                & self.df["est_trade_value"].isna()
-            )
+                (self.df["exporter_accuracy_score"] >= percentiles['exporter_90']) &
+                (self.df["importer_accuracy_score"] < percentiles['importer_50']),
+                "export_value_fob"
+            ),
+            # Very high importer accuracy, very low exporter accuracy
+            (
+                (self.df["exporter_accuracy_score"] < percentiles['exporter_25']) &
+                (self.df["importer_accuracy_score"] >= percentiles['importer_75']),
+                "import_value_fob"
+            ),
+            # Very high exporter accuracy, very low importer accuracy
+            (
+                (self.df["exporter_accuracy_score"] >= percentiles['exporter_75']) &
+                (self.df["importer_accuracy_score"] < percentiles['importer_25']),
+                "export_value_fob"
+            ),
         ]
+        
+        # Apply each rule in order
+        for condition, value_column in selection_rules:
+            mask = base_mask & condition & self.df["est_trade_value"].isna()
+            self.df.loc[mask, "est_trade_value"] = self.df.loc[mask, value_column]
 
-        filtered_df.loc[:, "est_trade_value"] = filtered_df[
-            (
-                (filtered_df["exporter_accuracy_score"] < export_percentiles[0.50])
-                & (filtered_df["importer_accuracy_score"] >= import_percentiles[0.90])
-            )
-        ]["import_value_fob"]
 
-        filtered_df.loc[:, "est_trade_value"] = filtered_df[
-            (
-                (filtered_df["est_trade_value"].isna())
-                & (filtered_df["exporter_accuracy_score"] >= export_percentiles[0.90])
-                & (filtered_df["importer_accuracy_score"] < import_percentiles[0.50])
-            )
-        ]["export_value_fob"]
+    def _apply_weight_based_selection(self) -> None:
+        """Apply selection based on weight criteria."""
+        # Both countries meet weight criteria - use maximum value
+        mask = (
+            self.df["est_trade_value"].isna() &
+            (self.df["exporter_weight"] == 1) &
+            (self.df["importer_weight"] == 1)
+        )
+        self.df.loc[mask, "est_trade_value"] = self.df.loc[
+            mask, ["export_value_fob", "import_value_fob"]
+        ].max(axis=1)
+        
+        # Only importer meets weight criteria
+        mask = (
+            self.df["est_trade_value"].isna() &
+            (self.df["importer_weight"] == 1)
+        )
+        self.df.loc[mask, "est_trade_value"] = self.df.loc[mask, "import_value_fob"]
+        
+        # Only exporter meets weight criteria
+        mask = (
+            self.df["est_trade_value"].isna() &
+            (self.df["exporter_weight"] == 1)
+        )
+        self.df.loc[mask, "est_trade_value"] = self.df.loc[mask, "export_value_fob"]
 
-        filtered_df.loc[:, "est_trade_value"] = filtered_df[
-            (
-                (filtered_df["est_trade_value"].isna())
-                & (self.df["exporter_accuracy_score"] < export_percentiles[0.25])
-                & (self.df["importer_accuracy_score"] >= import_percentiles[0.75])
-            )
-        ]["import_value_fob"]
 
-        filtered_df.loc[:, "est_trade_value"] = filtered_df[
-            (
-                (filtered_df["est_trade_value"].isna())
-                & (self.df["exporter_accuracy_score"] >= export_percentiles[0.75])
-                & (self.df["importer_accuracy_score"] < import_percentiles[0.25])
-            )
-        ]["export_value_fob"]
-
-        filtered_df.loc[:, "est_trade_value"] = filtered_df[
-            (
-                (filtered_df["est_trade_value"].isna())
-                & (self.df["exporter_weight"] == 1)
-                & (self.df["importer_weight"] == 1)
-            )
-        ][["export_value_fob", "import_value_fob"]].max(axis=1)
-
-        self.df = self.df.combine_first(filtered_df)
-
-        self.df.loc[
-            ((self.df["est_trade_value"].isna()) & (self.df["importer_weight"] == 1)),
-            "est_trade_value",
-        ] = self.df["import_value_fob"]
-
-        self.df.loc[
-            ((self.df["est_trade_value"].isna()) & (self.df["exporter_weight"] == 1)),
-            "est_trade_value",
-        ] = self.df["export_value_fob"]
-
-        # egen mintrade = rowmin(exportvalue_fob importvalue_fob)
-        # replace estvalue = mintrade if mintrade!=. & estvalue==.
+    def _apply_minimum_fallback(self) -> None:
+        """Apply minimum value as final fallback for remaining missing values."""
         mask = self.df["est_trade_value"].isna()
         self.df.loc[mask, "est_trade_value"] = self.df.loc[
             mask, ["import_value_fob", "export_value_fob"]
         ].min(axis=1)
 
-    def finalize_output(self):
-        """ """
+
+    def finalize_output(self) -> None:
+        """ 
+        Rename columns and return dataframe with mirrored trade values
+        """
         self.df = self.df.rename(
             columns={
                 "export_value_fob": "export_value",

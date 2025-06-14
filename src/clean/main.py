@@ -184,15 +184,14 @@ def run_atlas_cleaning(ingestion_attrs):
         df = compute_distance(year, product_classification, dist)
 
         ccy = CountryCountryYear(year, df, **ingestion_attrs)
+        # ccy.save_parquet(
+        #     ccy.df,
+        #     "intermediate",
+        #     f"{product_classification}_{year}_country_country_year",
+        # )
+        # del ccy.df
 
-        ccy.save_parquet(
-            ccy.df,
-            "intermediate",
-            f"{product_classification}_{year}_country_country_year",
-        )
-        del ccy.df
-
-        accuracy = Accuracy(year, **ingestion_attrs)
+        accuracy = Accuracy(year, ccy.df, **ingestion_attrs)
         logging.info("confirm CIF ratio column is present")
 
         accuracy.save_parquet(
@@ -235,46 +234,46 @@ def run_atlas_cleaning(ingestion_attrs):
             del sitc_ccpy.df
         del ccpy.df
 
-    # handle complexity
-    for year in range(start_year, end_year + 1):
-        # complexity files
-        complexity = Complexity(year, **ingestion_attrs)
+    # # handle complexity
+    # for year in range(start_year, end_year + 1):
+    #     # complexity files
+    #     complexity = Complexity(year, **ingestion_attrs)
 
-        complexity.save_parquet(
-            complexity.df,
-            "processed",
-            f"{download_type}_{product_classification}_{year}_complexity",
-        )
-        del complexity.df
+    #     complexity.save_parquet(
+    #         complexity.df,
+    #         "processed",
+    #         f"{download_type}_{product_classification}_{year}_complexity",
+    #     )
+    #     del complexity.df
 
-        logging.info(
-            f"end time for {year}: {strftime('%Y-%m-%d %H:%M:%S', localtime())}"
-        )
+    #     logging.info(
+    #         f"end time for {year}: {strftime('%Y-%m-%d %H:%M:%S', localtime())}"
+    #     )
 
-    complexity_all_years = glob.glob(
-        f"data/processed/{download_type}_{product_classification}_*_complexity.parquet"
-    )
-    complexity_all = pd.concat(
-        [pd.read_parquet(file) for file in complexity_all_years], axis=0
-    )
+    # complexity_all_years = glob.glob(
+    #     f"data/processed/{download_type}_{product_classification}_*_complexity.parquet"
+    # )
+    # complexity_all = pd.concat(
+    #     [pd.read_parquet(file) for file in complexity_all_years], axis=0
+    # )
 
-    atlas_base_obj = _AtlasCleaning(**ingestion_attrs)
+    # atlas_base_obj = _AtlasCleaning(**ingestion_attrs)
 
-    atlas_base_obj.save_parquet(
-        complexity_all, "final", f"{product_classification}_cpy_all", "CPY"
-    )
-    del complexity_all
+    # atlas_base_obj.save_parquet(
+    #     complexity_all, "final", f"{product_classification}_cpy_all", "CPY"
+    # )
+    # del complexity_all
 
 
-def run_unilateral_services(ingestion_attrs):
-    unilateral_services = UnilateralServices(**ingestion_attrs)
-    unilateral_services.save_parquet(
-        unilateral_services.df, "final", f"unilateral_services", "Services"
-    )
-    del unilateral_services.df
+# def run_unilateral_services(ingestion_attrs):
+#     unilateral_services = UnilateralServices(**ingestion_attrs)
+#     unilateral_services.save_parquet(
+#         unilateral_services.df, "final", f"unilateral_services", "Services"
+#     )
+#     del unilateral_services.df
 
-    # comparison = complexity.compare_files()
-    # logging.info(f"review of compared files {comparison}")
+# comparison = complexity.compare_files()
+# logging.info(f"review of compared files {comparison}")
 
 
 if __name__ == "__main__":

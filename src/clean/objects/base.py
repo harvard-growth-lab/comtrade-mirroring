@@ -158,8 +158,11 @@ class _AtlasCleaning(object):
             return False
 
     def load_parquet(self, data_folder, table_name: str):
-        read_dir = os.path.join(self.root_dir, "data", data_folder)
-        df = pd.read_parquet(os.path.join(read_dir, f"{table_name}.parquet"))
+        read_dir = self.path_mapping[data_folder]
+        if read_dir.exists():
+            df = pd.read_parquet(Path(read_dir / f"{table_name}.parquet"))
+        else:
+            raise ValueError("{data_folder} is not a valid data folder")
         return df
 
     def save_parquet(

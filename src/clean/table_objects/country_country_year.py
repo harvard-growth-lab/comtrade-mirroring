@@ -101,7 +101,7 @@ class CountryCountryYear(_AtlasCleaning):
         self.save_parquet(
             df,
             "intermediate",
-            f"{self.product_classification}_ccy_nominal_dollars",
+            f"{self.product_classification}_{self.year}_ccy_nominal_dollars",
         )
 
     def fetch_ppiidc_deflators(self) -> pd.DataFrame:
