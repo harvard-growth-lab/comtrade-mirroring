@@ -47,7 +47,7 @@ class AggregateTrade(_AtlasCleaning):
         if self.product_class in ["S1", "S2"]:
             self.product_class = "SITC"
         self.save_parquet(
-            self.df, "intermediate", f"cleaned_{self.product_class}_{self.year}"
+            self.df, "intermediate", f"{self.product_class}_{self.year}_preprocessed"
         )
 
         self.df = self.df[self.df["trade_flow"].isin([1, 2])]

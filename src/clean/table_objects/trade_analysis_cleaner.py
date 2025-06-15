@@ -13,7 +13,7 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 
 
-class CountryCountryYear(_AtlasCleaning):
+class TradeAnalysisCleaner(_AtlasCleaning):
     MAX_EXPORTER_CIF_RATIO = 0.2
     # Producer Price Index by Commodity: Industrial Commodities
     FRED_SERIES_ID = "PPIIDC"

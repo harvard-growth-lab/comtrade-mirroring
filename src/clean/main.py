@@ -18,12 +18,9 @@ from clean.utils.classification_handler import (
     get_classifications,
     merge_classifications,
 )
-from clean.table_objects.country_country_year import CountryCountryYear
-from clean.table_objects.accuracy import Accuracy
+from clean.table_objects.trade_analysis_cleaner import TradeAnalysisCleaner
+from clean.table_objects.trade_data_reconciler import TradeDataReconciler
 from clean.table_objects.country_country_product_year import CountryCountryProductYear
-from clean.table_objects.complexity import Complexity
-from clean.objects.concordance_table import ConcordanceTable
-from clean.table_objects.unilateral_services import UnilateralServices
 
 import logging
 
@@ -171,11 +168,11 @@ def run_atlas_cleaning(ingestion_attrs):
     for year in range(start_year, end_year + 1):
         logging.info(f"Beginning {year}... for {product_classification}")
         if (
+            # if using Comtrade's converted data then use mirrored H1 data for SITC after 1994
             product_classification == "SITC"
             and year > 1994
             and download_type == "by_classification"
         ):
-            # use cleaned CCPY H0 data for SITC
             continue
         elif product_classification == "SITC" and download_type == "by_classification":
             product_classification = get_classifications(year)[0]
@@ -183,97 +180,21 @@ def run_atlas_cleaning(ingestion_attrs):
         logging.info(f"Beginning compute distance for year {year}")
         df = compute_distance(year, product_classification, dist)
 
-        ccy = CountryCountryYear(year, df, **ingestion_attrs)
-        # ccy.save_parquet(
-        #     ccy.df,
-        #     "intermediate",
-        #     f"{product_classification}_{year}_country_country_year",
-        # )
-        # del ccy.df
+        # cleaned country-country trade data with reporting quality metrics
+        trade_discrepancy_analysis = TradeAnalysisCleaner(year, df, **ingestion_attrs)
 
-        accuracy = Accuracy(year, ccy.df, **ingestion_attrs)
-        logging.info("confirm CIF ratio column is present")
+        # country-country trade data with reconciled values and accuracy weights
+        country_trade_reconciler = TradeDataReconciler(year, trade_discrepancy_analysis.df, **ingestion_attrs)
+        ccy = country_trade_reconciler.reconcile_country_country_estimates()
 
-        accuracy.save_parquet(
-            accuracy.df, "intermediate", f"{product_classification}_{year}_accuracy"
-        )
-        del accuracy.df
-
-        ccpy = CountryCountryProductYear(year, **ingestion_attrs)
-
-        ccpy.save_parquet(
-            ccpy.df,
-            "processed",
-            f"{download_type}_{product_classification}_{year}_country_country_product_year",
-        )
-        ccpy.save_parquet(ccpy.df, "final", f"{product_classification}_{year}")
-
-        if (
-            product_classification == "SITC"
-            and year <= 1975
-            and download_type == "by_classification"
+        if not (
+            download_type == "by_classification"
+            and product_classification == "SITC"
+            and year > 1994
         ):
-            sitcv2_ccpy = ConcordanceTable(ccpy.df, "S1", "S2")
-            ccpy.save_parquet(
-                sitcv2_ccpy.df,
-                "processed",
-                f"{download_type}_SITC_{year}_country_country_product_year",
-            )
-            ccpy.save_parquet(sitcv2_ccpy.df, "final", f"SITC_{year}", "SITC")
-            del sitcv2_ccpy.df
-
-        # handle SITC CCPY by running H0 through conversion table
-        elif product_classification == "H0" and download_type == "by_classification":
-            sitc_ccpy = ConcordanceTable(ccpy.df, product_classification, "S2")
-            ccpy.save_parquet(
-                sitc_ccpy.df,
-                "processed",
-                f"{download_type}_SITC_{year}_country_country_product_year",
-            )
-            ccpy.save_parquet(sitc_ccpy.df, "final", f"SITC_{year}", "SITC")
-            del sitc_ccpy.df
-        del ccpy.df
-
-    # # handle complexity
-    # for year in range(start_year, end_year + 1):
-    #     # complexity files
-    #     complexity = Complexity(year, **ingestion_attrs)
-
-    #     complexity.save_parquet(
-    #         complexity.df,
-    #         "processed",
-    #         f"{download_type}_{product_classification}_{year}_complexity",
-    #     )
-    #     del complexity.df
-
-    #     logging.info(
-    #         f"end time for {year}: {strftime('%Y-%m-%d %H:%M:%S', localtime())}"
-    #     )
-
-    # complexity_all_years = glob.glob(
-    #     f"data/processed/{download_type}_{product_classification}_*_complexity.parquet"
-    # )
-    # complexity_all = pd.concat(
-    #     [pd.read_parquet(file) for file in complexity_all_years], axis=0
-    # )
-
-    # atlas_base_obj = _AtlasCleaning(**ingestion_attrs)
-
-    # atlas_base_obj.save_parquet(
-    #     complexity_all, "final", f"{product_classification}_cpy_all", "CPY"
-    # )
-    # del complexity_all
-
-
-# def run_unilateral_services(ingestion_attrs):
-#     unilateral_services = UnilateralServices(**ingestion_attrs)
-#     unilateral_services.save_parquet(
-#         unilateral_services.df, "final", f"unilateral_services", "Services"
-#     )
-#     del unilateral_services.df
-
-# comparison = complexity.compare_files()
-# logging.info(f"review of compared files {comparison}")
+            product_level_reconciler = CountryCountryProductYear(year, ccy, **ingestion_attrs)
+            ccpy = product_level_reconciler.reconcile_country_country_product_estimates()
+            product_level_reconciler.save_parquet(ccpy, "final", f"{product_classification}_{year}")
 
 
 if __name__ == "__main__":
