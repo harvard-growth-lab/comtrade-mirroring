@@ -1,5 +1,5 @@
 import pandas as pd
-from clean.objects.base import _AtlasCleaning
+from clean.objects.base import AtlasCleaning
 import numpy as np
 from sklearn.decomposition import PCA
 import logging
@@ -9,7 +9,7 @@ from typing import Tuple
 logging.basicConfig(level=logging.INFO)
 
 
-class TradeDataReconciler(_AtlasCleaning):
+class TradeDataReconciler(AtlasCleaning):
     MAX_ITERATIONS = 25
     APPLY_STANDARDIZATION = False
     APPLY_LOG_TRANSFORMATION = False

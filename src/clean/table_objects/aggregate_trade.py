@@ -6,13 +6,13 @@ from sys import argv
 import logging
 import numpy as np
 
-from clean.objects.base import _AtlasCleaning
+from clean.objects.base import AtlasCleaning
 
 
 logging.basicConfig(level=logging.INFO)
 
 
-class AggregateTrade(_AtlasCleaning):
+class AggregateTrade(AtlasCleaning):
     COLUMNS_DICT_COMPACTOR = {
         "digitLevel": "product_level",
         "flowCode": "trade_flow",
@@ -38,6 +38,8 @@ class AggregateTrade(_AtlasCleaning):
             "ST": "9310",
         }
         self.product_class = product_class
+
+    def run_aggregate_trade(self) -> None:
         self.df = self.load_downloaded_trade_file()
         self.handle_ans_and_other_asia_to_taiwan_recoding()
         self.enforce_commodity_code_length()
@@ -67,10 +69,11 @@ class AggregateTrade(_AtlasCleaning):
         self.df = self.df[
             ["year", "exporter", "importer", "export_value_fob", "import_value_cif"]
         ]
-
         self.save_parquet(
             self.df, "intermediate", f"{self.product_class}_{self.year}_aggregated"
         )
+        del self.df
+    
 
     def load_downloaded_trade_file(self) -> pd.DataFrame:
         """

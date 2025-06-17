@@ -16,7 +16,7 @@ pd.options.display.max_rows = None
 pd.set_option("max_colwidth", 400)
 
 
-class _AtlasCleaning(object):
+class AtlasCleaning(object):
     # Classification names & levels
     PRODUCT_CLASSIFICATIONS = ["H0", "HS", "S1", "S2", "ST"]
 
@@ -42,11 +42,10 @@ class _AtlasCleaning(object):
         downloaded_files_path,
         root_dir,
         final_output_path,
-        comparison_file_path,
-        atlas_common_path,
         product_classification,
         download_type,
     ):
+        
         self.latest_year = datetime.now().year - 2 if datetime.now().month > 4 else datetime.now().year - 3
 
         # INPUTS
@@ -57,32 +56,35 @@ class _AtlasCleaning(object):
         self.root_dir = Path(root_dir)
         self.data_path = self.root_dir / "data"
         self.final_output_path = Path(final_output_path)
-        # self.comparison_file_path = os.path.join(comparison_file_path)
-        # self.atlas_common_path = os.path.join(atlas_common_path)
-        self.raw_data_path = self.data_path / "raw"
-        self.intermediate_data_path = self.data_path / "new_intermediate"
-        self.processed_data_path = self.data_path / "processed"
-
+        self.static_data_path = self.data_path / "static"
+        self.intermediate_data_path = self.data_path / "intermediate"
+        
         self.path_mapping = {
-            "raw": self.raw_data_path,
+            "static": self.static_data_path,
             "intermediate": self.intermediate_data_path,
-            "processed": self.processed_data_path,
             "final": self.final_output_path,
         }
+        self._setup_paths()
 
+        
+        self.fred_api_key = os.environ.get("FRED_API_KEY")
+        if not self.fred_api_key:
+            raise ValueError(
+                "FRED API key required: pass fred_api_key or set FRED_API_KEY env var"
+            )
+        
         # data inputs
         self.dist_cepii = pd.read_stata(
-            os.path.join(self.raw_data_path, "dist_cepii.dta")
+            os.path.join(self.static_data_path, "dist_cepii.dta")
         )
         self.ans_partners = pd.read_csv(
-            os.path.join(self.raw_data_path, "areas_not_specified.csv")
+            os.path.join(self.static_data_path, "areas_not_specified.csv")
         )
 
         self.df = None
         self.start_year = start_year
         self.end_year = end_year
 
-        self.wdi_path = os.path.join(self.raw_data_path, "wdi_extended.dta")
 
     def get_attrs(self):
         return {
@@ -96,6 +98,16 @@ class _AtlasCleaning(object):
             "atlas_common_path": self.atlas_common_path,
             "product_classification": self.product_classification,
         }
+    
+    def _setup_paths(self):
+        paths = [
+            self.data_path,
+            self.static_data_path,
+            self.intermediate_data_path,
+            self.final_output_path
+        ]
+        for path in paths:
+            path.mkdir(parents=True, exist_ok=True)
 
     def cleanup_intermediate_files(self, force=False):
         """
@@ -170,17 +182,23 @@ class _AtlasCleaning(object):
         df,
         data_folder,
         table_name: str,
-        product_classification="",
+        parent_folder="",
     ):
         save_dir = self.path_mapping[data_folder]
         save_dir.mkdir(exist_ok=True)
-        if product_classification == "":
-            product_classification = self.product_classification
-        if save_dir.name == "final":
-            save_dir = save_dir / product_classification
+        # if product_classification == "":
+        #     product_classification = self.product_classification
+        if data_folder == "final":
+            save_dir = save_dir / parent_folder
 
         save_path = save_dir / f"{table_name}.parquet"
         df.to_parquet(save_path, index=False)
+
+    def cleanup_files_from_dir(self, files):
+        for file in files:
+            if file.is_file():
+                file.unlink()
+
 
     def compare_files(
         self, skip=["classification", "services_bilateral", "services_unilateral"]

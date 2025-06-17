@@ -1,18 +1,18 @@
 import pandas as pd
-from clean.objects.base import _AtlasCleaning
+from clean.objects.base import AtlasCleaning
 import os
 from pathlib import Path
 import numpy as np
 from time import gmtime, strftime, localtime
 import logging
-from clean.utils.country_edge_cases import handle_venezuela
+from clean.utils.country_edge_cases import handle_venezuela, handle_9999_saudi_reporting
 from clean.objects.concordance_table import ConcordanceTable
 
 
 logging.basicConfig(level=logging.INFO)
 
 
-class CountryCountryProductYear(_AtlasCleaning):
+class CountryCountryProductYear(AtlasCleaning):
     """
     Applies country-level accuracy scores to product-specific trade flows
 
@@ -56,16 +56,6 @@ class CountryCountryProductYear(_AtlasCleaning):
     def reconcile_country_country_product_estimates(self) -> pd.DataFrame:
         """
         """
-        if (
-            self.product_classification == "SITC"
-            and self.year > 1994
-            and self.download_type == "by_classification"
-        ):
-            return 
-            # self.df = pd.read_parquet(
-            #     Path(self.final_output_path / "SITC" / f"SITC_{self.year}.parquet")
-            # )
-
         self.df = self.load_parquet(
             f"intermediate", f"{self.product_classification}_{self.year}_preprocessed"
         )
@@ -78,42 +68,33 @@ class CountryCountryProductYear(_AtlasCleaning):
         # prepare the data
         self.filter_and_clean_data()
         logging.info("check after filter for WLD, nan, NAN")
-        import pdb; pdb.set_trace()
 
         logging.info("ccpy: filtered and cleaned data")
-        all_country_product_combinations = self.setup_trade_analysis_framework(ccy)
-        import pdb; pdb.set_trace()
-
         logging.info("ccpy: set up trade analysis framework")
 
         # calculate the value of exports for each country pair and product
-        self.generate_trade_value_matrix(ccy, all_country_product_combinations)
-        import pdb; pdb.set_trace()
+        self.generate_trade_value_matrix()
 
         self.trade_score = self.assign_trade_scores()
-        ccy = ccy[ccy.importer != ccy.exporter]
-        ccy = ccy.set_index(["exporter", "importer"])
-        import pdb; pdb.set_trace()
+        self.ccy = self.ccy[self.ccy.importer != self.ccy.exporter]
+        self.ccy = self.ccy.set_index(["exporter", "importer"])
 
-        cc_trade_totals = self.assign_accuracy_scores(ccy)
+        cc_trade_totals = self.assign_accuracy_scores()
         logging.info("ccpy: assigned accuracy scores")
-        import pdb; pdb.set_trace()
 
         self.calculate_final_trade_value()
         logging.info("ccpy: calculated final trade val")
-        import pdb; pdb.set_trace()
 
-        self.reweight_final_trade_value(ccy)
+        self.reweight_final_trade_value()
         logging.info("ccpy: reweighted")
-        import pdb; pdb.set_trace()
 
         # final processing
         self.filter_and_handle_trade_data_discrepancies()
         logging.info("ccpy: handle trade data discrepancies")
-        import pdb; pdb.set_trace()
 
         self.handle_not_specified()
-        import pdb; pdb.set_trace()
+        if self.year == 2023:
+            self.df = handle_9999_saudi_reporting(self.df)
 
         self.df["year"] = self.year
         self.df = self.df.rename(
@@ -123,13 +104,14 @@ class CountryCountryProductYear(_AtlasCleaning):
                 "import_value": "value_importer",
             }
         )
-        self.handle_venezuela()
-        import pdb; pdb.set_trace()
+        if self.year > 2019:
+           ven_opec = handle_venezuela(self.year, self.df, self.OIL[self.product_classification])
+           self.df = pd.concat([self.df, ven_opec], axis=0, ignore_index=True, sort=False)
+
 
         self.df[["value_final", "value_exporter", "value_importer"]] = self.df[
             ["value_final", "value_exporter", "value_importer"]
         ].fillna(0)
-        import pdb; pdb.set_trace()
 
         ccpy_final_cols =[
                 "year",
@@ -142,9 +124,10 @@ class CountryCountryProductYear(_AtlasCleaning):
             ]
         self.df = self.df[ccpy_final_cols]
         self.handle_comtrade_converted_sitc()
+        return self.df
 
 
-    def filter_and_clean_data(self):
+    def filter_and_clean_data(self) -> None:
         """
         Filter trade data to include only level 6 products and remove invalid entries.
 
@@ -168,42 +151,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         ]
         self.df = self.df[~(self.df.reporter_iso == self.df.partner_iso)]
 
-    def setup_trade_analysis_framework(self, ccy):
-        """
-        Prepare the data structure for trade analysis by creating indices and a comprehensive dataset
-        ensuring all potential trade relationships are accounted for
-        """
-        # generate index on unique country pairs
-        logging.info("setup trade analysis")
-        ccy["idpair"] = ccy.groupby(["exporter", "importer"]).ngroup()
-        country_pairs = ccy[["idpair", "exporter", "importer"]]
 
-        # generate index for each product
-        self.df["idprod"] = self.df.groupby(["commoditycode"]).ngroup()
-        products = self.df[["idprod", "commoditycode"]].drop_duplicates(
-            subset=["idprod", "commoditycode"]
-        )
-        self.nprod = products.count().idprod
-
-        # set this at the country pairs level and only include products traded between both?
-        multi_index = pd.MultiIndex.from_product(
-            [
-                country_pairs["exporter"].unique(),
-                country_pairs["importer"].unique(),
-            ],
-            names=["reporter_iso", "partner_iso"],
-        )
-
-        all_country_product_combinations = (
-            pd.DataFrame(index=multi_index)
-            .query("reporter_iso != partner_iso")
-            .reset_index()
-        ).drop_duplicates()
-
-        self.npairs = all_country_product_combinations[["reporter_iso", "partner_iso"]].drop_duplicates().shape[0]
-        return all_country_product_combinations
-
-    def generate_trade_value_matrix(self, ccy, all_country_product_combinations):
+    def generate_trade_value_matrix(self) -> None:
         """
         Generate a matrix of trade values for either exports or imports.
 
@@ -277,7 +226,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         ].fillna(0)
 
         self.df = self.df.merge(
-            ccy[
+            self.ccy[
                 [
                     "importer",
                     "exporter",
@@ -293,7 +242,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.df = self.df.drop(columns=["cif_ratio"])
         self.df = self.df.fillna(0.0)
 
-    def assign_trade_scores(self):
+    def assign_trade_scores(self) -> None:
         """
         at commodity bilateral level
         score of 4 if reporters provides positive imports and exports
@@ -310,12 +259,12 @@ class CountryCountryProductYear(_AtlasCleaning):
             + 2 * (self.df["import_value"] > 0)
         )
 
-    def assign_accuracy_scores(self, ccy):
+    def assign_accuracy_scores(self) -> None:
         """ """
         # score of 4 if exporter and importer weight both > 0
         # score of 2 if importer weight only > 0
         # score of 1 if exporter weight only > 0
-        self.df["ccy"] = (
+        self.df["accuracy"] = (
             1
             * (
                 (
@@ -328,7 +277,7 @@ class CountryCountryProductYear(_AtlasCleaning):
             + 2 * ((self.df["importer_weight"] > 0))
         )
 
-    def calculate_final_trade_value(self):
+    def calculate_final_trade_value(self) -> None:
         """
         Calculate the final trade value based on a set of conditions that consider
         the trade score, accuracy score, export values, import values, and weights.
@@ -401,7 +350,7 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.df = self.df.drop(columns=["trade_score", "accuracy"])
 
 
-    def reweight_final_trade_value(self, ccy):
+    def reweight_final_trade_value(self) -> None:
         """
         Adjusts final trade values to reconcile discrepancies with reported total trade figures
 
@@ -418,7 +367,7 @@ class CountryCountryProductYear(_AtlasCleaning):
             .fillna(0)
         )
         country_level_trade_total = (
-            ccy.groupby(["exporter", "importer"])
+            self.ccy.groupby(["exporter", "importer"])
             .agg({"final_trade_value": "sum"})
             .reset_index()[["exporter", "importer", "final_trade_value"]]
             .rename(columns={"final_trade_value": "ccy_trade"})
@@ -468,7 +417,6 @@ class CountryCountryProductYear(_AtlasCleaning):
         self.df.loc[self.df.final_value > 1000, "reweighted_value"] = self.df[
             "final_value"
         ]
-        # self.df = self.df[self.df['final_value']>1000]
 
         self.df["reweighted_value_ratio"] = self.df["reweighted_value"] / (
             self.df.groupby(["exporter", "importer"])["reweighted_value"].transform(
@@ -495,7 +443,8 @@ class CountryCountryProductYear(_AtlasCleaning):
         trade_discrepancy_values = trade_discrepancy_values.rename(columns={"trade_discrepancy_value": "reweighted_value"})
         self.df = pd.concat([self.df, trade_discrepancy_values], axis=0)
 
-    def filter_and_handle_trade_data_discrepancies(self):
+
+    def filter_and_handle_trade_data_discrepancies(self) -> None:
         """
         Clean trade data by removing rows without meaningful values and fill missing
         commodity codes.
@@ -526,7 +475,7 @@ class CountryCountryProductYear(_AtlasCleaning):
             self.TRADE_DATA_DISCREPANCIES
         ]
 
-    def handle_not_specified(self):
+    def handle_not_specified(self) -> None:
         """
         Handle trade data with unspecified commodity codes and filter out exporters
         where ratio of 'not specified' trade to total trade for each exporter ratio
@@ -567,35 +516,24 @@ class CountryCountryProductYear(_AtlasCleaning):
             logging.info("dropping exporter")
             self.df[~(self.df.exporter.isin(drop_exporter))]
 
-        # handle 9999 reporting from Saudi for Atlas Year 2023
-        if self.year == 2023:
-            logging.info("updating Saudi's 2023 9999 trade value to oil")
-            logging.info(
-                f"Saudi's 99999 export trade value: {self.df[(self.df.exporter=='SAU')&(self.df.commoditycode=='999999')]['export_value'].sum()}"
-            )
-
-            self.df.loc[
-                (self.df.exporter == "SAU") & (self.df.commoditycode == "999999"),
-                "commoditycode",
-            ] = "270900"
-
 
     def handle_comtrade_converted_sitc(self) -> None:
         """
         Use Comtrade Conversion table on mirror bilateral product level trade 
         data and harmonize SITC to rev 2
         """
+        concordance_obj = ConcordanceTable(self.static_data_path)
         if (
             self.product_classification == "SITC"
             and self.year <= 1975
             and self.download_type == "by_classification"
         ):
             # convert S1 to S2; only save SITC rev 2 therefore update self.df
-            self.df = ConcordanceTable(self.df, "S1", "S2")
+            self.df = concordance_obj.run_conversion(self.df, "S1", "S2")
 
         elif self.product_classification == "H0" and self.download_type == "by_classification":
             # convert H0 to SITC rev 2; will save SITC and H0 therefore new SITC df
-            sitc_df = ConcordanceTable(self.df, "H0", "S2")
+            sitc_df = concordance_obj.run_conversion(self.df, "H0", "S2")
             self.save_parquet(sitc_df, "final", f"SITC_{self.year}", "SITC")
         
 

@@ -15,7 +15,7 @@ CIF_FOB_EQUIVALENCE_THRESHOLD = 0.05
 
 
 def compute_distance(
-    year: int, product_classification: str, dist: pd.DataFrame
+    base_obj : object, year: int, product_classification: str, dist: pd.DataFrame
 ) -> pd.DataFrame:
     """
     Based on geographic distances betweeen trade partners (dist df) estimate the
@@ -31,22 +31,20 @@ def compute_distance(
         - tau is the trade cost rate; tau = (CIF - FOB) / FOB
         - Uses high dimensional fixed effects regression for trade cost estimation
     """
-    df = pd.read_parquet(
-        f"data/intermediate/{product_classification}_{year}_aggregated.parquet"
-    )
+    
+    df = base_obj.load_parquet("intermediate", f"{product_classification}_{year}_aggregated")
     # lag and lead
     df_lag_lead = pd.DataFrame()
     for wrap_year in [year - 1, year + 1]:
         try:
-            df_lag_lead = pd.read_parquet(
-                f"data/intermediate/{product_classification}_{wrap_year}_aggregated.parquet"
-            )
+            df_lag_lread = base_obj.load_parquet("intermediate", 
+                                                 f"{product_classification}_{wrap_year}_aggregated"
+                                                )
         except FileNotFoundError:
             logging.error(f"Didn't download year: {wrap_year}")
 
         df = pd.concat([df, df_lag_lead])
 
-    # "ROM" was the ISO code for Romania until 2002
     dist = standardize_romania_codes(dist)
     df = df.merge(dist, on=["exporter", "importer"], how="left")
     df = modernize_romania_codes(df)

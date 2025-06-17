@@ -5,20 +5,37 @@ import os
 logging.basicConfig(level=logging.INFO)
 
 
-def get_classifications(year):
+def sitc_and_skip_processing(year, product_classification, download_type):
+    if (
+        product_classification == "SITC"
+        and year > 1994
+        and download_type == "by_classification"
+    ):
+        # use cleaned CCPY H0 data for SITC
+        return True
+    return False
+
+
+def handle_product_classification(year : int, 
+                                  product_classification : str, 
+                                  download_type: str) -> list[str]:
+    """
+    """
+    if product_classification == "SITC" and download_type == "by_classification":
+        return get_classifications(year)
+    elif product_classification == "SITC" and download_type == "as_reported":
+        return ["S2"]
+    else:
+        return [product_classification]
+
+
+def get_classifications(year: int) -> list[str]:
     """
     Based on year, generate list of all available classifications for that year
     """
     classifications = []
     if year >= 1976 and year < 1995:
         classifications.append("S2")
-    # if year >= 1988 and year <= 2003 and product_classification=="SITC":
-    #     classifications.append("S3")
-    # if year >= 1994:
-    #     classifications.append("H0")
-    #     classifications.append("HS")
-    # if year <= 2003  and product_classification=="SITC"::
-    #     classifications.append("ST")
     if year >= 1962 and year < 1976:
         classifications.append("S1")
 
@@ -26,49 +43,3 @@ def get_classifications(year):
         f"generating aggregations for the following classifications: {classifications}"
     )
     return classifications
-
-
-def merge_classifications(year: str, root_dir: str) -> pd.DataFrame():
-    """
-    Based on year, merge comtrade classifications and then take median export, import values
-    """
-    merge_conditions = [
-        # TODO account for hs12?
-        (year >= 1976 and year < 1995, f"aggregated_S2_{year}.parquet"),
-        (year >= 1995, f"aggregated_H0_{year}.parquet"),
-        (year >= 1995, f"aggregated_HS_{year}.parquet"),
-        (year >= 1985 and year <= 2003, f"aggregated_S3_{year}.parquet"),
-        (year <= 2003, f"aggregated_ST_{year}.parquet"),
-    ]
-
-    df = pd.DataFrame()
-    for condition, file in merge_conditions:
-        if df.empty:
-            try:
-                logging.info("reading in file")
-                df = pd.read_parquet(
-                    os.path.join(root_dir, "data", "intermediate", file)
-                )
-            except FileNotFoundError:
-                continue
-        else:
-            try:
-                df = df.merge(
-                    pd.read_parquet(
-                        os.path.join(
-                            root_dir,
-                            "data",
-                            "intermediate",
-                            file,
-                        )
-                    ),
-                    on=["year", "exporter", "importer"],
-                    how="left",
-                )
-            except FileNotFoundError:
-                continue
-
-    # df.astype({"importer": str, "exporter": str}).dtypes
-    df["export_value_fob"] = df.filter(like="export_value_fob").median(axis=1)
-    df["import_value_cif"] = df.filter(like="import_value_cif").median(axis=1)
-    return df[["year", "exporter", "importer", "export_value_fob", "import_value_cif"]]

@@ -1,7 +1,6 @@
 import pandas as pd
-from clean.objects.base import _AtlasCleaning
-from clean.utils.fetch_data_from_external import IMFData
-from clean.utils.fetch_data_from_external import WDIData
+from clean.objects.base import AtlasCleaning
+from clean.utils.api_handler import IMFData, WDIData
 import os
 from pathlib import Path
 import numpy as np
@@ -13,7 +12,7 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO)
 
 
-class TradeAnalysisCleaner(_AtlasCleaning):
+class TradeAnalysisCleaner(AtlasCleaning):
     MAX_EXPORTER_CIF_RATIO = 0.2
     # Producer Price Index by Commodity: Industrial Commodities
     FRED_SERIES_ID = "PPIIDC"
@@ -33,13 +32,7 @@ class TradeAnalysisCleaner(_AtlasCleaning):
 
         self.year = year
         self.df = df
-
-        self.fred_api_key = fred_api_key or os.environ.get("FRED_API_KEY")
-        if not self.fred_api_key:
-            raise ValueError(
-                "FRED API key required: pass fred_api_key or set FRED_API_KEY env var"
-            )
-
+        
         self.filter_bilateral_trade_data()
 
         nominal_dollars_df = self.df.copy(deep=True)
@@ -139,11 +132,6 @@ class TradeAnalysisCleaner(_AtlasCleaning):
         """
         population and produce price index from FRED (st. louis)
         """
-        wdi_pop = (
-            pd.read_stata(self.wdi_path, columns=["year", "iso", "sp_pop_totl"])
-            .reset_index(drop=True)
-            .rename(columns={"sp_pop_totl": "wdi_pop"})
-        )
         wdi_obj = WDIData(self.latest_year)
         wdi_pop = wdi_obj.query_for_wdi_indicators({"SP.POP.TOTL": "population"})
         wdi_pop = wdi_pop.rename(columns={"population": "wdi_pop"})
@@ -188,7 +176,7 @@ class TradeAnalysisCleaner(_AtlasCleaning):
         Uses IMF population data with WDI as fallback.
         """
         population = population[population.year == self.year].drop(columns=["year"])
-        population.loc[population["imf_pop"].isna(), "imf_pop"] = population["wdi_pop"]
+        population["imf_pop"] = population["imf_pop"].fillna(population["wdi_pop"]).astype('float64')
         population = population.rename(columns={"imf_pop": "imf_wdi_pop"})
 
         countries_under_threshold = population[

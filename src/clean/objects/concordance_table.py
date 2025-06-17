@@ -4,7 +4,7 @@ from datetime import datetime
 import pandas as pd
 
 
-class ConcordanceTable:
+class ConcordanceTable():
     """
     Uses Concordance Table provided by Comtrade to convert cleaned CCPY 6digit product codes
     to a target classification code.
@@ -20,14 +20,19 @@ class ConcordanceTable:
     clcode_length = {"HS92": 6, "SITC2": 4, "SITC1": 4}
     trade_val_cols = ["value_final", "value_exporter", "value_importer"]
 
-    concordance_table = pd.read_excel(
-        "/n/hausmann_lab/lab/atlas/bustos_yildirim/atlas_stata_cleaning/src/data/raw/HS-SITC-BEC Correlations_2022.xlsx",
-        dtype={"HS92": str, "SITC1": str, "SITC2": str},
-    )
+    
 
-    def __init__(self, df, classification_code, target_classification_code):
+
+    def __init__(self, static_data_path : Path):
+        self.concordance_table = pd.read_excel(Path(static_data_path) / 
+                                               "HS-SITC-BEC Correlations_2022.xlsx",
+                dtype={"HS92": str, "SITC1": str, "SITC2": str},
+            )
+        
+    def run_conversion(self, df : pd.DataFrame, 
+                       classification_code:  str, 
+                       target_classification_code : str) -> pd.DataFrame:
         self.df = df
-
         self.classification_code = classification_code
         self.target_classification_code = target_classification_code
 
@@ -35,6 +40,7 @@ class ConcordanceTable:
         self._prep_data_request()
         # run by year
         self._run_concordance()
+        return self.df
 
     def _validate_request(self) -> None:
         def get_clcode_from_input(input_value):
