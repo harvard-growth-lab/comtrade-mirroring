@@ -44,7 +44,7 @@ Which trade classifications to process
 
 Test mode - only process recent years (2020-2023) for faster testing
 <br/>
-`TEST_MODE = False`
+- `TEST_MODE = False`
 
 **Processing steps**
 
