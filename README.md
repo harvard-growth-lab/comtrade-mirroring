@@ -44,12 +44,12 @@ Test mode - only process recent years (2020-2023) for faster testing
 TEST_MODE = False
 
 **Processing steps**
-PROCESSING_STEPS = {
-    "run_cleaning": True,        # Main bilateral trade cleaning pipeline
-    "run_complexity": True,      # Generate complexity metrics
-    "run_services": True,        # Process unilateral services data
-    "cleanup_intermediate": True, # Clean up intermediate files after processing
-}
+
+| Step                    | Enabled   | Description   
+| ----------------------- | ----------| -----------------------------------------------| 
+| `run_cleaning`          | True      | # Main bilateral trade cleaning pipeline       | 
+| `cleanup_intermediate`  | True      | # Clean up intermediate files after processing |
+
 
 **Check configuration:**
 bash cd src
