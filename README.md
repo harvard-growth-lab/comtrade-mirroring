@@ -1,34 +1,62 @@
-# mirrored_trade
-Addresses trade data inconsistencies across reporting countries and their trade partners with a systematic apporach to extract the true value between trade partners. 
+**Atlas Trade Data Processing Pipeline**
+A comprehensive data processing pipeline for cleaning and reconciling bilateral trade data from UN Comtrade for the Atlas of Economic Complexity.
 
-## Getting Started
+**Overview**
+This pipeline processes raw bilateral trade data through a three-stage cleaning process:
 
-1. Clone the repository
-2. Install dependencies via Poetry
-3. Update configuration parameters for your own environment and desired analyses 
-4. Run the application `python main.py`
+1. Data Aggregation - Aggregate raw trade data across classifications and years
+2. Country-level Reconciliation - Reconcile trade discrepancies between country pairs using mirroring techniques
+3. Product-level Reconciliation - Generate final product-level trade data with complexity metrics
 
-## Usage
+**Quick Start**
+Prerequisites
+
+- Python 3.9+
+- Poetry (for dependency management)
+- Request a Federal Reserve Bank of St. Louis API key (for economic data)
+    https://fred.stlouisfed.org/docs/api/api_key.html 
+
+**Installation**
+
+Clone the repository:
+bashgit clone <https://github.com/cid-harvard/atlas_cleaning.git>
+cd atlas_cleaning
+
+Install dependencies:
+bash poetry install
+
+Set up environment variables:
+bash export FRED_API_KEY="your_fred_api_key_here"
+
+Activate the environment:
+bash poetry shell
 
 
-## Contributing
+**Basic Usage**
 
+Edit config/user_config.py to customize processing:
+python# Which trade classifications to process
+PROCESS_SITC = True   # SITC data from 1962-2023
+PROCESS_HS92 = True   # HS92 data from 1992-2023  
+PROCESS_HS12 = True   # HS12 data from 2012-2023
 
-## License
+# Test mode - only process recent years (2020-2023) for faster testing
+TEST_MODE = False
 
+# Processing steps
+PROCESSING_STEPS = {
+    "run_cleaning": True,        # Main bilateral trade cleaning pipeline
+    "run_complexity": True,      # Generate complexity metrics
+    "run_services": True,        # Process unilateral services data
+    "cleanup_intermediate": True, # Clean up intermediate files after processing
+}
 
-Level 1: user runs every time, likely in the command line
+Check configuration:
+bash cd src
+python main.py --config-summary
 
-- specifies folder name with data 
-- 
-
-use case: which directory are we picking up from the cleaning pipeline, API Keys
-general principle, to elevate the details explicitly required by the user
-Level 2: base paths for someone's own computer
-PathBuilder object
-Level 3: configurations that determines which components of the code will run, but used more for development purposes
-Level 4: static variables / constants (not updated by user, part of the methodology)
-    
+Run the full pipeline:
+bash python main.py
 
 
 
