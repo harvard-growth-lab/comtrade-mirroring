@@ -4,9 +4,27 @@ A comprehensive data processing pipeline for cleaning and reconciling bilateral 
 # Overview
 This pipeline processes raw bilateral trade data through a three-stage cleaning process:
 
-1. Data Aggregation - Aggregate raw trade data across classifications and years
-2. Country-level Reconciliation - Reconcile trade discrepancies between country pairs using mirroring techniques
-3. Product-level Reconciliation - Generate final product-level trade data with complexity metrics
+1. Data Aggregation
+
+- Reads raw bilateral trade data files from UN Comtrade
+- Aggregates data by year, country pair, and product classification
+- Handles different product classification systems (SITC, HS92, HS12)
+- Standardizes data formats and codes across years
+
+2. Trade Analysis & Country-level Reconciliation
+
+- Distance Calculation: Computes geographic distances between countries using CEPII data
+- Trade Discrepancy Analysis: Identifies and analyzes differences between reporter and partner country data
+- Quality Assessment: Generates reliability metrics for each country's trade reporting
+- Bilateral Reconciliation: Uses statistical mirroring techniques to reconcile conflicting trade reports
+- Accuracy Weighting: Applies weights based on reporting quality to create best estimates
+
+3. Product-level Reconciliation
+
+- Product-level Processing: Extends country-level reconciliation to detailed product categories
+- Bilateral Trade Matrices: Creates comprehensive bilateral trade datasets
+- Data Validation: Performs consistency checks across different aggregation levels
+- Final Output Generation: Produces clean, reconciled trade data ready for Atlas ingestion
 
 # Quick Start
 
