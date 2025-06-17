@@ -43,7 +43,7 @@ Which trade classifications to process
 - `PROCESS_HS12 = True`   # HS12 data from 2012-2023
 
 Test mode - only process recent years (2020-2023) for faster testing
-< br />
+<br/>
 `TEST_MODE = False`
 
 **Processing steps**
