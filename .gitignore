@@ -1,4 +1,5 @@
 src/data/
+!src/data/static/
 *.parquet
 *.dta
 *.csv
