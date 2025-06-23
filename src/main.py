@@ -109,7 +109,7 @@ def run_atlas_cleaning(ingestion_attrs):
         - downloaded_files_path (str): Path to raw data files
         - root_dir (str): Root directory path
     """
-    logging.INFO(f"start time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+    # logging.INFO(f"start time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
     start_year = ingestion_attrs["start_year"]
     end_year = ingestion_attrs["end_year"]
     product_classification = ingestion_attrs["product_classification"]
