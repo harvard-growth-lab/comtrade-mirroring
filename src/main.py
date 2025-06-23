@@ -80,9 +80,9 @@ pd.options.display.max_rows = None
 pd.set_option("max_colwidth", 400)
 
 
-def create_ingestion_attrs(config, classification, start_year, end_year):
+def create_ingestion_attrs(classification, start_year, end_year):
     """Create ingestion attributes for a specific classification and year range"""
-    base_config = config.get_paths_config()
+    base_config = get_paths_config()
 
     return {
         "start_year": start_year,
