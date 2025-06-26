@@ -109,7 +109,7 @@ def run_atlas_cleaning(ingestion_attrs):
         - downloaded_files_path (str): Path to raw data files
         - root_dir (str): Root directory path
     """
-    # logging.INFO(f"start time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+    # logging.info(f"start time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
     start_year = ingestion_attrs["start_year"]
     end_year = ingestion_attrs["end_year"]
     product_classification = ingestion_attrs["product_classification"]
@@ -117,16 +117,10 @@ def run_atlas_cleaning(ingestion_attrs):
 
     base_obj = AtlasCleaning(**ingestion_attrs)
     aggregate_trade(ingestion_attrs)
-    logging.INFO(f"Completed data aggregations")
+    logging.info(f"Completed data aggregations")
 
     run_bilateral_mirroring_pipeline(ingestion_attrs)
     # deletes all intermediate processing files
-    clean_up_intermediate_files(ingestion_attrs)
-
-
-def run_complexity(ingestion_attrs):
-    generate_complexity_metrics(ingestion_attrs)
-    # deletes all intermediate complexity processing files
     clean_up_intermediate_files(ingestion_attrs)
 
 
@@ -193,57 +187,15 @@ def aggregate_trade(ingestion_attrs):
             f"Aggregating data for {year} and these classifications {classifications}"
         )
         [
-            AggregateTrade(year, product_class, **ingestion_attrs)
+            AggregateTrade(year, product_class, **ingestion_attrs).run_aggregate_trade()
             for product_class in classifications
         ]
-
-
-def generate_complexity_metrics(ingestion_attrs):
-    """
-    # handle complexity
-    """
-    product_classification = ingestion_attrs["product_classification"]
-    download_type = ingestion_attrs["download_type"]
-    for year in range(ingestion_attrs["start_year"], ingestion_attrs["end_year"] + 1):
-        complexity = Complexity(year, **ingestion_attrs)
-        complexity.save_parquet(
-            complexity.df,
-            "intermediate",
-            f"{download_type}_{product_classification}_{year}_complexity",
-        )
-        del complexity.df
-        logging.info(
-            f"end time for {year}: {strftime('%Y-%m-%d %H:%M:%S', localtime())}"
-        )
-
-    complexity_all_years = complexity.intermediate_data_path.glob(
-        f"{download_type}_{product_classification}_*_complexity.parquet"
-    )
-    # complexity_all_years = glob.glob(
-    #     f"data/processed/{download_type}_{product_classification}_*_complexity.parquet"
-    # )
-    complexity_all = pd.concat(
-        [pd.read_parquet(file) for file in complexity_all_years], axis=0
-    )
-    atlas_base_obj = AtlasCleaning(**ingestion_attrs)
-    atlas_base_obj.save_parquet(
-        complexity_all, "final", f"{product_classification}_cpy_all", "CPY"
-    )
-    del complexity_all
-
-
-def run_unilateral_services(ingestion_attrs):
-    unilateral_services = UnilateralServices(**ingestion_attrs)
-    unilateral_services.save_parquet(
-        unilateral_services.df, "final", f"unilateral_services", "Services"
-    )
-    del unilateral_services.df
 
 
 def clean_up_intermediate_files(ingestion_attrs):
     base = AtlasCleaning(**ingestion_attrs)
     base.cleanup_files_from_dir(base.intermediate_data_path.iterdir())
-    
+
 
 def main():
     """
@@ -322,23 +274,12 @@ def main():
                 logger.info("Running cleaning pipeline...")
                 run_atlas_cleaning(ingestion_attrs)
 
-            if PROCESSING_STEPS.get("run_complexity", True):
-                logger.info("Generating complexity metrics...")
-                run_complexity(ingestion_attrs)
-
             classification_duration = datetime.now() - classification_start_time
             logger.info(f"Completed {description} in {classification_duration}")
 
         except Exception as e:
             logger.error(f"Error processing {classification}: {str(e)}", exc_info=True)
             raise
-
-    # unilateral services processes once for all classifications
-    if PROCESSING_STEPS.get("run_services", True):
-        logger.info("Processing unilateral services...")
-        # Use general config for services
-        general_attrs = create_ingestion_attrs(None, None, 2023)
-        run_unilateral_services(general_attrs)
 
     total_duration = datetime.now() - total_start_time
     logger.info("=" * 60)

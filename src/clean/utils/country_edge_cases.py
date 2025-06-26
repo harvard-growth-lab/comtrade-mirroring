@@ -2,7 +2,7 @@ import pandas as pd
 import logging
 
 
-def handle_venezuela(year, df, ven_oil_code):
+def handle_ven_oil(year, df, oil_classification_code, static_data_path):
     """
     Comtrade stopped patching trade data for Venezuela starting in 2020.
 
@@ -11,12 +11,9 @@ def handle_venezuela(year, df, ven_oil_code):
     using the price per barrel from the https://www.energyinst.org/statistical-review
     """
     reported_total = df[
-        (
-            (df.exporter == "VEN")
-            & (df.commoditycode == ven_oil_code)
-        )
+        ((df.exporter == "VEN") & (df.commoditycode == oil_classification_code))
     ]["value_final"].sum()
-    ven_opec = pd.read_csv("data/ven_fix/venezuela_270900_exports.csv")
+    ven_opec = pd.read_csv(static_data_path / "venezuela_270900_exports.csv")
     ven_opec = ven_opec[ven_opec.year == year]
     if ven_opec.empty and year > 2019:
         raise ValueError(
@@ -26,16 +23,16 @@ def handle_venezuela(year, df, ven_oil_code):
     # if anyone imports did report Venezuela oil trade
     ven_opec["value_final"] = ven_opec["value_final"] - reported_total
     ven_opec = ven_opec.astype({"year": "int64"})
-    ven_opec["commoditycode"] = ven_oil_code
+    ven_opec["commoditycode"] = oil_classification_code
     return ven_opec
 
 
-def handle_9999_saudi_reporting(df: pd.DataFrame) -> pd.DataFrame:
-    """"
+def handle_sau_9999_category(df: pd.DataFrame) -> pd.DataFrame:
+    """ "
     handle 9999 reporting from Saudi for Atlas Year 2023
     """
     logging.info("updating Saudi's 2023 9999 trade value to oil")
-    logging.info(
+    logging.debug(
         f"Saudi's 99999 export trade value: {df[(df.exporter=='SAU')&(df.commoditycode=='999999')]['export_value'].sum()}"
     )
 
@@ -44,4 +41,3 @@ def handle_9999_saudi_reporting(df: pd.DataFrame) -> pd.DataFrame:
         "commoditycode",
     ] = "270900"
     return df
-

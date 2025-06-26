@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from time import gmtime, strftime, localtime
 import logging
-from clean.utils.country_edge_cases import handle_venezuela, handle_9999_saudi_reporting
+from clean.utils.country_edge_cases import handle_ven_oil, handle_sau_9999_category
 from clean.objects.concordance_table import ConcordanceTable
 
 
@@ -22,6 +22,7 @@ class CountryCountryProductYear(AtlasCleaning):
         - Reconciles export/import discrepancies at commodity level
         - Reweights values to match country totals
     """
+
     EXPORT_FLOW_CODE = 2
     IMPORT_FLOW_CODE = 1
     OIL = {
@@ -44,7 +45,6 @@ class CountryCountryProductYear(AtlasCleaning):
     TRADE_DATA_DISCREPANCIES = 0
     NOT_SPECIFIED = 1
 
-
     def __init__(self, year, ccy, **kwargs):
         super().__init__(**kwargs)
         print(f"starting ccpy: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
@@ -52,18 +52,16 @@ class CountryCountryProductYear(AtlasCleaning):
         self.year = year
         self.ccy = ccy
 
-
     def reconcile_country_country_product_estimates(self) -> pd.DataFrame:
-        """
-        """
+        """ """
         self.df = self.load_parquet(
             f"intermediate", f"{self.product_classification}_{self.year}_preprocessed"
         )
         self.df = self.df.rename(columns={"commodity_code": "commoditycode"})
         if self.product_classification.startswith("H"):
-            self.df.loc[
-                self.df["commoditycode"].str[:4] == "9999", "commoditycode"
-            ] = "999999"
+            self.df.loc[self.df["commoditycode"].str[:4] == "9999", "commoditycode"] = (
+                "999999"
+            )
 
         # prepare the data
         self.filter_and_clean_data()
@@ -94,7 +92,7 @@ class CountryCountryProductYear(AtlasCleaning):
 
         self.handle_not_specified()
         if self.year == 2023:
-            self.df = handle_9999_saudi_reporting(self.df)
+            self.df = handle_sau_9999_category(self.df)
 
         self.df["year"] = self.year
         self.df = self.df.rename(
@@ -105,27 +103,32 @@ class CountryCountryProductYear(AtlasCleaning):
             }
         )
         if self.year > 2019:
-           ven_opec = handle_venezuela(self.year, self.df, self.OIL[self.product_classification])
-           self.df = pd.concat([self.df, ven_opec], axis=0, ignore_index=True, sort=False)
-
+            ven_opec = handle_ven_oil(
+                self.year,
+                self.df,
+                self.OIL[self.product_classification],
+                self.static_data_path,
+            )
+            self.df = pd.concat(
+                [self.df, ven_opec], axis=0, ignore_index=True, sort=False
+            )
 
         self.df[["value_final", "value_exporter", "value_importer"]] = self.df[
             ["value_final", "value_exporter", "value_importer"]
         ].fillna(0)
 
-        ccpy_final_cols =[
-                "year",
-                "exporter",
-                "importer",
-                "commoditycode",
-                "value_final",
-                "value_exporter",
-                "value_importer",
-            ]
+        ccpy_final_cols = [
+            "year",
+            "exporter",
+            "importer",
+            "commoditycode",
+            "value_final",
+            "value_exporter",
+            "value_importer",
+        ]
         self.df = self.df[ccpy_final_cols]
         self.handle_comtrade_converted_sitc()
         return self.df
-
 
     def filter_and_clean_data(self) -> None:
         """
@@ -150,7 +153,6 @@ class CountryCountryProductYear(AtlasCleaning):
             ~((self.df.partner_iso == "WLD") | (self.df.reporter_iso == "WLD"))
         ]
         self.df = self.df[~(self.df.reporter_iso == self.df.partner_iso)]
-
 
     def generate_trade_value_matrix(self) -> None:
         """
@@ -349,7 +351,6 @@ class CountryCountryProductYear(AtlasCleaning):
         )
         self.df = self.df.drop(columns=["trade_score", "accuracy"])
 
-
     def reweight_final_trade_value(self) -> None:
         """
         Adjusts final trade values to reconcile discrepancies with reported total trade figures
@@ -403,7 +404,11 @@ class CountryCountryProductYear(AtlasCleaning):
 
         # trade data discprepancies present
         reweight_df["has_trade_data_discrepancy"] = (
-            (reweight_df["reporting_inconsistency_type_1"] + reweight_df["reporting_inconsistency_type_2"]) > 0
+            (
+                reweight_df["reporting_inconsistency_type_1"]
+                + reweight_df["reporting_inconsistency_type_2"]
+            )
+            > 0
         ).astype(int)
 
         reweight_df["trade_discrepancy_value"] = (
@@ -436,13 +441,18 @@ class CountryCountryProductYear(AtlasCleaning):
         self.df = self.df.drop(columns=["value_less_discrep", "reweighted_value_ratio"])
 
         reweight_df = reweight_df[["exporter", "importer", "trade_discrepancy_value"]]
-        trade_discrepancy_values = reweight_df[reweight_df.trade_discrepancy_value > 0]
-        trade_discrepancy_values["commoditycode"] = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[
-            self.product_classification
-        ][self.TRADE_DATA_DISCREPANCIES]
-        trade_discrepancy_values = trade_discrepancy_values.rename(columns={"trade_discrepancy_value": "reweighted_value"})
+        trade_discrepancy_values = reweight_df[
+            reweight_df.trade_discrepancy_value > 0
+        ].copy()
+        trade_discrepancy_values.loc[:, "commoditycode"] = (
+            self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[self.product_classification][
+                self.TRADE_DATA_DISCREPANCIES
+            ]
+        )
+        trade_discrepancy_values = trade_discrepancy_values.rename(
+            columns={"trade_discrepancy_value": "reweighted_value"}
+        )
         self.df = pd.concat([self.df, trade_discrepancy_values], axis=0)
-
 
     def filter_and_handle_trade_data_discrepancies(self) -> None:
         """
@@ -469,11 +479,11 @@ class CountryCountryProductYear(AtlasCleaning):
             ).any(axis=1)
         ]
 
-        self.df.loc[
-            self.df.commoditycode.isna(), "commoditycode"
-        ] = self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[self.product_classification][
-            self.TRADE_DATA_DISCREPANCIES
-        ]
+        self.df.loc[self.df.commoditycode.isna(), "commoditycode"] = (
+            self.SPECIALIZED_COMMODITY_CODES_BY_CLASS[self.product_classification][
+                self.TRADE_DATA_DISCREPANCIES
+            ]
+        )
 
     def handle_not_specified(self) -> None:
         """
@@ -489,7 +499,9 @@ class CountryCountryProductYear(AtlasCleaning):
         not_specified_mask = (self.df["importer"] == "ANS") & (
             self.df["commoditycode"] == not_specified_val
         )
-        self.df.loc[not_specified_mask, "not_specified"] = self.df.loc[not_specified_mask, "reweighted_value"]
+        self.df.loc[not_specified_mask, "not_specified"] = self.df.loc[
+            not_specified_mask, "reweighted_value"
+        ]
         self.df["reweighted_value_temp"] = self.df["reweighted_value"]
         self.df.loc[not_specified_mask, "reweighted_value_temp"] = np.nan
 
@@ -516,10 +528,9 @@ class CountryCountryProductYear(AtlasCleaning):
             logging.info("dropping exporter")
             self.df[~(self.df.exporter.isin(drop_exporter))]
 
-
     def handle_comtrade_converted_sitc(self) -> None:
         """
-        Use Comtrade Conversion table on mirror bilateral product level trade 
+        Use Comtrade Conversion table on mirror bilateral product level trade
         data and harmonize SITC to rev 2
         """
         concordance_obj = ConcordanceTable(self.static_data_path)
@@ -531,9 +542,10 @@ class CountryCountryProductYear(AtlasCleaning):
             # convert S1 to S2; only save SITC rev 2 therefore update self.df
             self.df = concordance_obj.run_conversion(self.df, "S1", "S2")
 
-        elif self.product_classification == "H0" and self.download_type == "by_classification":
+        elif (
+            self.product_classification == "H0"
+            and self.download_type == "by_classification"
+        ):
             # convert H0 to SITC rev 2; will save SITC and H0 therefore new SITC df
             sitc_df = concordance_obj.run_conversion(self.df, "H0", "S2")
             self.save_parquet(sitc_df, "final", f"SITC_{self.year}", "SITC")
-        
-

@@ -5,7 +5,9 @@ import os
 logging.basicConfig(level=logging.INFO)
 
 
-def sitc_and_skip_processing(year, product_classification, download_type):
+def sitc_and_skip_processing(
+    year: int, product_classification: str, download_type: str
+) -> bool:
     if (
         product_classification == "SITC"
         and year > 1994
@@ -16,11 +18,10 @@ def sitc_and_skip_processing(year, product_classification, download_type):
     return False
 
 
-def handle_product_classification(year : int, 
-                                  product_classification : str, 
-                                  download_type: str) -> list[str]:
-    """
-    """
+def handle_product_classification(
+    year: int, product_classification: str, download_type: str
+) -> list[str]:
+    """ """
     if product_classification == "SITC" and download_type == "by_classification":
         return get_classifications(year)
     elif product_classification == "SITC" and download_type == "as_reported":

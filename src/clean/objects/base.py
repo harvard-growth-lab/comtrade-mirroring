@@ -45,8 +45,12 @@ class AtlasCleaning(object):
         product_classification,
         download_type,
     ):
-        
-        self.latest_year = datetime.now().year - 2 if datetime.now().month > 4 else datetime.now().year - 3
+
+        self.latest_data_year = (
+            datetime.now().year - 2
+            if datetime.now().month > 4
+            else datetime.now().year - 3
+        )
 
         # INPUTS
         self.download_type = download_type
@@ -58,7 +62,7 @@ class AtlasCleaning(object):
         self.final_output_path = Path(final_output_path)
         self.static_data_path = self.data_path / "static"
         self.intermediate_data_path = self.data_path / "intermediate"
-        
+
         self.path_mapping = {
             "static": self.static_data_path,
             "intermediate": self.intermediate_data_path,
@@ -66,13 +70,12 @@ class AtlasCleaning(object):
         }
         self._setup_paths()
 
-        
         self.fred_api_key = os.environ.get("FRED_API_KEY")
         if not self.fred_api_key:
             raise ValueError(
                 "FRED API key required: pass fred_api_key or set FRED_API_KEY env var"
             )
-        
+
         # data inputs
         self.dist_cepii = pd.read_stata(
             os.path.join(self.static_data_path, "dist_cepii.dta")
@@ -84,7 +87,6 @@ class AtlasCleaning(object):
         self.df = None
         self.start_year = start_year
         self.end_year = end_year
-
 
     def get_attrs(self):
         return {
@@ -98,13 +100,13 @@ class AtlasCleaning(object):
             "atlas_common_path": self.atlas_common_path,
             "product_classification": self.product_classification,
         }
-    
+
     def _setup_paths(self):
         paths = [
             self.data_path,
             self.static_data_path,
             self.intermediate_data_path,
-            self.final_output_path
+            self.final_output_path,
         ]
         for path in paths:
             path.mkdir(parents=True, exist_ok=True)
@@ -186,10 +188,9 @@ class AtlasCleaning(object):
     ):
         save_dir = self.path_mapping[data_folder]
         save_dir.mkdir(exist_ok=True)
-        # if product_classification == "":
-        #     product_classification = self.product_classification
         if data_folder == "final":
             save_dir = save_dir / parent_folder
+            save_dir.mkdir(exist_ok=True)
 
         save_path = save_dir / f"{table_name}.parquet"
         df.to_parquet(save_path, index=False)
@@ -198,7 +199,6 @@ class AtlasCleaning(object):
         for file in files:
             if file.is_file():
                 file.unlink()
-
 
     def compare_files(
         self, skip=["classification", "services_bilateral", "services_unilateral"]

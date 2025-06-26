@@ -7,7 +7,10 @@ import logging
 import numpy as np
 
 from clean.objects.base import AtlasCleaning
-
+from clean.utils.handle_iso_codes_recoding import (
+    handle_ans_and_other_asia_to_taiwan_recoding,
+    standardize_historical_country_codes,
+)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -41,7 +44,9 @@ class AggregateTrade(AtlasCleaning):
 
     def run_aggregate_trade(self) -> None:
         self.df = self.load_downloaded_trade_file()
-        self.handle_ans_and_other_asia_to_taiwan_recoding()
+        self.df, self.ans_partners = handle_ans_and_other_asia_to_taiwan_recoding(
+            self.df, self.ans_partners
+        )
         self.enforce_commodity_code_length()
 
         self.filter_data()
@@ -55,7 +60,7 @@ class AggregateTrade(AtlasCleaning):
         self.df = self.df[self.df["trade_flow"].isin([1, 2])]
         self.flag_unspecified_products()
 
-        self.standardize_historical_country_codes()
+        self.df = standardize_historical_country_codes(self.df)
 
         # returns bilateral data
         df_0 = self.create_bilateral_trade_matrix(0)
@@ -73,7 +78,6 @@ class AggregateTrade(AtlasCleaning):
             self.df, "intermediate", f"{self.product_class}_{self.year}_aggregated"
         )
         del self.df
-    
 
     def load_downloaded_trade_file(self) -> pd.DataFrame:
         """
@@ -128,26 +132,6 @@ class AggregateTrade(AtlasCleaning):
         self.df.loc[:, "trade_flow"] = self.df["trade_flow"].map(trade_flow_mapping)
         self.df["trade_flow"] = self.df["trade_flow"].astype("int8")
 
-    def handle_ans_and_other_asia_to_taiwan_recoding(self) -> None:
-        """
-        Updates data in place.
-
-        - Reclassify iso code S19 to Taiwan
-        - Loads list of ANS (Areas Not Specified) partners and reclassifies these to a single ANS code
-        """
-        try:
-            self.df.loc[self.df["reporter_iso"] == "S19", "reporter_iso"] = "TWN"
-        except:
-            logging.info("TWN did not report as S19")
-        try:
-            self.df.loc[self.df["partner_iso"] == "S19", "partner_iso"] = "TWN"
-        except:
-            logging.info("Countries did not report Taiwan as a partner")
-
-        ans_partners = self.ans_partners["PartnerCodeIsoAlpha3"].tolist()
-        self.df.loc[self.df["partner_iso"].isin(ans_partners), "partner_iso"] = "ANS"
-        self.df.loc[self.df["partner_iso"].isna(), "partner_iso"] = "ANS"
-
     def enforce_commodity_code_length(self) -> None:
         """
         Enforces product level integer and commodity code length alignment
@@ -178,43 +162,6 @@ class AggregateTrade(AtlasCleaning):
             )
         )
         self.df.loc[mask, "reporter_ansnoclas"] = self.df["trade_value"]
-
-    def standardize_historical_country_codes(self) -> None:
-        """
-        Updates data in place.
-        Standardize historical country ISO codes to their modern equivalents.
-
-        The function modifies the DataFrame in-place by:
-        - Filtering out trade records between DEU and DDR (considered internal trade)
-        - Mapping legacy ISO codes to their current standard equivalents
-            - Consolidating German country codes (DEU/DDR) to modern Germany (DEU)
-            - Consolidating Soviet Union codes (RUS/SUN) to Russia (RUS)
-            - Consolidating South African Union code (ZA1) to South Africa (ZAF)
-
-        Country code mappings:
-        - DEU, DDR → DEU (Germany)
-        - RUS, SUN → RUS (Russia/Soviet Union)
-        - ZA1 → ZAF (South Africa)
-        """
-        self.df = self.df[
-            ~((self.df["reporter_iso"] == "DEU") & (self.df["partner_iso"] == "DDR"))
-        ]
-        self.df = self.df[
-            ~((self.df["reporter_iso"] == "DDR") & (self.df["partner_iso"] == "DEU"))
-        ]
-
-        self.df.loc[self.df["partner_iso"].isin(["DEU", "DDR"]), "partner_iso"] = "DEU"
-        self.df.loc[
-            self.df["reporter_iso"].isin(["DEU", "DDR"]), "reporter_iso"
-        ] = "DEU"
-
-        self.df.loc[self.df["partner_iso"].isin(["RUS", "SUN"]), "partner_iso"] = "RUS"
-        self.df.loc[
-            self.df["reporter_iso"].isin(["RUS", "SUN"]), "reporter_iso"
-        ] = "RUS"
-
-        self.df.loc[self.df["reporter_iso"].isin(["ZA1"]), "reporter_iso"] = "ZAF"
-        self.df.loc[self.df["partner_iso"].isin(["ZA1"]), "partner_iso"] = "ZAF"
 
     def create_bilateral_trade_matrix(self, product_level: int) -> pd.DataFrame:
         """

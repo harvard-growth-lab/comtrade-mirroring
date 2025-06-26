@@ -4,6 +4,11 @@ import pandas as pd
 import numpy as np
 import pyfixest as pf
 
+from clean.utils.handle_iso_codes_recoding import (
+    standardize_romania_codes,
+    modernize_romania_codes,
+)
+
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -15,7 +20,7 @@ CIF_FOB_EQUIVALENCE_THRESHOLD = 0.05
 
 
 def compute_distance(
-    base_obj : object, year: int, product_classification: str, dist: pd.DataFrame
+    base_obj: object, year: int, product_classification: str, dist: pd.DataFrame
 ) -> pd.DataFrame:
     """
     Based on geographic distances betweeen trade partners (dist df) estimate the
@@ -31,15 +36,17 @@ def compute_distance(
         - tau is the trade cost rate; tau = (CIF - FOB) / FOB
         - Uses high dimensional fixed effects regression for trade cost estimation
     """
-    
-    df = base_obj.load_parquet("intermediate", f"{product_classification}_{year}_aggregated")
+
+    df = base_obj.load_parquet(
+        "intermediate", f"{product_classification}_{year}_aggregated"
+    )
     # lag and lead
     df_lag_lead = pd.DataFrame()
     for wrap_year in [year - 1, year + 1]:
         try:
-            df_lag_lread = base_obj.load_parquet("intermediate", 
-                                                 f"{product_classification}_{wrap_year}_aggregated"
-                                                )
+            df_lag_lread = base_obj.load_parquet(
+                "intermediate", f"{product_classification}_{wrap_year}_aggregated"
+            )
         except FileNotFoundError:
             logging.error(f"Didn't download year: {wrap_year}")
 
@@ -149,17 +156,3 @@ def compute_reghdfe(df: pd.DataFrame) -> dict[str, float]:
         "se_dist": se.iloc[0],
         "beta_contig": coeff.iloc[1],
     }
-
-
-def standardize_romania_codes(df: pd.DataFrame) -> pd.DataFrame:
-    """Convert Romania country codes from ROU to ROM for distance matching."""
-    df.loc[df["exporter"] == "ROU", "exporter"] = "ROM"
-    df.loc[df["importer"] == "ROU", "importer"] = "ROM"
-    return df
-
-
-def modernize_romania_codes(df: pd.DataFrame) -> pd.DataFrame:
-    """Revert Romania country codes from ROM back to ROU."""
-    df.loc[df["exporter"] == "ROM", "exporter"] = "ROU"
-    df.loc[df["importer"] == "ROM", "importer"] = "ROU"
-    return df

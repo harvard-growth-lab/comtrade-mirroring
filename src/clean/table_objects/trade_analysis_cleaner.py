@@ -11,6 +11,8 @@ from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
 
+pd.set_option("future.no_silent_downcasting", True)
+
 
 class TradeAnalysisCleaner(AtlasCleaning):
     MAX_EXPORTER_CIF_RATIO = 0.2
@@ -32,7 +34,7 @@ class TradeAnalysisCleaner(AtlasCleaning):
 
         self.year = year
         self.df = df
-        
+
         self.filter_bilateral_trade_data()
 
         nominal_dollars_df = self.df.copy(deep=True)
@@ -121,22 +123,23 @@ class TradeAnalysisCleaner(AtlasCleaning):
         # use December (12) index
         df = df[df["date"].dt.month == self.FRED_INDEX_MONTH]
         df["year"] = df["date"].dt.year
-        base = df.loc[df["date"].dt.year == self.latest_year, "ppiidc_index"].iloc[0]
-        df["atlas_base_year"] = self.latest_year
+        base = df.loc[df["date"].dt.year == self.latest_data_year, "ppiidc_index"].iloc[
+            0
+        ]
+        df["base_year"] = self.latest_data_year
         df["deflator"] = df["ppiidc_index"] / base
         df = df[["year", "deflator"]]
-        df = df[df.year >= self.SITC_START_YEAR]
-        return df
+        return df[df.year >= self.SITC_START_YEAR]
 
     def fetch_population_data(self):
         """
         population and produce price index from FRED (st. louis)
         """
-        wdi_obj = WDIData(self.latest_year)
+        wdi_obj = WDIData(self.latest_data_year)
         wdi_pop = wdi_obj.query_for_wdi_indicators({"SP.POP.TOTL": "population"})
         wdi_pop = wdi_pop.rename(columns={"population": "wdi_pop"})
 
-        imf_obj = IMFData(self.latest_year)
+        imf_obj = IMFData(self.latest_data_year)
         imf_pop = imf_obj.query_imf_api(["LP"])
         imf_pop = imf_pop.rename(columns={"population": "imf_pop"})
 
@@ -176,7 +179,13 @@ class TradeAnalysisCleaner(AtlasCleaning):
         Uses IMF population data with WDI as fallback.
         """
         population = population[population.year == self.year].drop(columns=["year"])
-        population["imf_pop"] = population["imf_pop"].fillna(population["wdi_pop"]).astype('float64')
+        population["imf_pop"] = (
+            population["imf_pop"]
+            .fillna(population["wdi_pop"])
+            .infer_objects(copy=False)
+            .astype("float64")
+        )
+
         population = population.rename(columns={"imf_pop": "imf_wdi_pop"})
 
         countries_under_threshold = population[
@@ -257,7 +266,8 @@ class TradeAnalysisCleaner(AtlasCleaning):
         # converts exports, import values to constant dollar values
         for col in ["export_value_fob", "import_value_fob"]:
             self.df[col] = (
-                self.df[col] / fred[fred.year == self.latest_year]["deflator"].iloc[0]
+                self.df[col]
+                / fred[fred.year == self.latest_data_year]["deflator"].iloc[0]
             )
 
         self.df[["export_value_fob", "import_value_fob", "import_value_cif"]] = self.df[
