@@ -36,7 +36,8 @@ DOWNLOADED_FILES_PATH = (
 # results directory path
 FINAL_OUTPUT_PATH = (
     # f"/n/hausmann_lab/lab/atlas/data/"
-    "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/atlas_cleaning/src/data"
+    "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/data_downloads/atlas_clean_test"
+    # "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/atlas_cleaning/src/data"
 )
 
 
@@ -109,7 +110,7 @@ def get_paths_config(data_version=DATA_VERSION):
     final_output_path = (
         Path(PATHS["final_output_path"]) / data_version / "mirrored_output"
     )
-    final_output_path.mkdir(exist_ok=True)
+    final_output_path.mkdir(exist_ok=True, parents=True)
 
     return {
         "downloaded_files_path": Path(PATHS["downloaded_files_path"]),
