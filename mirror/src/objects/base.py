@@ -72,6 +72,7 @@ class AtlasCleaning(object):
             "final": self.final_output_path,
         }
         self._setup_paths()
+        self.product_class_system = self.get_product_class_system()
 
         self.fred_api_key = os.environ.get("FRED_API_KEY")
         if not self.fred_api_key:
@@ -113,6 +114,12 @@ class AtlasCleaning(object):
         ]
         for path in paths:
             path.mkdir(parents=True, exist_ok=True)
+
+    def get_product_class_system(self):
+        if self.product_classification in ["S1", "S2", "S3", "SITC"]:
+            return "SITC"
+        else:
+            return "HS"
 
     def cleanup_intermediate_files(self, force=False):
         """
