@@ -65,10 +65,10 @@ class CountryCountryProductYear(AtlasCleaning):
 
         # prepare the data
         self.filter_and_clean_data()
-        logging.info("check after filter for WLD, nan, NAN")
+        logger.info("check after filter for WLD, nan, NAN")
 
-        logging.info("ccpy: filtered and cleaned data")
-        logging.info("ccpy: set up trade analysis framework")
+        logger.info("ccpy: filtered and cleaned data")
+        logger.info("ccpy: set up trade analysis framework")
 
         # calculate the value of exports for each country pair and product
         self.generate_trade_value_matrix()
@@ -78,17 +78,17 @@ class CountryCountryProductYear(AtlasCleaning):
         self.ccy = self.ccy.set_index(["exporter", "importer"])
 
         cc_trade_totals = self.assign_accuracy_scores()
-        logging.info("ccpy: assigned accuracy scores")
+        logger.info("ccpy: assigned accuracy scores")
 
         self.calculate_final_trade_value()
-        logging.info("ccpy: calculated final trade val")
+        logger.info("ccpy: calculated final trade val")
 
         self.reweight_final_trade_value()
-        logging.info("ccpy: reweighted")
+        logger.info("ccpy: reweighted")
 
         # final processing
         self.filter_and_handle_trade_data_discrepancies()
-        logging.info("ccpy: handle trade data discrepancies")
+        logger.info("ccpy: handle trade data discrepancies")
 
         self.handle_not_specified()
         if self.year == 2023:
@@ -525,7 +525,7 @@ class CountryCountryProductYear(AtlasCleaning):
         )
 
         if drop_exporter:
-            logging.info("dropping exporter")
+            logger.info("dropping exporter")
             self.df[~(self.df.exporter.isin(drop_exporter))]
 
     def handle_comtrade_converted_sitc(self) -> None:

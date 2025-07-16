@@ -6,7 +6,7 @@ import logging
 import copy
 from typing import Tuple
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 
 
 class TradeDataReconciler(AtlasCleaning):

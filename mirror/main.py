@@ -31,49 +31,12 @@ from src.utils.classification_handler import (
     sitc_and_skip_processing,
     handle_product_classification,
 )
-
-import logging
-
-
-def setup_logging():
-    """Configure logging with both console and file output"""
-
-    # Create logs directory if it doesn't exist
-    os.makedirs("logs", exist_ok=True)
-
-    # Create formatters
-    detailed_formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    simple_formatter = logging.Formatter("%(levelname)s: %(message)s")
-
-    # Root logger
-    root_logger = logging.getLogger()
-    root_logger.setLevel(getattr(logging, LOG_LEVEL))
-
-    # Clear any existing handlers
-    root_logger.handlers.clear()
-
-    # Console handler (simple format)
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(simple_formatter)
-    root_logger.addHandler(console_handler)
-
-    # File handler (detailed format)
-    data_version = get_data_version()
-    log_file = f"logs/atlas_processing_{data_version}.log"
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(detailed_formatter)
-    root_logger.addHandler(file_handler)
-
-    return logging.getLogger(__name__)
+from src.utils.logging import setup_logging
 
 
-# Set up logging based on config
-logging.basicConfig(level=getattr(logging, LOG_LEVEL))
-logger = logging.getLogger(__name__)
+# # Set up logging based on config
+# logging.basicConfig(level=getattr(logging, LOG_LEVEL))
+# logger = logging.getLogger(__name__)
 
 pd.options.display.max_columns = None
 pd.options.display.max_rows = None
@@ -109,7 +72,7 @@ def run_atlas_cleaning(ingestion_attrs):
         - downloaded_files_path (str): Path to raw data files
         - root_dir (str): Root directory path
     """
-    # logging.info(f"start time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
+    logger.info(f"start time: {strftime('%Y-%m-%d %H:%M:%S', localtime())}")
     start_year = ingestion_attrs["start_year"]
     end_year = ingestion_attrs["end_year"]
     product_classification = ingestion_attrs["product_classification"]
@@ -117,7 +80,7 @@ def run_atlas_cleaning(ingestion_attrs):
 
     base_obj = AtlasCleaning(**ingestion_attrs)
     aggregate_trade(ingestion_attrs)
-    logging.info(f"Completed data aggregations")
+    logger.info(f"Completed data aggregations")
 
     run_bilateral_mirroring_pipeline(ingestion_attrs)
     # deletes all intermediate processing files
@@ -132,14 +95,14 @@ def run_bilateral_mirroring_pipeline(ingestion_attrs):
     download_type = ingestion_attrs["download_type"]
 
     for year in range(ingestion_attrs["start_year"], ingestion_attrs["end_year"] + 1):
-        logging.info(f"Beginning trade mirror {year}... for {product_classification}")
+        logger.info(f"Beginning trade mirror {year}... for {product_classification}")
         if sitc_and_skip_processing(year, product_classification, download_type):
             continue
         product_classification = handle_product_classification(
             year, product_classification, download_type
         )[0]
 
-        logging.info(f"Beginning compute distance for year {year}")
+        logger.info(f"Beginning compute distance for year {year}")
         base_obj = AtlasCleaning(**ingestion_attrs)
         dist = pd.read_stata(base_obj.static_data_path / "dist_cepii.dta")
         # dist = pd.read_stata(os.path.join("data", "static", "dist_cepii.dta"))
@@ -183,7 +146,7 @@ def aggregate_trade(ingestion_attrs):
             year, product_classification, download_type
         )
 
-        logging.info(
+        logger.info(
             f"Aggregating data for {year} and these classifications {classifications}"
         )
         [
@@ -214,7 +177,6 @@ def main():
     global logger
     logger = setup_logging()
 
-    # Print configuration summary if requested
     if args.config_summary:
         errors = validate_config()
         if errors:
@@ -225,7 +187,6 @@ def main():
         print_config_summary()
         sys.exit(0)
 
-    # Validate configuration
     errors = validate_config()
     if errors:
         logger.error("Configuration validation failed:")
@@ -233,7 +194,6 @@ def main():
             logger.error(f"  • {error}")
         sys.exit(1)
 
-    # Get classifications to process
     classifications = get_classifications()
 
     if not classifications:

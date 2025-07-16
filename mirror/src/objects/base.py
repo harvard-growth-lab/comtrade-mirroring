@@ -125,13 +125,13 @@ class AtlasCleaning(object):
         try:
             # Check if folder exists
             if not self.intermediate_data_path.exists():
-                logging.warning(
+                logger.warning(
                     f"Intermediate folder does not exist: {self.intermediate_data_path}"
                 )
                 return True
 
             if not self.intermediate_data_path.is_dir():
-                logging.error(f"Path is not a directory: {self.intermediate_data_path}")
+                logger.error(f"Path is not a directory: {self.intermediate_data_path}")
                 return False
 
             # Count items before deletion
@@ -139,7 +139,7 @@ class AtlasCleaning(object):
             item_count = len(items_to_delete)
 
             if item_count == 0:
-                logging.info(
+                logger.info(
                     f"Intermediate folder is already empty: {self.intermediate_data_path}"
                 )
                 return True
@@ -156,19 +156,19 @@ class AtlasCleaning(object):
                         deleted_count += 1
                 except Exception as e:
                     if force:
-                        logging.warning(f"Failed to delete {item}, continuing: {e}")
+                        logger.warning(f"Failed to delete {item}, continuing: {e}")
                         continue
                     else:
-                        logging.error(f"Failed to delete {item}: {e}")
+                        logger.error(f"Failed to delete {item}: {e}")
                         return False
 
-            logging.info(
+            logger.info(
                 f"Successfully cleaned up {deleted_count}/{item_count} items from {folder_path}"
             )
             return True
 
         except Exception as e:
-            logging.error(f"Error during cleanup: {e}")
+            logger.error(f"Error during cleanup: {e}")
             return False
 
     def load_parquet(self, data_folder, table_name: str):

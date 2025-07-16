@@ -44,11 +44,11 @@ def handle_ans_and_other_asia_to_taiwan_recoding(
     try:
         df.loc[df["reporter_iso"] == "S19", "reporter_iso"] = "TWN"
     except:
-        logging.info("TWN did not report as S19")
+        logger.info("TWN did not report as S19")
     try:
         df.loc[df["partner_iso"] == "S19", "partner_iso"] = "TWN"
     except:
-        logging.info("Countries did not report Taiwan as a partner")
+        logger.info("Countries did not report Taiwan as a partner")
 
     ans_partners = ans_partners["PartnerCodeIsoAlpha3"].tolist()
     df.loc[df["partner_iso"].isin(ans_partners), "partner_iso"] = "ANS"

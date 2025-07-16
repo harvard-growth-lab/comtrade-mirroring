@@ -54,9 +54,9 @@ PATHS = {
 END_YEAR = 2023
 
 # Which trade classifications to process (leave True for the ones you want)
-PROCESS_SITC = True  # SITC data from 1962-END_YEAR
+PROCESS_SITC = False  # SITC data from 1962-END_YEAR
 PROCESS_HS92 = True  # HS92 data from 1992-END_YEAR
-PROCESS_HS12 = True  # HS12 data from 2012-END_YEAR
+PROCESS_HS12 = False  # HS12 data from 2012-END_YEAR
 
 PROCESS_HS96 = False
 PROCESS_HS02 = False
@@ -85,7 +85,7 @@ PROCESSING_STEPS = {
 LOG_LEVEL = "INFO"  # Options: DEBUG, INFO, WARNING, ERROR
 
 # determines type of data to download from Comtrade
-DOWNLOAD_TYPE = "as_reported" # alternative is "by_classification"
+DOWNLOAD_TYPE = "as_reported"  # alternative is "by_classification"
 
 # =============================================================================
 # PATH HANDLING

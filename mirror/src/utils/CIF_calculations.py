@@ -9,9 +9,9 @@ from src.utils.handle_iso_codes_recoding import (
     modernize_romania_codes,
 )
 
-import logging
+# import logging
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 
 TRADE_FLOOR = 10**6
 TRADE_VALUE_FLOOR_PERCENTILE = 0.01
@@ -48,7 +48,7 @@ def compute_distance(
                 "intermediate", f"{product_classification}_{wrap_year}_aggregated"
             )
         except FileNotFoundError:
-            logging.error(f"Didn't download year: {wrap_year}")
+            logger.error(f"Didn't download year: {wrap_year}")
 
         df = pd.concat([df, df_lag_lead])
 

@@ -121,7 +121,7 @@ class AggregateTrade(AtlasCleaning):
             try:
                 self.df["product_level"] = self.df["product_level"].astype(int)
             except (ValueError, TypeError) as e:
-                logging.error("failed to cast SITC product level as type int")
+                logger.error("failed to cast SITC product level as type int")
 
         self.df = self.df[
             self.df["product_level"].isin(self.HIERARCHY_LEVELS[self.product_class])

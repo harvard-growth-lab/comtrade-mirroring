@@ -13,7 +13,7 @@ import io
 from ecomplexity import ecomplexity
 
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 
 # https://data.worldbank.org/indicator/BX.GSR.NFSV.CD
 # https://data.worldbank.org/indicator/BX.GSR.TRVL.ZS (travel and tourism services) %exports

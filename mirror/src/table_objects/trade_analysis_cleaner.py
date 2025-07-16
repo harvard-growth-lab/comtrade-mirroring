@@ -9,7 +9,7 @@ import copy
 from fredapi import Fred
 from datetime import datetime
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 
 pd.set_option("future.no_silent_downcasting", True)
 

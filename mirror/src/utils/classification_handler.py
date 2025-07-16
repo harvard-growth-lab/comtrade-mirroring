@@ -2,7 +2,7 @@ import logging
 import pandas as pd
 import os
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 
 
 def sitc_and_skip_processing(
@@ -40,7 +40,7 @@ def get_classifications(year: int) -> list[str]:
     if year >= 1962 and year < 1976:
         classifications.append("S1")
 
-    logging.info(
+    logger.info(
         f"generating aggregations for the following classifications: {classifications}"
     )
     return classifications
