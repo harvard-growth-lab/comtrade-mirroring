@@ -99,7 +99,7 @@ def get_data_version(data_version=DATA_VERSION):
     """Generate data version string if not manually specified"""
     if data_version:
         return data_version
-    return f"rewrite_{(date.today()).strftime('%Y_%m_%d')}"
+    return f"{(date.today()).strftime('%Y_%m_%d')}"
 
 
 def get_paths_config(data_version=DATA_VERSION):
