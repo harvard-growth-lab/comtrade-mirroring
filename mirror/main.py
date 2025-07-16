@@ -32,10 +32,6 @@ from src.utils.classification_handler import (
 from src.utils.logging import setup_logging
 
 
-# # Set up logging based on config
-# logging.basicConfig(level=getattr(logging, LOG_LEVEL))
-# logger = logging.getLogger(__name__)
-
 pd.options.display.max_columns = None
 pd.options.display.max_rows = None
 pd.set_option("max_colwidth", 400)
@@ -77,7 +73,10 @@ def run_atlas_cleaning(ingestion_attrs):
     downloaded_files_path = ingestion_attrs["downloaded_files_path"]
 
     base_obj = AtlasCleaning(**ingestion_attrs)
-    aggregate_trade(ingestion_attrs)
+    aggregate_trade(base_obj, ingestion_attrs)
+    if base_obj.missing_data:
+        logger.info("Data not available for selected range. Skipping classification...")
+        return
     logger.info(f"Completed data aggregations")
 
     run_bilateral_mirroring_pipeline(ingestion_attrs)
@@ -103,7 +102,6 @@ def run_bilateral_mirroring_pipeline(ingestion_attrs):
         logger.info(f"Beginning compute distance for year {year}")
         base_obj = AtlasCleaning(**ingestion_attrs)
         dist = pd.read_stata(base_obj.static_data_path / "dist_cepii.dta")
-        # dist = pd.read_stata(os.path.join("data", "static", "dist_cepii.dta"))
         df = compute_distance(base_obj, year, product_classification, dist)
 
         # cleaned country-country trade data with reporting quality metrics
@@ -130,7 +128,7 @@ def run_bilateral_mirroring_pipeline(ingestion_attrs):
             )
 
 
-def aggregate_trade(ingestion_attrs):
+def aggregate_trade(base_obj, ingestion_attrs):
     """
     Aggregate raw trade data for all years and classifications.
     """
@@ -147,10 +145,15 @@ def aggregate_trade(ingestion_attrs):
         logger.info(
             f"Aggregating data for {year} and these classifications {classifications}"
         )
-        [
-            AggregateTrade(year, product_class, **ingestion_attrs).run_aggregate_trade()
-            for product_class in classifications
-        ]
+        for product_class in classifications:
+            aggregate_obj = AggregateTrade(year, product_class, **ingestion_attrs)
+            aggregate_obj.run_aggregate_trade()
+            if aggregate_obj.missing_data:
+                logger.info(
+                    f"Data for {product_class} {year} not available. Skipping classification..."
+                )
+                base_obj.missing_data = True
+                continue
 
 
 def clean_up_intermediate_files(ingestion_attrs):
@@ -219,7 +222,7 @@ def main():
         classifications, 1
     ):
         classification_start_time = datetime.now()
-        logger.info(f"[{i}/{len(classifications)}] Starting {description}")
+        logger.info(f"[{i}/{len(classifications)}] Starting {description}\n")
 
         # Create configuration for this classification
         ingestion_attrs = create_ingestion_attrs(classification, start_year, end_year)

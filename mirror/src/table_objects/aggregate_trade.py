@@ -46,6 +46,7 @@ class AggregateTrade(AtlasCleaning):
     def run_aggregate_trade(self) -> None:
         self.df = self.load_downloaded_trade_file()
         if self.df.empty:
+            self.missing_data = True
             return
         self.df, self.ans_partners = handle_ans_and_other_asia_to_taiwan_recoding(
             self.df, self.ans_partners

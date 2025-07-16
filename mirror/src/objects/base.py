@@ -79,6 +79,7 @@ class AtlasCleaning(object):
             raise ValueError(
                 "FRED API key required: pass fred_api_key or set FRED_API_KEY env var"
             )
+        self.missing_data = False
 
         # data inputs
         self.dist_cepii = pd.read_stata(
