@@ -3,6 +3,9 @@ import requests
 import pandas as pd
 import os
 from pathlib import Path
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class IMFData:

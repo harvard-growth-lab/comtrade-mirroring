@@ -3,8 +3,10 @@ import numpy as np
 import os
 import pandas as pd
 from sys import argv
-import logging
 import numpy as np
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 from src.objects.base import AtlasCleaning
 from src.utils.handle_iso_codes_recoding import (
@@ -12,7 +14,7 @@ from src.utils.handle_iso_codes_recoding import (
     standardize_historical_country_codes,
 )
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 
 
 class AggregateTrade(AtlasCleaning):

@@ -1,5 +1,7 @@
 import pandas as pd
-import logging
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def standardize_historical_country_codes(df: pd.DataFrame) -> pd.DataFrame:

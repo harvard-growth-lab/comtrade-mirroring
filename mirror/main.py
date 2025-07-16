@@ -174,9 +174,6 @@ def main():
 
     args = parser.parse_args()
 
-    global logger
-    logger = setup_logging()
-
     if args.config_summary:
         errors = validate_config()
         if errors:
@@ -248,4 +245,6 @@ def main():
 
 
 if __name__ == "__main__":
+    logger = setup_logging()
+
     main()

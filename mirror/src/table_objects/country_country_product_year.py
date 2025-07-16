@@ -4,12 +4,11 @@ import os
 from pathlib import Path
 import numpy as np
 from time import gmtime, strftime, localtime
-import logging
 from src.utils.country_edge_cases import handle_ven_oil, handle_sau_9999_category
 from src.objects.concordance_table import ConcordanceTable
+from src.utils.logging import get_logger
 
-
-logging.basicConfig(level=logging.INFO)
+logger = get_logger(__name__)
 
 
 class CountryCountryProductYear(AtlasCleaning):

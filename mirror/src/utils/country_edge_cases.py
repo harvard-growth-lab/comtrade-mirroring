@@ -1,5 +1,7 @@
 import pandas as pd
-import logging
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def handle_ven_oil(year, df, oil_classification_code, static_data_path):

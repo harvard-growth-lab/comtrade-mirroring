@@ -8,10 +8,10 @@ from src.utils.handle_iso_codes_recoding import (
     standardize_romania_codes,
     modernize_romania_codes,
 )
+from src.utils.logging import get_logger
 
-# import logging
+logger = get_logger(__name__)
 
-# logging.basicConfig(level=logging.INFO)
 
 TRADE_FLOOR = 10**6
 TRADE_VALUE_FLOOR_PERCENTILE = 0.01

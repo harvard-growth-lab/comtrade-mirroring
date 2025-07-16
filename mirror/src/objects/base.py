@@ -7,9 +7,11 @@ import pandas as pd
 import typing
 import glob
 import pyarrow.parquet as pq
-import logging
 import shutil
 from datetime import datetime
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 pd.options.display.max_columns = None
 pd.options.display.max_rows = None

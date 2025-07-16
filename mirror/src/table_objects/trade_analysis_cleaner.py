@@ -4,10 +4,12 @@ from src.utils.api_handler import IMFData, WDIData
 import os
 from pathlib import Path
 import numpy as np
-import logging
 import copy
 from fredapi import Fred
 from datetime import datetime
+from src.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # logging.basicConfig(level=logging.INFO)
 

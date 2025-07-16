@@ -1,8 +1,8 @@
-import logging
 import pandas as pd
 import os
+from src.utils.logging import get_logger
 
-# logging.basicConfig(level=logging.INFO)
+logger = get_logger(__name__)
 
 
 def sitc_and_skip_processing(
