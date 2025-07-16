@@ -202,7 +202,7 @@ def main():
 
     # Show what will be processed
     logger.info("=" * 60)
-    logger.info(f"BILATERAL MIRRORING STARTING\n")
+    logger.info(f"BILATERAL MIRRORING STARTING")
     logger.info("=" * 60)
     logger.info(f"Data version: {get_data_version()}")
     logger.info(f"Processing {len(classifications)} classification(s)")
@@ -224,7 +224,7 @@ def main():
         classifications, 1
     ):
         classification_start_time = datetime.now()
-        logger.info(f"[{i}/{len(classifications)}] Starting {description}\n")
+        logger.info(f"[{i}/{len(classifications)}] \nStarting {description}\n")
 
         # Create configuration for this classification
         ingestion_attrs = create_ingestion_attrs(classification, start_year, end_year)
