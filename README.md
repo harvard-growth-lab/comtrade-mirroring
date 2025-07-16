@@ -121,7 +121,8 @@ comtrade-mirroring/
 │   │   ├── objects/
 │   │   ├── table_objects/
 │   │   └── utils/
-    ├── logs/   
+    ├── logs/ 
+    ├── images/     
 │   └── data/
 │       ├── static/
 ├── pyproject.toml                # Python dependencies
@@ -145,13 +146,6 @@ The pipeline expects downloaded Comtrade data in this structure:
     ├── SITC_2020.parquet
     └── ...
 ```
-
-### Static Data Files
-Required reference files (included in repository):
-- Distance matrices (CEPII)
-- Country concordances
-- Product classification mappings
-- Areas not specified listings
 
 ## Technical Details
 
