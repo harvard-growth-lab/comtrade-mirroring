@@ -1,6 +1,7 @@
 import logging
 import os
 from time import strftime
+from user_config import get_data_version
 
 from user_config import LOG_LEVEL
 
