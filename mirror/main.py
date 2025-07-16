@@ -25,8 +25,6 @@ from src.table_objects.aggregate_trade import AggregateTrade
 from src.table_objects.trade_analysis_cleaner import TradeAnalysisCleaner
 from src.table_objects.trade_data_reconciler import TradeDataReconciler
 from src.table_objects.country_country_product_year import CountryCountryProductYear
-from src.table_objects.complexity import Complexity
-from src.table_objects.unilateral_services import UnilateralServices
 from src.utils.classification_handler import (
     sitc_and_skip_processing,
     handle_product_classification,

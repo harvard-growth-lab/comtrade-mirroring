@@ -201,27 +201,3 @@ class AtlasCleaning(object):
         for file in files:
             if file.is_file():
                 file.unlink()
-
-    def compare_files(
-        self, skip=["classification", "services_bilateral", "services_unilateral"]
-    ):
-        """
-        Compares two Parquet files for exact data match using pyarrow.
-
-        Returns:
-            dict (string: bool): key is file name, bool True if the file is a match, False otherwise.
-        """
-        comparison = {}
-
-        for folder in [x[0] for x in os.walk(self.final_output_path)][1:]:
-            if folder not in skip:
-                for file in glob.glob(os.path.join(folder, "*.parquet")):
-                    file_name = file.split("/")[-1]
-                    df1 = pq.read_table(
-                        os.path.join(self.prod_output_path, folder, file_name)
-                    )
-                    df2 = pq.read_table(
-                        os.path.join(self.final_output_path, folder, file_name)
-                    )
-                    comparison[file_name] = df1.equals(df2)
-        return comparison
