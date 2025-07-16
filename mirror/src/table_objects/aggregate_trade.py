@@ -6,8 +6,8 @@ from sys import argv
 import logging
 import numpy as np
 
-from clean.objects.base import AtlasCleaning
-from clean.utils.handle_iso_codes_recoding import (
+from src.objects.base import AtlasCleaning
+from src.utils.handle_iso_codes_recoding import (
     handle_ans_and_other_asia_to_taiwan_recoding,
     standardize_historical_country_codes,
 )

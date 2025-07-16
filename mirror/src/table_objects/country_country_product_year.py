@@ -1,12 +1,12 @@
 import pandas as pd
-from clean.objects.base import AtlasCleaning
+from src.objects.base import AtlasCleaning
 import os
 from pathlib import Path
 import numpy as np
 from time import gmtime, strftime, localtime
 import logging
-from clean.utils.country_edge_cases import handle_ven_oil, handle_sau_9999_category
-from clean.objects.concordance_table import ConcordanceTable
+from src.utils.country_edge_cases import handle_ven_oil, handle_sau_9999_category
+from src.objects.concordance_table import ConcordanceTable
 
 
 logging.basicConfig(level=logging.INFO)

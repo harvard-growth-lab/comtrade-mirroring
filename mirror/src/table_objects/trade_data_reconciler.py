@@ -1,5 +1,5 @@
 import pandas as pd
-from clean.objects.base import AtlasCleaning
+from src.objects.base import AtlasCleaning
 import numpy as np
 from sklearn.decomposition import PCA
 import logging
