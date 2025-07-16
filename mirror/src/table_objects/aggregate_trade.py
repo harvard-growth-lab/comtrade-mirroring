@@ -33,6 +33,10 @@ class AggregateTrade(AtlasCleaning):
         self.unspecified_by_class = {
             "HS": "9999",
             "H0": "9999",
+            "H1": "9999",
+            "H2": "9999",
+            "H3": "9999",
+            "H6": "9999",
             "H4": "9999",
             "H5": "9999",
             "SITC": "9310",

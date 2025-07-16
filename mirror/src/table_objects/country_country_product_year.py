@@ -26,6 +26,10 @@ class CountryCountryProductYear(AtlasCleaning):
     IMPORT_FLOW_CODE = 1
     OIL = {
         "H0": "270900",
+        "H1": "270900",
+        "H2": "270900",
+        "H3": "270900",
+        "H6": "270900",
         "H4": "270900",
         "H5": "270900",
         "S1": "3230",
@@ -35,6 +39,10 @@ class CountryCountryProductYear(AtlasCleaning):
 
     SPECIALIZED_COMMODITY_CODES_BY_CLASS = {
         "H0": ["XXXXXX", "999999"],
+        "H1": ["XXXXXX", "999999"],
+        "H2": ["XXXXXX", "999999"],
+        "H3": ["XXXXXX", "999999"],
+        "H6": ["XXXXXX", "999999"],
         "H4": ["XXXXXX", "999999"],
         "H5": ["XXXXXX", "999999"],
         "S1": ["XXXX", "9999"],

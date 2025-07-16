@@ -235,7 +235,7 @@ def main():
                 run_atlas_cleaning(ingestion_attrs)
 
             classification_duration = datetime.now() - classification_start_time
-            logger.info(f"Completed {description} in {classification_duration}")
+            logger.info(f"\nCompleted {description} in {classification_duration}")
 
         except Exception as e:
             logger.error(f"Error processing {classification}: {str(e)}", exc_info=True)
