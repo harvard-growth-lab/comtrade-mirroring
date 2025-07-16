@@ -76,7 +76,7 @@ def run_atlas_cleaning(ingestion_attrs):
     aggregate_trade(base_obj, ingestion_attrs)
     if base_obj.missing_data:
         logger.error(
-            "Data not available for selected range. Skipping classification..."
+            "\nData not available for selected range. Skipping classification..."
         )
         return
     logger.info(f"Completed data aggregations")
@@ -202,7 +202,7 @@ def main():
 
     # Show what will be processed
     logger.info("=" * 60)
-    logger.info("ATLAS PROCESSING STARTING")
+    logger.info(f"BILATERAL MIRRORING STARTING\n")
     logger.info("=" * 60)
     logger.info(f"Data version: {get_data_version()}")
     logger.info(f"Processing {len(classifications)} classification(s)")
@@ -243,7 +243,7 @@ def main():
 
     total_duration = datetime.now() - total_start_time
     logger.info("=" * 60)
-    logger.info(f"ATLAS PROCESSING COMPLETED in {total_duration}")
+    logger.info(f"BILATERAL MIRRORING COMPLETED in {total_duration}")
     logger.info("=" * 60)
 
 
