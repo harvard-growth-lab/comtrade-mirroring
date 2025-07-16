@@ -37,7 +37,6 @@ DOWNLOADED_FILES_PATH = (
 FINAL_OUTPUT_PATH = (
     f"/n/hausmann_lab/lab/ellie/test/comtrade_data/"
     # "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/data_downloads/atlas_clean_test"
-    # "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/atlas_cleaning/src/data"
 )
 
 
