@@ -9,7 +9,6 @@ Transforms UN Comtrade data into clean bilateral trade statistics through a soph
 ### Prerequisites
 - Python 3.10+
 - [Poetry](https://python-poetry.org/docs/) for managing dependencies
-- Premium UN Comtrade API key ([get one here](https://comtradeplus.un.org/))
 - FRED API key ([get one here](https://fred.stlouisfed.org/docs/api/api_key.html))
 - Comtrade data files (download from [comtrade-downloader](https://github.com/harvard-growth-lab/comtrade-downloader))
 
@@ -20,7 +19,6 @@ cd comtrade-mirroring
 poetry install && poetry shell
 
 # Set up environment variables
-export COMTRADE_API_KEY="your_comtrade_key_here"
 export FRED_API_KEY="your_fred_key_here"
 ```
 

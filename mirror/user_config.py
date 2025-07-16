@@ -29,14 +29,14 @@ DATA_VERSION = None  # e.g., "2024_12_01" or None for auto-generation
 # Structure: {DOWNLOADED_FILES_PATH}/{product_classification}/{product_class}_{year}.parquet
 # Example: /{DOWNLOADED_FILES_PATH}/H4/H4_2020.parquet
 DOWNLOADED_FILES_PATH = (
-    # f"../../../../atlas/data/by_classification/aggregated_by_year/parquet"
-    "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/data_downloads/atlas_clean_test"
+    f"../../../../atlas/data/by_classification/aggregated_by_year/parquet"
+    # "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/data_downloads/atlas_clean_test"
 )
 
 # results directory path
 FINAL_OUTPUT_PATH = (
-    # f"/n/hausmann_lab/lab/atlas/data/"
-    "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/data_downloads/atlas_clean_test"
+    f"/n/hausmann_lab/lab/ellie/test/comtrade_data/"
+    # "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/data_downloads/atlas_clean_test"
     # "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/atlas_cleaning/src/data"
 )
 
@@ -54,8 +54,8 @@ PATHS = {
 END_YEAR = 2023
 
 # Which trade classifications to process (leave True for the ones you want)
-PROCESS_SITC = False  # SITC data from 1962-END_YEAR
-PROCESS_HS92 = False  # HS92 data from 1992-END_YEAR
+PROCESS_SITC = True  # SITC data from 1962-END_YEAR
+PROCESS_HS92 = True  # HS92 data from 1992-END_YEAR
 PROCESS_HS12 = True  # HS12 data from 2012-END_YEAR
 
 PROCESS_HS96 = False
@@ -65,7 +65,7 @@ PROCESS_HS17 = False
 PROCESS_HS22 = False
 
 # Test mode - only process recent years (TEST_START_YEAR- END_YEAR)
-TEST_MODE = True
+TEST_MODE = False
 TEST_START_YEAR = 2020
 
 # =============================================================================
@@ -84,8 +84,8 @@ PROCESSING_STEPS = {
 # Logging level
 LOG_LEVEL = "INFO"  # Options: DEBUG, INFO, WARNING, ERROR
 
-# handles
-DOWNLOAD_TYPE = "as_reported"
+# determines type of data to download from Comtrade
+DOWNLOAD_TYPE = "as_reported" # alternative is "by_classification"
 
 # =============================================================================
 # PATH HANDLING
