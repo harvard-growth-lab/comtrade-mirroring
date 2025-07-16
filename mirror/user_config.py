@@ -67,6 +67,7 @@ PROCESS_HS22 = False
 
 # Test mode - only process recent years (TEST_START_YEAR- END_YEAR)
 TEST_MODE = False
+# must be set for year classification vintage was released or later
 TEST_START_YEAR = 2020
 
 # =============================================================================
@@ -194,7 +195,18 @@ def validate_config():
         errors.append(f"Invalid DOWNLOAD_TYPE: {DOWNLOAD_TYPE}")
 
     # Check classifications
-    valid_classifications = ["H0", "H2", "H3", "H4", "H5", "H6", "SITC"]
+    valid_classifications = [
+        "H0",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "SITC",
+        "S1",
+        "S2",
+        "S3",
+    ]
 
     for classification, start_year, end_year, desc in get_classifications():
         if classification not in valid_classifications:
