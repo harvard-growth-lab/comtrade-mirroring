@@ -38,6 +38,7 @@ class AggregateTrade(AtlasCleaning):
             "SITC": "9310",
             "S1": "9310",
             "S2": "9310",
+            "S3": "9310",
             "ST": "9310",
         }
         self.product_class = product_class
@@ -51,8 +52,8 @@ class AggregateTrade(AtlasCleaning):
 
         self.filter_data()
 
-        if self.product_class in ["S1", "S2"]:
-            self.product_class = "SITC"
+        if self.product_class in ["S1", "S2", "S3"]:
+            self.product_class_system = "SITC"
         self.save_parquet(
             self.df, "intermediate", f"{self.product_class}_{self.year}_preprocessed"
         )
@@ -98,7 +99,7 @@ class AggregateTrade(AtlasCleaning):
 
         except:
             raise ValueError(
-                f"Data for classification class {self.product_class}-{self.year} not available. Nothing to aggregate"
+                f"Data for classification class {self.product_class} {self.year} not available. Nothing to aggregate"
             )
 
         df = df.dropna(axis=0, how="all")

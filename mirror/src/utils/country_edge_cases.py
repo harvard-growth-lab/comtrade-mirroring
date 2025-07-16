@@ -33,7 +33,7 @@ def handle_sau_9999_category(df: pd.DataFrame) -> pd.DataFrame:
     """ "
     handle 9999 reporting from Saudi for Atlas Year 2023
     """
-    logger.info("updating Saudi's 2023 9999 trade value to oil")
+    logger.debug("updating Saudi's 2023 9999 trade value to oil")
     logger.debug(
         f"Saudi's 99999 export trade value: {df[(df.exporter=='SAU')&(df.commoditycode=='999999')]['export_value'].sum()}"
     )

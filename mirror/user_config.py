@@ -54,10 +54,12 @@ PATHS = {
 END_YEAR = 2023
 
 # Which trade classifications to process (leave True for the ones you want)
-PROCESS_SITC = False  # SITC data from 1962-END_YEAR
+PROCESS_SITC1 = False  # SITC data from 1962-END_YEAR
+PROCESS_SITC2 = False  # SITC data from 1976-END_YEAR
+PROCESS_SITC3 = False  # SITC data from 1988-END_YEAR
+
 PROCESS_HS92 = True  # HS92 data from 1992-END_YEAR
 PROCESS_HS12 = False  # HS12 data from 2012-END_YEAR
-
 PROCESS_HS96 = False
 PROCESS_HS02 = False
 PROCESS_HS07 = False
@@ -78,13 +80,17 @@ PROCESSING_STEPS = {
 }
 
 # =============================================================================
+# LOGGING LEVEL
+# =============================================================================
+
+LOG_LEVEL = "INFO"  # Options: DEBUG, INFO, WARNING, ERROR
+
+# =============================================================================
 # ADVANCED SETTINGS
 # =============================================================================
 
-# Logging level
-LOG_LEVEL = "INFO"  # Options: DEBUG, INFO, WARNING, ERROR
-
 # determines type of data to download from Comtrade
+# do not recommend changing this
 DOWNLOAD_TYPE = "as_reported"  # alternative is "by_classification"
 
 # =============================================================================
@@ -124,9 +130,21 @@ def get_classifications():
     """Get the list of classifications to process based on settings"""
     classifications = []
 
-    if PROCESS_SITC:
+    if PROCESS_SITC1:
         start_year = TEST_START_YEAR if TEST_MODE else 1962
-        classifications.append(("SITC", start_year, END_YEAR, "SITC Revision 2"))
+        classifications.append(("S1", start_year, END_YEAR, "SITC Revision 1"))
+
+    if PROCESS_SITC2:
+        start_year = TEST_START_YEAR if TEST_MODE else 1976
+        classifications.append(("S2", start_year, END_YEAR, "SITC Revision 2"))
+
+    if PROCESS_SITC3:
+        start_year = TEST_START_YEAR if TEST_MODE else 1988
+        classifications.append(("S3", start_year, END_YEAR, "SITC Revision 3"))
+
+    # if PROCESS_SITC:
+    #     start_year = TEST_START_YEAR if TEST_MODE else 1962
+    #     classifications.append(("SITC", start_year, END_YEAR, "SITC Revision 2"))
 
     if PROCESS_HS92:
         start_year = TEST_START_YEAR if TEST_MODE else 1992
