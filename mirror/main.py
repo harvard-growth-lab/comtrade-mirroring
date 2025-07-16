@@ -75,7 +75,9 @@ def run_atlas_cleaning(ingestion_attrs):
     base_obj = AtlasCleaning(**ingestion_attrs)
     aggregate_trade(base_obj, ingestion_attrs)
     if base_obj.missing_data:
-        logger.info("Data not available for selected range. Skipping classification...")
+        logger.error(
+            "Data not available for selected range. Skipping classification..."
+        )
         return
     logger.info(f"Completed data aggregations")
 
@@ -149,11 +151,11 @@ def aggregate_trade(base_obj, ingestion_attrs):
             aggregate_obj = AggregateTrade(year, product_class, **ingestion_attrs)
             aggregate_obj.run_aggregate_trade()
             if aggregate_obj.missing_data:
-                logger.info(
+                logger.error(
                     f"Data for {product_class} {year} not available. Skipping classification..."
                 )
                 base_obj.missing_data = True
-                continue
+                return
 
 
 def clean_up_intermediate_files(ingestion_attrs):
