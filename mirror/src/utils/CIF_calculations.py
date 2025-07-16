@@ -48,7 +48,7 @@ def compute_distance(
                 "intermediate", f"{product_classification}_{wrap_year}_aggregated"
             )
         except FileNotFoundError:
-            logger.error(f"Didn't download year: {wrap_year}")
+            logger.debug(f"Didn't download year: {wrap_year}")
 
         df = pd.concat([df, df_lag_lead])
 
