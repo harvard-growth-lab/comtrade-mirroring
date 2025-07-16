@@ -1,5 +1,5 @@
 src/data/
-!src/data/static/
+!mirror/data/static/
 *.parquet
 *.dta
 *.csv
