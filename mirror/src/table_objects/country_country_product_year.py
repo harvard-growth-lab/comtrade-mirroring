@@ -13,11 +13,11 @@ logger = get_logger(__name__)
 
 class CountryCountryProductYear(AtlasCleaning):
     """
-    Applies country-level accuracy scores to product-specific trade flows
+    Applies country-level reliability scores to product-specific trade flows
 
     Function:
         - Loads product-level trade data
-        - Merges with country accuracy scores from step 2
+        - Merges with country reliability scores from step 2
         - Reconciles export/import discrepancies at commodity level
         - Reweights values to match country totals
     """
@@ -64,10 +64,9 @@ class CountryCountryProductYear(AtlasCleaning):
 
         # prepare the data
         self.filter_and_clean_data()
-        logger.info("check after filter for WLD, nan, NAN")
 
-        logger.info("ccpy: filtered and cleaned data")
-        logger.info("ccpy: set up trade analysis framework")
+        logger.debug("ccpy: filtered and cleaned data")
+        logger.debug("ccpy: set up trade analysis framework")
 
         # calculate the value of exports for each country pair and product
         self.generate_trade_value_matrix()
@@ -76,18 +75,18 @@ class CountryCountryProductYear(AtlasCleaning):
         self.ccy = self.ccy[self.ccy.importer != self.ccy.exporter]
         self.ccy = self.ccy.set_index(["exporter", "importer"])
 
-        cc_trade_totals = self.assign_accuracy_scores()
-        logger.info("ccpy: assigned accuracy scores")
+        cc_trade_totals = self.assign_reliability_scores()
+        logger.debug("ccpy: assigned reliability scores")
 
         self.calculate_final_trade_value()
-        logger.info("ccpy: calculated final trade val")
+        logger.debug("ccpy: calculated final trade val")
 
         self.reweight_final_trade_value()
-        logger.info("ccpy: reweighted")
+        logger.debug("ccpy: reweighted")
 
         # final processing
         self.filter_and_handle_trade_data_discrepancies()
-        logger.info("ccpy: handle trade data discrepancies")
+        logger.debug("ccpy: handle trade data discrepancies")
 
         self.handle_not_specified()
         if self.year == 2023:
@@ -260,12 +259,12 @@ class CountryCountryProductYear(AtlasCleaning):
             + 2 * (self.df["import_value"] > 0)
         )
 
-    def assign_accuracy_scores(self) -> None:
+    def assign_reliability_scores(self) -> None:
         """ """
         # score of 4 if exporter and importer weight both > 0
         # score of 2 if importer weight only > 0
         # score of 1 if exporter weight only > 0
-        self.df["accuracy"] = (
+        self.df["reliability"] = (
             1
             * (
                 (
@@ -281,15 +280,15 @@ class CountryCountryProductYear(AtlasCleaning):
     def calculate_final_trade_value(self) -> None:
         """
         Calculate the final trade value based on a set of conditions that consider
-        the trade score, accuracy score, export values, import values, and weights.
+        the trade score, reliability score, export values, import values, and weights.
 
         The final value is determined as follows:
 
-        1. When both trade score and accuracy score are 4:
+        1. When both trade score and reliability score are 4:
            - Use a weighted average of export and import values.
 
-        2. For other combinations of trade and accuracy scores:
-            - When trade score is 4 but accuracy score is 0, use the average of
+        2. For other combinations of trade and reliability scores:
+            - When trade score is 4 but reliability score is 0, use the average of
             export and import values
             - When either score is 0, use the available value (import or export)
             based on the non-zero score
@@ -300,55 +299,55 @@ class CountryCountryProductYear(AtlasCleaning):
                     (self.df["exporter_weight"] * self.df["export_value"])
                     + ((1 - self.df["importer_weight"]) * self.df["import_value"])
                 )
-                * ((self.df["trade_score"] == 4) * (self.df["accuracy"] == 4))
+                * ((self.df["trade_score"] == 4) * (self.df["reliability"] == 4))
             )
             + (
                 self.df["import_value"]
-                * ((self.df["trade_score"] == 2) * (self.df["accuracy"] == 2))
+                * ((self.df["trade_score"] == 2) * (self.df["reliability"] == 2))
             )
             + (
                 self.df["import_value"]
-                * ((self.df["trade_score"] == 2) * (self.df["accuracy"] == 4))
+                * ((self.df["trade_score"] == 2) * (self.df["reliability"] == 4))
             )
             + (
                 self.df["export_value"]
-                * ((self.df["trade_score"] == 1) * (self.df["accuracy"] == 1))
+                * ((self.df["trade_score"] == 1) * (self.df["reliability"] == 1))
             )
             + (
                 self.df["export_value"]
-                * ((self.df["trade_score"] == 1) * (self.df["accuracy"] == 4))
+                * ((self.df["trade_score"] == 1) * (self.df["reliability"] == 4))
             )
             + (
                 self.df["import_value"]
-                * ((self.df["trade_score"] == 4) * (self.df["accuracy"] == 2))
+                * ((self.df["trade_score"] == 4) * (self.df["reliability"] == 2))
             )
             + (
                 self.df["export_value"]
-                * ((self.df["trade_score"] == 4) * (self.df["accuracy"] == 1))
+                * ((self.df["trade_score"] == 4) * (self.df["reliability"] == 1))
             )
             + (
                 0.5
                 * (self.df["export_value"] + self.df["import_value"])
-                * ((self.df["trade_score"] == 4) * (self.df["accuracy"] == 0))
+                * ((self.df["trade_score"] == 4) * (self.df["reliability"] == 0))
             )
             + (
                 self.df["import_value"]
-                * ((self.df["trade_score"] == 2) * (self.df["accuracy"] == 0))
+                * ((self.df["trade_score"] == 2) * (self.df["reliability"] == 0))
             )
             + (
                 self.df["export_value"]
-                * ((self.df["trade_score"] == 1) * (self.df["accuracy"] == 0))
+                * ((self.df["trade_score"] == 1) * (self.df["reliability"] == 0))
             )
             + (
                 self.df["import_value"]
-                * ((self.df["trade_score"] == 2) * (self.df["accuracy"] == 1))
+                * ((self.df["trade_score"] == 2) * (self.df["reliability"] == 1))
             )
             + (
                 self.df["export_value"]
-                * ((self.df["trade_score"] == 1) * (self.df["accuracy"] == 2))
+                * ((self.df["trade_score"] == 1) * (self.df["reliability"] == 2))
             )
         )
-        self.df = self.df.drop(columns=["trade_score", "accuracy"])
+        self.df = self.df.drop(columns=["trade_score", "reliability"])
 
     def reweight_final_trade_value(self) -> None:
         """
@@ -524,7 +523,7 @@ class CountryCountryProductYear(AtlasCleaning):
         )
 
         if drop_exporter:
-            logger.info("dropping exporter")
+            logger.debug("dropping exporter")
             self.df[~(self.df.exporter.isin(drop_exporter))]
 
     def handle_comtrade_converted_sitc(self) -> None:

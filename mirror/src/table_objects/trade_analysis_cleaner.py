@@ -11,8 +11,6 @@ from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# logging.basicConfig(level=logging.INFO)
-
 pd.set_option("future.no_silent_downcasting", True)
 
 
@@ -23,7 +21,7 @@ class TradeAnalysisCleaner(AtlasCleaning):
     FRED_INDEX_MONTH = 12
     SITC_START_YEAR = 1962
 
-    # for accuracy metrics filter out countries below thresholds
+    # filter out countries below thresholds
     POPULATION_THRESHOLD = 0.5 * 10**6
     TRADE_FLOW_THRESHOLD = 10
     TRADE_VALUE_MIN_THRESHOLD = 10**4  # Minimum value to assume that there is a flow
@@ -48,7 +46,7 @@ class TradeAnalysisCleaner(AtlasCleaning):
         # merge data to have all possible combinations for exporter, importer
         self.expand_to_all_country_pairs()
 
-        # thresholds filter countries prior to calculating accuracy scores
+        # thresholds filter countries prior to calculating reliability scores
         # to prevent anomalies from skewing country data
         self.filter_by_population_threshold(population)
         # deflate values to atlas data year for improved comparison
@@ -176,7 +174,7 @@ class TradeAnalysisCleaner(AtlasCleaning):
     def filter_by_population_threshold(self, population: pd.DataFrame) -> None:
         """
         Drop all exporter and importers with populations below the population limit
-        to reduce noise when determining accuracy scores
+        to reduce noise when determining reliability scores
 
         Uses IMF population data with WDI as fallback.
         """

@@ -14,8 +14,6 @@ from src.utils.handle_iso_codes_recoding import (
     standardize_historical_country_codes,
 )
 
-# logging.basicConfig(level=logging.INFO)
-
 
 class AggregateTrade(AtlasCleaning):
     COLUMNS_DICT_COMPACTOR = {

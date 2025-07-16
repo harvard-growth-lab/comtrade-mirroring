@@ -109,7 +109,7 @@ def run_bilateral_mirroring_pipeline(ingestion_attrs):
         # cleaned country-country trade data with reporting quality metrics
         trade_discrepancy_analysis = TradeAnalysisCleaner(year, df, **ingestion_attrs)
 
-        # country-country trade data with reconciled values and accuracy weights
+        # country-country trade data with reconciled values and reliability scores
         country_trade_reconciler = TradeDataReconciler(
             year, trade_discrepancy_analysis.df, **ingestion_attrs
         )
