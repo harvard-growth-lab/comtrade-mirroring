@@ -144,7 +144,7 @@ def aggregate_trade(base_obj, ingestion_attrs):
             year, product_classification, download_type
         )
 
-        logger.info(
+        logger.debug(
             f"Aggregating data for {year} and these classifications {classifications}"
         )
         for product_class in classifications:
