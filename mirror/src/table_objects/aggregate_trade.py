@@ -118,7 +118,7 @@ class AggregateTrade(AtlasCleaning):
             - "RX" (Re-export) → 4
 
         """
-        if self.product_class == "SITC":
+        if self.product_class_system == "SITC":
             try:
                 self.df["product_level"] = self.df["product_level"].astype(int)
             except (ValueError, TypeError) as e:
