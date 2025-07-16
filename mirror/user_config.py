@@ -29,7 +29,7 @@ DATA_VERSION = None  # e.g., "2024_12_01" or None for auto-generation
 # Structure: {DOWNLOADED_FILES_PATH}/{product_classification}/{product_class}_{year}.parquet
 # Example: /{DOWNLOADED_FILES_PATH}/H4/H4_2020.parquet
 DOWNLOADED_FILES_PATH = (
-    f"../../../../atlas/data/by_classification/aggregated_by_year/parquet"
+    f"../../../../atlas/data/as_reported/aggregated_by_year/parquet"
     # "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/data_downloads/atlas_clean_test"
 )
 
@@ -37,6 +37,7 @@ DOWNLOADED_FILES_PATH = (
 FINAL_OUTPUT_PATH = (
     f"/n/hausmann_lab/lab/ellie/test/comtrade_data/"
     # "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/data_downloads/atlas_clean_test"
+    # "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/atlas_cleaning/src/data"
 )
 
 
@@ -53,9 +54,9 @@ PATHS = {
 END_YEAR = 2023
 
 # Which trade classifications to process (leave True for the ones you want)
-PROCESS_SITC1 = False  # SITC data from 1962-END_YEAR
-PROCESS_SITC2 = False  # SITC data from 1976-END_YEAR
-PROCESS_SITC3 = False  # SITC data from 1988-END_YEAR
+PROCESS_SITC1 = True  # SITC data from 1962-END_YEAR
+PROCESS_SITC2 = True  # SITC data from 1976-END_YEAR
+PROCESS_SITC3 = True  # SITC data from 1988-END_YEAR
 
 PROCESS_HS92 = True  # HS92 data from 1992-END_YEAR
 PROCESS_HS12 = False  # HS12 data from 2012-END_YEAR
@@ -66,9 +67,9 @@ PROCESS_HS17 = False
 PROCESS_HS22 = False
 
 # Test mode - only process recent years (TEST_START_YEAR- END_YEAR)
-TEST_MODE = False
+TEST_MODE = True
 # must be set for year classification vintage was released or later
-TEST_START_YEAR = 2020
+TEST_START_YEAR = 2022
 
 # =============================================================================
 # DATA PROCESSING STEPS
@@ -97,7 +98,7 @@ DOWNLOAD_TYPE = "as_reported"  # alternative is "by_classification"
 # PATH HANDLING
 # =============================================================================
 
-root_dir = Path(__file__).parent.parent.absolute()
+root_dir = Path(__file__).parent.absolute()
 sys.path.insert(0, str(root_dir))
 
 
