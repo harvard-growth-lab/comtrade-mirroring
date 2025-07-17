@@ -49,14 +49,15 @@ def create_ingestion_attrs(classification, start_year, end_year):
     }
 
 
-def run_atlas_cleaning(ingestion_attrs):
+def run_mirroring(ingestion_attrs):
     """
     Run the bilateral trade mirroring to generate reliable trade data.
 
-    Builds and saves input tables for Atlas ingestion using a three-stage process:
+    Outputs mirrored bilateral trade data:
     1. Data aggregation across classifications
-    2. Country-level trade reconciliation
-    3. Product-level trade reconciliation
+    2. Reliability scores for country-level trade
+    3. Country-level trade reconciliation
+    4. Product-level trade reconciliation
 
     Parameters:
     - ingestion_attrs (dict): Configuration dictionary with required keys:
@@ -232,7 +233,7 @@ def main():
         try:
             if PROCESSING_STEPS.get("run_cleaning", True):
                 logger.info("Running cleaning pipeline...")
-                run_atlas_cleaning(ingestion_attrs)
+                run_mirroring(ingestion_attrs)
 
             classification_duration = datetime.now() - classification_start_time
             logger.info(f"\nCompleted {description} in {classification_duration}")

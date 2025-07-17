@@ -2,15 +2,7 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-
-try:
-    from user_config import get_data_version, LOG_LEVEL
-except ImportError:
-
-    def get_data_version():
-        return "unknown"
-
-    LOG_LEVEL = "INFO"
+from user_config import get_data_version, LOG_LEVEL
 
 
 def setup_logging():
@@ -23,12 +15,13 @@ def setup_logging():
     # Create log filename with timestamp and version
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     data_version = get_data_version()
-    log_file = f"logs/atlas_{data_version}_{timestamp}.log"
+    log_file = f"logs/mirror_{data_version}_{timestamp}.log"
 
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler(), logging.FileHandler(log_file)],
+        force=True,
     )
 
     return logging.getLogger(__name__)

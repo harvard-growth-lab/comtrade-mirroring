@@ -1,4 +1,4 @@
-"the parent object for Atlas Cleaning script"
+"the parent object for the bilateral mirroring script"
 
 import os
 from os import path

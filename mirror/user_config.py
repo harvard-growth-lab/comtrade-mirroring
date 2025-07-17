@@ -230,7 +230,7 @@ def validate_config():
 def print_config_summary():
     """Print a summary of current configuration"""
     print("=" * 60)
-    print("ATLAS TRADE DATA CLEANING CONFIGURATION")
+    print("BILATERAL MIRRORING CONFIGURATION")
     print("=" * 60)
     print(f"Data Version: {get_data_version()}")
     # print(f"Download Type: {DOWNLOAD_TYPE}")
