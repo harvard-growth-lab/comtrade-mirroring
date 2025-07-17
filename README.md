@@ -158,6 +158,7 @@ The pipeline expects downloaded Comtrade data in this structure:
 Apache License, Version 2.0 - see LICENSE file.
 
 ## Citation
+[![DOI](https://zenodo.org/badge/763567869.svg)](https://doi.org/10.5281/zenodo.16052482)
 
 ```bibtex
 @Misc{comtrade_mirroring,
