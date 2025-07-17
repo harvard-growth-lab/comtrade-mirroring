@@ -54,11 +54,11 @@ PATHS = {
 END_YEAR = 2023
 
 # Which trade classifications to process (leave True for the ones you want)
-PROCESS_SITC1 = True  # SITC data from 1962-END_YEAR
+PROCESS_SITC1 = False  # SITC data from 1962-END_YEAR
 PROCESS_SITC2 = True  # SITC data from 1976-END_YEAR
-PROCESS_SITC3 = True  # SITC data from 1988-END_YEAR
+PROCESS_SITC3 = False  # SITC data from 1988-END_YEAR
 
-PROCESS_HS92 = True  # HS92 data from 1992-END_YEAR
+PROCESS_HS92 = False  # HS92 data from 1992-END_YEAR
 PROCESS_HS12 = False  # HS12 data from 2012-END_YEAR
 PROCESS_HS96 = False
 PROCESS_HS02 = False
@@ -77,7 +77,7 @@ TEST_START_YEAR = 2022
 
 PROCESSING_STEPS = {
     "run_cleaning": True,  # Main bilateral trade cleaning pipeline
-    "delete_intermediate_files": True,  # Clean up intermediate files after processing
+    "delete_intermediate_files": False,  # Clean up intermediate files after processing
 }
 
 # =============================================================================
