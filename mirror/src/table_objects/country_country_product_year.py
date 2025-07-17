@@ -145,7 +145,7 @@ class CountryCountryProductYear(AtlasCleaning):
         2. Removes entries with commodity code "TOTAL"
         3. Removes entries where reporter_iso or partner_iso is in ["WLD", "NAN", "nan"]
         """
-        if self.product_classification not in ["SITC"]:
+        if self.product_class_system not in ["SITC"]:
             self.df = self.df[self.df.product_level == 6]
         else:
             self.df = self.df[self.df.product_level == 4]
@@ -537,11 +537,11 @@ class CountryCountryProductYear(AtlasCleaning):
     def handle_comtrade_converted_sitc(self) -> None:
         """
         Use Comtrade Conversion table on mirror bilateral product level trade
-        data and harmonize SITC to rev 2
+        data and harmonize SITC to rev 2 for by_classification data
         """
         concordance_obj = ConcordanceTable(self.static_data_path)
         if (
-            self.product_classification == "SITC"
+            self.product_class_system == "SITC"
             and self.year <= 1975
             and self.download_type == "by_classification"
         ):
@@ -555,3 +555,5 @@ class CountryCountryProductYear(AtlasCleaning):
             # convert H0 to SITC rev 2; will save SITC and H0 therefore new SITC df
             sitc_df = concordance_obj.run_conversion(self.df, "H0", "S2")
             self.save_parquet(sitc_df, "final", f"SITC_{self.year}", "SITC")
+        else:
+            return
