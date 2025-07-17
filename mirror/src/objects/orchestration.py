@@ -90,14 +90,14 @@ def run_bilateral_mirroring_pipeline(ingestion_attrs):
     download_type = ingestion_attrs["download_type"]
 
     for year in range(ingestion_attrs["start_year"], ingestion_attrs["end_year"] + 1):
-        logger.info(f"Beginning trade mirror {year}... for {product_classification}")
+        logger.info(f"Mirroring trade data for {year}... for {product_classification}")
         if sitc_and_skip_processing(year, product_classification, download_type):
             continue
         product_classification = handle_product_classification(
             year, product_classification, download_type
         )[0]
 
-        logger.info(f"Beginning compute distance for year {year}")
+        logger.debug(f"Beginning compute distance for year {year}")
         base_obj = AtlasCleaning(**ingestion_attrs)
         dist = pd.read_stata(base_obj.static_data_path / "dist_cepii.dta")
         df = compute_distance(base_obj, year, product_classification, dist)
