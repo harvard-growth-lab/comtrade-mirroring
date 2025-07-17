@@ -74,6 +74,7 @@ class AggregateTrade(AtlasCleaning):
         df_0 = self.create_bilateral_trade_matrix(0)
         df_4 = self.create_bilateral_trade_matrix(4)
         self.df = df_0.merge(df_4, on=["importer", "exporter"], how="outer")
+        del df_0, df_4
 
         self.integrate_world_totals()
         self.adjust_trade_values_for_data_quality()
@@ -261,6 +262,7 @@ class AggregateTrade(AtlasCleaning):
         df = reporting_importer.merge(
             reporting_exporter, on=["importer", "exporter"], how="outer"
         )
+        del reporting_importer, reporting_exporter
         return df[
             ~(
                 (df[f"imports_{product_level}"] == 0)
@@ -299,6 +301,7 @@ class AggregateTrade(AtlasCleaning):
 
         assert imp_to_world["importer"].is_unique
         self.df = self.df.merge(imp_to_world, on="importer", how="left")
+        del exp_to_world, imp_to_world
 
     def adjust_trade_values_for_data_quality(self) -> None:
         """
