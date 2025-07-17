@@ -20,7 +20,20 @@ pd.set_option("max_colwidth", 400)
 
 class AtlasCleaning(object):
     # Classification names & levels
-    PRODUCT_CLASSIFICATIONS = ["H0", "HS", "S1", "S2", "ST"]
+    PRODUCT_CLASSIFICATIONS = [
+        "H0",
+        "HS",
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "S1",
+        "S2",
+        "S3",
+        "ST",
+    ]
 
     HIERARCHY_LEVELS = {
         "H0": (0, 2, 4, 6),
