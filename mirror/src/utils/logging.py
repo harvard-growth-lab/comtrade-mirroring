@@ -16,6 +16,8 @@ def setup_logging():
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     data_version = get_data_version()
     log_file = f"logs/mirror_{data_version}_{timestamp}.log"
+    
+    Path(log_file).parent.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(
         level=level,

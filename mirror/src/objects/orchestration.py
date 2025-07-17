@@ -143,15 +143,10 @@ def aggregate_trade(base_obj, ingestion_attrs):
         logger.debug(
             f"Aggregating data for {year} and these classifications {classifications}"
         )
-        for product_class in classifications:
-            aggregate_obj = AggregateTrade(year, product_class, **ingestion_attrs)
-            aggregate_obj.run_aggregate_trade()
-            if aggregate_obj.missing_data:
-                logger.error(
-                    f"Data for {product_class} {year} not available. Skipping classification..."
-                )
-                base_obj.missing_data = True
-                return
+        [
+            AggregateTrade(year, product_class, **ingestion_attrs).run_aggregate_trade()
+            for product_class in classifications
+        ]
 
 
 def clean_up_intermediate_files(ingestion_attrs):

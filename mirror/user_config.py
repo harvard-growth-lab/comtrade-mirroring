@@ -25,19 +25,15 @@ DATA_VERSION = None  # e.g., "2024_12_01" or None for auto-generation
 
 # Base paths - Update these to match your environment
 
-# Top level directory of downloaded Comtrade files
-# Structure: {DOWNLOADED_FILES_PATH}/{product_classification}/{product_class}_{year}.parquet
-# Example: /{DOWNLOADED_FILES_PATH}/H4/H4_2020.parquet
+# directory of aggregated data files
+# Example: DOWNLOADED_FILES_PATH = (/data/as_reported/aggregated_by_year/parquet)
 DOWNLOADED_FILES_PATH = (
-    f"../../../../atlas/data/as_reported/aggregated_by_year/parquet"
-    # "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/data_downloads/atlas_clean_test"
+    f"../../mirror/data/as_reported/aggregated_by_year/parquet"
 )
 
 # results directory path
 FINAL_OUTPUT_PATH = (
-    f"/n/hausmann_lab/lab/ellie/test/comtrade_data/"
-    # "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/data_downloads/atlas_clean_test"
-    # "/home/parallels/Desktop/Parallels Shared Folders/AllFiles/Users/ELJ479/projects/atlas_cleaning/src/data"
+    f"/path/to/output/data"
 )
 
 
@@ -50,12 +46,13 @@ PATHS = {
 # CLASSIFICATION VINTAGE & YEAR RANGE SELECTION
 # =============================================================================
 
+# MUST HAVE DATA DOWNLOADED FROM COMTRADE-DOWNLOADER 
 # END YEAR FOR PROCESSING
 END_YEAR = 2023
 
 # Which trade classifications to process (leave True for the ones you want)
 PROCESS_SITC1 = False  # SITC data from 1962-END_YEAR
-PROCESS_SITC2 = True  # SITC data from 1976-END_YEAR
+PROCESS_SITC2 = False  # SITC data from 1976-END_YEAR
 PROCESS_SITC3 = False  # SITC data from 1988-END_YEAR
 
 PROCESS_HS92 = False  # HS92 data from 1992-END_YEAR
@@ -64,12 +61,12 @@ PROCESS_HS96 = False
 PROCESS_HS02 = False
 PROCESS_HS07 = False
 PROCESS_HS17 = False
-PROCESS_HS22 = False
+PROCESS_HS22 = True
 
 # Test mode - only process recent years (TEST_START_YEAR- END_YEAR)
 TEST_MODE = True
 # must be set for year classification vintage was released or later
-TEST_START_YEAR = 2022
+TEST_START_YEAR = 2020
 
 # =============================================================================
 # DATA PROCESSING STEPS
@@ -143,9 +140,6 @@ def get_classifications():
         start_year = TEST_START_YEAR if TEST_MODE else 1988
         classifications.append(("S3", start_year, END_YEAR, "SITC Revision 3"))
 
-    # if PROCESS_SITC:
-    #     start_year = TEST_START_YEAR if TEST_MODE else 1962
-    #     classifications.append(("SITC", start_year, END_YEAR, "SITC Revision 2"))
 
     if PROCESS_HS92:
         start_year = TEST_START_YEAR if TEST_MODE else 1992
@@ -157,11 +151,11 @@ def get_classifications():
 
     if PROCESS_HS02:
         start_year = TEST_START_YEAR if TEST_MODE else 2002
-        classifications.append(("H2", start_year, END_YEAR, "HS96"))
+        classifications.append(("H2", start_year, END_YEAR, "HS02"))
 
     if PROCESS_HS07:
         start_year = TEST_START_YEAR if TEST_MODE else 2007
-        classifications.append(("H3", start_year, END_YEAR, "HS96"))
+        classifications.append(("H3", start_year, END_YEAR, "HS07"))
 
     if PROCESS_HS12:
         start_year = TEST_START_YEAR if TEST_MODE else 2012
@@ -169,11 +163,11 @@ def get_classifications():
 
     if PROCESS_HS17:
         start_year = TEST_START_YEAR if TEST_MODE else 2017
-        classifications.append(("H5", start_year, END_YEAR, "HS12"))
+        classifications.append(("H5", start_year, END_YEAR, "HS17"))
 
     if PROCESS_HS22:
         start_year = TEST_START_YEAR if TEST_MODE else 2022
-        classifications.append(("H6", start_year, END_YEAR, "HS12"))
+        classifications.append(("H6", start_year, END_YEAR, "HS22"))
     return classifications
 
 

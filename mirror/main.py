@@ -6,9 +6,6 @@ import pandas as pd
 from time import strftime, localtime
 from datetime import datetime
 
-# script_dir = Path(__file__).parent.absolute()
-# sys.path.insert(0, str(script_dir))
-
 from user_config import (
     get_paths_config,
     get_classifications,

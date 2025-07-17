@@ -36,10 +36,14 @@ def compute_distance(
         - tau is the trade cost rate; tau = (CIF - FOB) / FOB
         - Uses high dimensional fixed effects regression for trade cost estimation
     """
+    try:
+        df = base_obj.load_parquet(
+            "intermediate", f"{product_classification}_{year}_aggregated"
+        )
+    except FileNotFoundError as e:
+        logger.error(f"Require aggregated year of data for {product_classification} in {year}.")
+        raise ValueError("Check path or download from Comtrade")
 
-    df = base_obj.load_parquet(
-        "intermediate", f"{product_classification}_{year}_aggregated"
-    )
     # lag and lead
     df_lag_lead = pd.DataFrame()
     for wrap_year in [year - 1, year + 1]:
