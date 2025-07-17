@@ -133,7 +133,8 @@ class CountryCountryProductYear(AtlasCleaning):
             "value_importer",
         ]
         self.df = self.df[ccpy_final_cols]
-        self.handle_comtrade_converted_sitc()
+        if self.download_type == "by_classification":
+            self.handle_comtrade_converted_sitc()
         return self.df
 
     def filter_and_clean_data(self) -> None:
@@ -541,17 +542,13 @@ class CountryCountryProductYear(AtlasCleaning):
         """
         concordance_obj = ConcordanceTable(self.static_data_path)
         if (
-            self.product_class_system == "SITC"
+            self.product_classification in ["SITC", "S1", "S2", "S3"]
             and self.year <= 1975
-            and self.download_type == "by_classification"
         ):
             # convert S1 to S2; only save SITC rev 2 therefore update self.df
             self.df = concordance_obj.run_conversion(self.df, "S1", "S2")
 
-        elif (
-            self.product_classification == "H0"
-            and self.download_type == "by_classification"
-        ):
+        elif self.product_classification == "H0":
             # convert H0 to SITC rev 2; will save SITC and H0 therefore new SITC df
             sitc_df = concordance_obj.run_conversion(self.df, "H0", "S2")
             self.save_parquet(sitc_df, "final", f"SITC_{self.year}", "SITC")
