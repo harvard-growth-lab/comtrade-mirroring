@@ -3,16 +3,13 @@ from pathlib import Path
 import sys
 import argparse
 import pandas as pd
-from time import strftime, localtime
 from datetime import datetime
 
 from user_config import (
-    get_paths_config,
     get_classifications,
     PROCESSING_STEPS,
     validate_config,
     print_config_summary,
-    LOG_LEVEL,
     get_data_version,
 )
 
@@ -21,17 +18,6 @@ from src.objects.orchestration import (
     run_mirroring,
     clean_up_intermediate_files,
 )
-
-# from src.utils.CIF_calculations import compute_distance
-# from src.objects.base import AtlasCleaning
-# from src.table_objects.aggregate_trade import AggregateTrade
-# from src.table_objects.trade_analysis_cleaner import TradeAnalysisCleaner
-# from src.table_objects.trade_data_reconciler import TradeDataReconciler
-# from src.table_objects.country_country_product_year import CountryCountryProductYear
-# from src.utils.classification_handler import (
-#     sitc_and_skip_processing,
-#     handle_product_classification,
-# )
 from src.utils.logging import setup_logging
 
 
@@ -103,7 +89,6 @@ def main():
         classification_start_time = datetime.now()
         logger.info(f"[{i}/{len(classifications)}] \nStarting {description}\n")
 
-        # Create configuration for this classification
         ingestion_attrs = create_ingestion_attrs(classification, start_year, end_year)
 
         try:
