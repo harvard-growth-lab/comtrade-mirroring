@@ -27,17 +27,18 @@ DATA_VERSION = None  # e.g., "2024_12_01" or None for auto-generation
 
 # directory of aggregated data files
 # Example: DOWNLOADED_FILES_PATH = (/data/as_reported/aggregated_by_year/parquet)
-DOWNLOADED_FILES_PATH = (
-    f"../../mirror/data/as_reported/aggregated_by_year/parquet"
+COMMON_DATA_PATH = (
+    "/media/psf/AllFiles/Users/ELJ479/projects/atlas-common-data/atlas_common_data"
 )
 
+DOWNLOADED_FILES_PATH = f"../../mirror/data/as_reported/aggregated_by_year/parquet"
+
 # results directory path
-FINAL_OUTPUT_PATH = (
-    f"/path/to/output/data"
-)
+FINAL_OUTPUT_PATH = f"/path/to/output/data"
 
 
 PATHS = {
+    "common_data_path": COMMON_DATA_PATH,
     "downloaded_files_path": DOWNLOADED_FILES_PATH,
     "final_output_path": FINAL_OUTPUT_PATH,
 }
@@ -46,7 +47,7 @@ PATHS = {
 # CLASSIFICATION VINTAGE & YEAR RANGE SELECTION
 # =============================================================================
 
-# MUST HAVE DATA DOWNLOADED FROM COMTRADE-DOWNLOADER 
+# MUST HAVE DATA DOWNLOADED FROM COMTRADE-DOWNLOADER
 # END YEAR FOR PROCESSING
 END_YEAR = 2023
 
@@ -139,7 +140,6 @@ def get_classifications():
     if PROCESS_SITC3:
         start_year = TEST_START_YEAR if TEST_MODE else 1988
         classifications.append(("S3", start_year, END_YEAR, "SITC Revision 3"))
-
 
     if PROCESS_HS92:
         start_year = TEST_START_YEAR if TEST_MODE else 1992
