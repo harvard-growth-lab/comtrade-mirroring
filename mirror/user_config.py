@@ -17,7 +17,7 @@ from datetime import date, timedelta
 Data version - will be used as folder name for output
 If None, auto-generates based on today's date
 """
-DATA_VERSION = None  # e.g., "2024_12_01" or None for auto-generation
+DATA_VERSION = "rewrite_2025_06_27"  # e.g., "2024_12_01" or None for auto-generation
 
 # =============================================================================
 # PATHS CONFIGURATION
@@ -34,7 +34,9 @@ COMMON_DATA_PATH = (
 DOWNLOADED_FILES_PATH = f"../../mirror/data/as_reported/aggregated_by_year/parquet"
 
 # results directory path
-FINAL_OUTPUT_PATH = f"/path/to/output/data"
+FINAL_OUTPUT_PATH = (
+    f"/media/psf/AllFiles/Users/ELJ479/projects/data_downloads/atlas_clean_test/"
+)
 
 
 PATHS = {
@@ -57,12 +59,12 @@ PROCESS_SITC2 = False  # SITC data from 1976-END_YEAR
 PROCESS_SITC3 = False  # SITC data from 1988-END_YEAR
 
 PROCESS_HS92 = False  # HS92 data from 1992-END_YEAR
-PROCESS_HS12 = False  # HS12 data from 2012-END_YEAR
 PROCESS_HS96 = False
 PROCESS_HS02 = False
 PROCESS_HS07 = False
+PROCESS_HS12 = True  # HS12 data from 2012-END_YEAR
 PROCESS_HS17 = False
-PROCESS_HS22 = True
+PROCESS_HS22 = False
 
 # Test mode - only process recent years (TEST_START_YEAR- END_YEAR)
 TEST_MODE = True
