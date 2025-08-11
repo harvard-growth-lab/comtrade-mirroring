@@ -52,7 +52,7 @@ mirror:
     - downloaded_files_path: /n/hausmann_lab/lab/atlas/data/as_reported/aggregated_by_year/parquet
     - final_output_path: /n/hausmann_lab/lab/atlas/data/
   processing_steps: 
-    - "run_cleaning"
-    - "delete_intermediate_files"
+    run_cleaning: true
+    delete_intermediate_files: true
   test_mode: False
   test_start_year: 2020

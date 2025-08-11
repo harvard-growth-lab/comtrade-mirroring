@@ -58,8 +58,8 @@ class ConfigGenerator:
         steps = self.config_data.get('mirror', {}).get('processing_steps', [])
         
         return {
-            'run_cleaning': 'run_cleaning' in steps,
-            'delete_intermediate_files': 'delete_intermediate_files' in steps,
+            'run_cleaning': steps.get('run_cleaning', False),
+            'delete_intermediate_files': steps.get('delete_intermediate_files', False),
         }
     
     def _get_paths(self) -> Dict[str, str]:
