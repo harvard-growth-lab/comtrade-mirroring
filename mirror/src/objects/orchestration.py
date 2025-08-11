@@ -6,14 +6,8 @@ import pandas as pd
 from time import strftime, localtime
 from datetime import datetime
 
-from user_config import (
+from mirror.src.utils.handle_config import (
     get_paths_config,
-    get_classifications,
-    PROCESSING_STEPS,
-    validate_config,
-    print_config_summary,
-    LOG_LEVEL,
-    get_data_version,
 )
 
 from src.utils.CIF_calculations import compute_distance
@@ -31,9 +25,9 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-def create_ingestion_attrs(classification, start_year, end_year):
+def create_ingestion_attrs(classification, start_year, end_year, base_attrs):
     """Create ingestion attributes for a specific classification and year range"""
-    base_config = get_paths_config()
+    base_config = get_paths_config(base_attrs)
 
     return {
         "start_year": start_year,

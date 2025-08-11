@@ -4,14 +4,7 @@ import sys
 import argparse
 import pandas as pd
 from datetime import datetime
-
-from user_config import (
-    get_classifications,
-    PROCESSING_STEPS,
-    validate_config,
-    print_config_summary,
-    get_data_version,
-)
+import importlib
 
 from src.objects.orchestration import (
     create_ingestion_attrs,
@@ -19,55 +12,46 @@ from src.objects.orchestration import (
     clean_up_intermediate_files,
 )
 from src.utils.logging import setup_logging
+from src.objects.config_generator import ConfigGenerator
+
+from mirror.src.utils.handle_config import get_data_version, print_config_summary, validate_config
 
 
-pd.options.display.max_columns = None
-pd.options.display.max_rows = None
-pd.set_option("max_colwidth", 400)
-
-
-def main():
+def run(config_module):
     """
     Main execution function that runs the Atlas cleaning pipeline
     based on configuration settings
     """
-    parser = argparse.ArgumentParser(description="Run the Atlas clean")
-    parser.add_argument(
-        "--config-summary",
-        action="store_true",
-        help="Validates config, prints configuration summary, and exits",
-    )
 
-    args = parser.parse_args()
+    # Get config variables from the imported module
+    classifications = config_module.classifications
+    processing_steps = config_module.PROCESSING_STEPS
+    test_mode = config_module.TEST_MODE
+    paths = config_module.PATHS
+    download_type = config_module.DOWNLOAD_TYPE
+    data_version = config_module.DATA_VERSION
 
-    if args.config_summary:
-        errors = validate_config()
-        if errors:
-            logger.error("Configuration validation failed:")
-            for error in errors:
-                logger.error(f"  • {error}")
-                sys.exit(0)
-        print_config_summary()
-        sys.exit(0)
+    data_version = get_data_version(data_version)
 
-    errors = validate_config()
+    print_config_summary(test_mode, data_version, classifications, processing_steps)
+
+    errors = validate_config(paths, download_type, classifications)
     if errors:
         logger.error("Configuration validation failed:")
         for error in errors:
             logger.error(f"  • {error}")
         sys.exit(1)
 
-    classifications = get_classifications()
-
     if not classifications:
         logger.error("No classifications selected! Check your config settings.")
         sys.exit(1)
+
 
     # Show what will be processed
     logger.info("=" * 60)
     logger.info(f"BILATERAL MIRRORING STARTING")
     logger.info("=" * 60)
-    logger.info(f"Data version: {get_data_version()}")
+    logger.info(f"Data version: {data_version}")
     logger.info(f"Processing {len(classifications)} classification(s)")
 
     for classification, start_year, end_year, description in classifications:
@@ -75,7 +59,7 @@ def main():
         logger.info(f"  • {description}: {start_year}-{end_year} ({years_count} years)")
 
     # Show processing steps
-    enabled_steps = [step for step, enabled in PROCESSING_STEPS.items() if enabled]
+    enabled_steps = [step for step, enabled in processing_steps.items() if enabled]
     logger.info(f"Processing steps: {', '.join(enabled_steps)}")
 
     logger.info("=" * 60)
@@ -83,16 +67,21 @@ def main():
     # Process each classification
     total_start_time = datetime.now()
 
+    base_attrs = {
+        "data_version": data_version,
+        "paths": paths,
+        "download_type" : download_type
+        }
+
     for i, (classification, start_year, end_year, description) in enumerate(
         classifications, 1
     ):
         classification_start_time = datetime.now()
         logger.info(f"[{i}/{len(classifications)}] \nStarting {description}\n")
 
-        ingestion_attrs = create_ingestion_attrs(classification, start_year, end_year)
-
+        ingestion_attrs = create_ingestion_attrs(classification, start_year, end_year, base_attrs)
         try:
-            if PROCESSING_STEPS.get("run_cleaning", True):
+            if processing_steps.get("run_cleaning", True):
                 logger.info("Running cleaning pipeline...")
                 run_mirroring(ingestion_attrs)
 
@@ -103,7 +92,7 @@ def main():
             logger.error(f"Error processing {classification}: {str(e)}", exc_info=True)
 
         try:
-            if PROCESSING_STEPS.get("delete_intermediate_files", True):
+            if processing_steps.get("delete_intermediate_files", True):
                 logger.info("Deleting intermediate processing files...")
                 clean_up_intermediate_files(ingestion_attrs)
         except Exception as e:
@@ -117,6 +106,38 @@ def main():
     logger.info("=" * 60)
 
 
+def main():
+    run(config_module)
+
+
 if __name__ == "__main__":
-    logger = setup_logging()
+
+    parser = argparse.ArgumentParser(
+    description="Run Comtrade data processing with specified config"
+    )
+    parser.add_argument(
+        "--config",
+        choices=["user_config", "atlas_dev_config", "dev"],
+        default="user_config",
+        help="Config file to use (default: user_config)",
+    )
+
+    args = parser.parse_args()
+    config_file = args.config
+
+    # Generate Python config from YAML
+    if config_file == "user_config":
+        config_path = Path(f"{config_file}.yaml")
+    else:
+        config_path = Path("config") / f"{config_file}.yaml"
+    generator = ConfigGenerator(config_path)
+    generator.generate_python_config('config/generated_config.py')
+
+    try:
+        config_module = importlib.import_module("config.generated_config")
+    except ImportError:
+        raise ImportError(f"Config module '{config_file}' not found")
+
+    logger = setup_logging(config_module.LOG_LEVEL, config_module.DATA_VERSION)
+    logger.info(f"Using config: {args.config}")
     main()

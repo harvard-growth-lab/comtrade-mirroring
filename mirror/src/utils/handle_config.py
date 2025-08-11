@@ -17,7 +17,7 @@ def get_paths_config(base_attrs):
     if base_attrs['data_version'] is None:
         data_version = get_data_version(base_attrs['data_version'])
     final_output_path = (
-        Path(base_attrs['paths']["final_output_path"]) / data_version / "mirrored_output"
+        Path(base_attrs['paths']["final_output_path"]) / base_attrs['data_version'] / "mirrored_output"
     )
     final_output_path.mkdir(exist_ok=True, parents=True)
 
@@ -162,4 +162,4 @@ def print_config_summary(test_mode, data_version, classifications_list, processi
         print(f"  {status} {step}")
     print()
     print("=" * 60)
-    return data_version
+    return

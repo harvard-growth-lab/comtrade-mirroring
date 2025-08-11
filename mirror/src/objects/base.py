@@ -122,7 +122,7 @@ class AtlasCleaning(object):
             "atlas_common_path": self.atlas_common_path,
             "product_classification": self.product_classification,
         }
-
+    
     def _setup_paths(self):
         paths = [
             self.data_path,

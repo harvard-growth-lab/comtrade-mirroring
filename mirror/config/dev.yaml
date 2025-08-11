@@ -1,0 +1,58 @@
+# Master Pipeline Configuration
+# This is the user-editable file for all pipeline settings
+# Location: atlas_pipeline/config/master_config.yaml
+
+# ==============================================================================
+# SHARED SETTINGS - Used across multiple pipeline stages
+# ==============================================================================
+shared:
+  output_base_dir: "./output"           # Where all outputs go
+  end_year: 2023                        # Latest year to download
+  log_level: "INFO"                     # DEBUG, INFO, WARNING, ERROR
+
+# ==============================================================================
+# TRADE CLASSIFICATIONS - Enable/disable different classification systems
+# ==============================================================================
+classifications:
+  # Harmonized System (HS) Classifications
+  hs22: true    # HS 2022 (newest) - recommended for recent data
+  hs17: true    # HS 2017
+  hs12: false   # HS 2012
+  hs07: false   # HS 2007
+  hs02: false   # HS 2002
+  hs96: false   # HS 1996 
+  hs92: false   # HS 1992 (oldest)
+  
+  # Standard International Trade Classification (SITC)
+  sitc1: false  # SITC Revision 1 (1962-1975)
+  sitc2: false  # SITC Revision 2 (1976-1987)
+  sitc3: false  # SITC Revision 3 (1988+)
+
+classification_start_years:
+  # Harmonized System (HS) Classifications
+  H0: 1992  # HS Combined (1992-present)
+  H1: 1996  # HS 1992 vintage (1996-present)
+  H2: 2002  # HS 2002 vintage (2002-present)
+  H3: 2007  # HS 2007 vintage (2007-present)
+  H4: 2012  # HS 2012 vintage (2012-present)
+  H5: 2017  # HS 2017 vintage (2017-present)
+  H6: 2017  # HS 2022 vintage (2022-present)
+  # Standard International Trade Classification (SITC)
+  S1: 1962  # SITC Revision 1 (1962-present)
+  S2: 1976  # SITC Revision 2 (1976-present)
+  S3: 1988  # SITC Revision 3 (1988-present)
+
+# ==============================================================================
+# BILATERAL TRADE ANALYSIS SETTINGS  
+# ==============================================================================
+mirror:
+  data_version: null
+  download_type: "as_reported" # "by_classification"
+  paths:
+    - downloaded_files_path: /n/hausmann_lab/lab/atlas/data/as_reported/aggregated_by_year/parquet
+    - final_output_path: /n/hausmann_lab/lab/atlas/data/
+  processing_steps: 
+    - "run_cleaning"
+    - "delete_intermediate_files"
+  test_mode: False
+  test_start_year: 2020

@@ -8,6 +8,7 @@ Edit the settings below to match your environment and requirements.
 from pathlib import Path
 import sys
 from datetime import date, timedelta
+from mirror.src.utils.handle_config import get_classifications_list
 
 # =============================================================================
 # DATA PROCESSING CONFIGURATION
@@ -58,7 +59,7 @@ PROCESS_SITC3 = False  # SITC data from 1988-END_YEAR
 PROCESS_HS92 = False  # HS92 data from 1992-END_YEAR
 PROCESS_HS12 = False  # HS12 data from 2012-END_YEAR
 PROCESS_HS96 = False
-PROCESS_HS02 = False
+PROCESS_HS02 = True
 PROCESS_HS07 = False
 PROCESS_HS17 = False
 PROCESS_HS22 = True
@@ -92,174 +93,52 @@ LOG_LEVEL = "INFO"  # Options: DEBUG, INFO, WARNING, ERROR
 DOWNLOAD_TYPE = "as_reported"  # alternative is "by_classification"
 
 # =============================================================================
-# PATH HANDLING
+# CONFIGURATION DICTIONARIES
 # =============================================================================
 
-root_dir = Path(__file__).parent.absolute()
-sys.path.insert(0, str(root_dir))
+CLASSIFICATION_START_YEARS = {
+    # Standard International Trade Classification (SITC)
+    "S1": 1962,  # SITC Revision 1 (1962-present)
+    "S2": 1976,  # SITC Revision 2 (1976-present)
+    "S3": 1988,  # SITC Revision 3 (1988-present)
+    # Harmonized System (HS) Classifications
+    "H0": 1992,  # HS Combined (1992-present)
+    "H1": 1996,  # HS 1992 vintage (1996-present)
+    "H2": 2002,  # HS 2002 vintage (2002-present)
+    "H3": 2007,  # HS 2007 vintage (2007-present)
+    "H4": 2012,  # HS 2012 vintage (2012-present)
+    "H5": 2017,  # HS 2017 vintage (2017-present)
+    "H6": 2022,  # HS 2022 vintage (2022-present)
+}
+
+classifications_dict = {
+    "HS92": PROCESS_HS92,
+    "HS12": PROCESS_HS12,
+    "HS96": PROCESS_HS96,
+    "HS02": PROCESS_HS02,
+    "HS07": PROCESS_HS07,
+    "HS17": PROCESS_HS17,
+    "HS22": PROCESS_HS22,
+    "SITC1": PROCESS_SITC1,
+    "SITC2": PROCESS_SITC2,
+    "SITC3": PROCESS_SITC3,
+}
 
 
-def get_data_version(data_version=DATA_VERSION):
-    """Generate data version string if not manually specified"""
-    if data_version:
-        return data_version
-    return f"{(date.today()).strftime('%Y_%m_%d')}"
+
+if TEST_MODE:
+    classifications = get_classifications_list(
+        classifications_dict, 
+                                               END_YEAR, 
+                                               CLASSIFICATION_START_YEARS,
+                                               TEST_START_YEAR
+                                               )
+else:
+    classifications = get_classifications_list(
+        classifications_dict, 
+                                               END_YEAR, 
+                                               CLASSIFICATION_START_YEARS,
+                                               )
 
 
-def get_paths_config(data_version=DATA_VERSION):
-    """Generate full path configuration based on download type and data version"""
 
-    if data_version is None:
-        data_version = get_data_version()
-    final_output_path = (
-        Path(PATHS["final_output_path"]) / data_version / "mirrored_output"
-    )
-    final_output_path.mkdir(exist_ok=True, parents=True)
-
-    return {
-        "downloaded_files_path": Path(PATHS["downloaded_files_path"]),
-        "root_dir": str(root_dir),
-        "final_output_path": final_output_path,
-        "download_type": DOWNLOAD_TYPE,
-    }
-
-
-def get_classifications():
-    """Get the list of classifications to process based on settings"""
-    classifications = []
-
-    if PROCESS_SITC1:
-        start_year = TEST_START_YEAR if TEST_MODE else 1962
-        classifications.append(("S1", start_year, END_YEAR, "SITC Revision 1"))
-
-    if PROCESS_SITC2:
-        start_year = TEST_START_YEAR if TEST_MODE else 1976
-        classifications.append(("S2", start_year, END_YEAR, "SITC Revision 2"))
-
-    if PROCESS_SITC3:
-        start_year = TEST_START_YEAR if TEST_MODE else 1988
-        classifications.append(("S3", start_year, END_YEAR, "SITC Revision 3"))
-
-
-    if PROCESS_HS92:
-        start_year = TEST_START_YEAR if TEST_MODE else 1992
-        classifications.append(("H0", start_year, END_YEAR, "HS92"))
-
-    if PROCESS_HS96:
-        start_year = TEST_START_YEAR if TEST_MODE else 1996
-        classifications.append(("H1", start_year, END_YEAR, "HS96"))
-
-    if PROCESS_HS02:
-        start_year = TEST_START_YEAR if TEST_MODE else 2002
-        classifications.append(("H2", start_year, END_YEAR, "HS02"))
-
-    if PROCESS_HS07:
-        start_year = TEST_START_YEAR if TEST_MODE else 2007
-        classifications.append(("H3", start_year, END_YEAR, "HS07"))
-
-    if PROCESS_HS12:
-        start_year = TEST_START_YEAR if TEST_MODE else 2012
-        classifications.append(("H4", start_year, END_YEAR, "HS12"))
-
-    if PROCESS_HS17:
-        start_year = TEST_START_YEAR if TEST_MODE else 2017
-        classifications.append(("H5", start_year, END_YEAR, "HS17"))
-
-    if PROCESS_HS22:
-        start_year = TEST_START_YEAR if TEST_MODE else 2022
-        classifications.append(("H6", start_year, END_YEAR, "HS22"))
-    return classifications
-
-
-# =============================================================================
-# VALIDATION
-# =============================================================================
-
-
-def validate_config():
-    """Validate configuration settings"""
-    errors = []
-
-    # Check paths exist
-    for path_name, path_value in PATHS.items():
-        if not Path(path_value).exists():
-            errors.append(f"Path does not exist: {path_name} = {path_value}")
-
-    # Check download type
-    if DOWNLOAD_TYPE not in ["by_classification", "as_reported"]:
-        errors.append(f"Invalid DOWNLOAD_TYPE: {DOWNLOAD_TYPE}")
-
-    # Check classifications
-    valid_classifications = [
-        "H0",
-        "H2",
-        "H3",
-        "H4",
-        "H5",
-        "H6",
-        "SITC",
-        "S1",
-        "S2",
-        "S3",
-    ]
-
-    for classification, start_year, end_year, desc in get_classifications():
-        if classification not in valid_classifications:
-            errors.append(f"Invalid classification: {classification}")
-        if start_year > end_year:
-            errors.append(
-                f"Invalid year range for {classification}: {start_year} > {end_year}"
-            )
-        if end_year > date.today().year:
-            errors.append(f"End year {end_year} is in the future for {classification}")
-
-    return errors
-
-
-# =============================================================================
-# REPORTING / INFO
-# =============================================================================
-
-
-def print_config_summary():
-    """Print a summary of current configuration"""
-    print("=" * 60)
-    print("BILATERAL MIRRORING CONFIGURATION")
-    print("=" * 60)
-    print(f"Data Version: {get_data_version()}")
-    # print(f"Download Type: {DOWNLOAD_TYPE}")
-    print(
-        f"Test Mode: {'ON (2020-END_YEAR only)' if TEST_MODE else 'OFF (full year range)'}"
-    )
-    print()
-
-    print("What will be processed:")
-    classifications = get_classifications()
-    if not classifications:
-        print(
-            "  ⚠️  Nothing selected! Turn on PROCESS_SITC, PROCESS_HS92, or PROCESS_HS12"
-        )
-    else:
-        for classification, start_year, end_year, desc in classifications:
-            print(f"  ✓ {desc}: {start_year}-{end_year}")
-    print()
-
-    print("Processing steps:")
-    for step, enabled in PROCESSING_STEPS.items():
-        status = "✓" if enabled else "✗"
-        print(f"  {status} {step}")
-    print()
-
-    # Validation
-    errors = validate_config()
-    if errors:
-        print("⚠️  Configuration Errors:")
-        for error in errors:
-            print(f"  • {error}")
-    else:
-        print("✅ Configuration is valid")
-    print("=" * 60)
-
-
-if __name__ == "__main__":
-    print_config_summary()
