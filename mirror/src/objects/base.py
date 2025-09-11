@@ -33,6 +33,7 @@ class AtlasCleaning(object):
         "S2",
         "S3",
         "ST",
+        "EB10",
     ]
 
     HIERARCHY_LEVELS = {
@@ -49,6 +50,7 @@ class AtlasCleaning(object):
         "S2": (0, 2, 4),
         "S3": (0, 2, 4),
         "ST": (0, 2, 4),
+        "EB10": (0, 2, 4, 6),
     }
 
     REGIONAL_GROUP_TYPES = ["world", "region", "subregion"]
@@ -136,6 +138,8 @@ class AtlasCleaning(object):
     def get_product_class_system(self):
         if self.product_classification in ["S1", "S2", "S3", "SITC"]:
             return "SITC"
+        if self.product_classification in ["EB10"]:
+            return "HS"
         else:
             return "HS"
 

@@ -44,7 +44,25 @@ class AggregateTrade(AtlasCleaning):
             "S2": "9310",
             "S3": "9310",
             "ST": "9310",
+            "EB10": "10.1.2",
         }
+        self.prod_class_total_code = {
+            "HS": "TOTAL",
+            "H0": "TOTAL",
+            "H1": "TOTAL",
+            "H2": "TOTAL",
+            "H3": "TOTAL",
+            "H6": "TOTAL",
+            "H4": "TOTAL",
+            "H5": "TOTAL",
+            "SITC": "TOTAL",
+            "S1": "TOTAL",
+            "S2": "TOTAL",
+            "S3": "TOTAL",
+            "ST": "TOTAL",
+            "EB10": "200",
+        }
+
         self.product_class = product_class
 
     def run_aggregate_trade(self) -> None:
@@ -55,6 +73,7 @@ class AggregateTrade(AtlasCleaning):
         self.df, self.ans_partners = handle_ans_and_other_asia_to_taiwan_recoding(
             self.df, self.ans_partners
         )
+
         self.enforce_commodity_code_length()
 
         self.filter_data()
@@ -66,10 +85,11 @@ class AggregateTrade(AtlasCleaning):
         )
 
         self.df = self.df[self.df["trade_flow"].isin([1, 2])]
+
         self.flag_unspecified_products()
 
         self.df = standardize_historical_country_codes(self.df)
-
+        
         # returns bilateral data
         df_0 = self.create_bilateral_trade_matrix(0)
         df_4 = self.create_bilateral_trade_matrix(4)
@@ -125,7 +145,6 @@ class AggregateTrade(AtlasCleaning):
             - "X" (Export) → 2
             - "RM" (Re-import) → 3
             - "RX" (Re-export) → 4
-
         """
         if self.product_class_system == "SITC":
             try:
@@ -148,12 +167,15 @@ class AggregateTrade(AtlasCleaning):
         """
         codes = self.df.loc[:, "commodity_code"].astype(str)
         levels = self.df.loc[:, "product_level"].astype(int)
-
+        
         padded_codes = [
-            code.zfill(0 if code == "TOTAL" else level)
+            code.zfill(0 if code == self.prod_class_total_code[self.product_class] else level)
             for code, level in zip(codes, levels)
         ]
         self.df.loc[:, "commodity_code"] = padded_codes
+        
+        if self.prod_class_total_code[self.product_class] == "200":
+            self.df.loc[self.df.commodity_code=="200", "product_level"] = 0
 
     def flag_unspecified_products(self) -> None:
         """
@@ -195,7 +217,7 @@ class AggregateTrade(AtlasCleaning):
             .agg({"trade_value": "sum", "reporter_ansnoclas": "sum"})
             .reset_index()
         )
-
+        
         df = df[
             [
                 "reporter_iso",
@@ -205,7 +227,7 @@ class AggregateTrade(AtlasCleaning):
                 "trade_flow",
             ]
         ]
-
+        
         # generates one obs per unique pair of reporter and partner for both
         df = df.pivot_table(
             index=["reporter_iso", "partner_iso"],

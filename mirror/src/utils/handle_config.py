@@ -77,6 +77,12 @@ def get_classifications_list(classifications_dict, end_year, start_year_dict, te
     if classifications_dict["HS22"]:
         start_year = test_start_year if test_start_year else start_year_dict['H6']
         classifications.append(("H6", start_year, end_year, "HS22"))
+        
+        
+    if classifications_dict["EB10"]:
+        start_year = test_start_year if test_start_year else start_year_dict['EB10']
+        classifications.append(("EB10", start_year, end_year, "EB10"))
+
     return classifications
 
 
@@ -110,6 +116,7 @@ def validate_config(paths, download_type, classifications_list):
         "S1",
         "S2",
         "S3",
+        "EB10"
     ]
 
     for classification, start_year, end_year, desc in classifications_list:

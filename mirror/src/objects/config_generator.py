@@ -41,16 +41,9 @@ class ConfigGenerator:
             'PROCESS_HS12': classifications.get('hs12', False),
             'PROCESS_HS17': classifications.get('hs17', False),
             'PROCESS_HS22': classifications.get('hs22', False),
+            'PROCESS_EB10': classifications.get('eb10', False),
         }
     
-    # def _map_classification_start_years(self) -> Dict[str, int]:
-    #     # Classification start years (with defaults)
-    #     classification_start_years = self.config_data.get('classification_start_years')
-    #     start_years = {}
-    #     for key, value in classification_start_years.items():
-    #         start_years[key] = int(value)
-    #     import pdb
-    #     pdb.set_trace()
         return start_years
     
     def _map_processing_steps(self) -> Dict[str, bool]:
@@ -141,7 +134,7 @@ from mirror.src.utils.handle_config import get_classifications_list
 Data version - will be used as folder name for output
 If None, auto-generates based on today's date
 """
-DATA_VERSION = {kwargs['data_version']}  # e.g., "2024_12_01" or None for auto-generation
+DATA_VERSION = f"{kwargs['data_version']}"  # e.g., "2024_12_01" or None for auto-generation
 
 # =============================================================================
 # PATHS CONFIGURATION
@@ -186,6 +179,8 @@ PROCESS_HS02 = {classification_flags['PROCESS_HS02']}
 PROCESS_HS07 = {classification_flags['PROCESS_HS07']}
 PROCESS_HS17 = {classification_flags['PROCESS_HS17']}
 PROCESS_HS22 = {classification_flags['PROCESS_HS22']}
+
+PROCESS_EB10 = {classification_flags['PROCESS_EB10']}
 
 # Test mode - only process recent years (TEST_START_YEAR- END_YEAR)
 TEST_MODE = {kwargs['test_mode']}
@@ -232,6 +227,7 @@ classifications_dict = {{
     "SITC1": PROCESS_SITC1,
     "SITC2": PROCESS_SITC2,
     "SITC3": PROCESS_SITC3,
+    "EB10": PROCESS_EB10,
 }}
 
 
@@ -278,5 +274,14 @@ else:
                     'H6': 'HS 2022 vintage (2022-present)'
                 }[key]
                 lines.append(f'    "{key}": {year},  # {comment}')
+                
+        for key in ['EB10']:
+            if key in start_years:
+                year = start_years[key]
+                comment = {
+                    'EB10': 'EBOPS Services (2005-present)',
+                }[key]
+                lines.append(f'    "{key}": {year},  # {comment}')
+
         
         return '\n'.join(lines)

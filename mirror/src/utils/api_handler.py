@@ -4,6 +4,7 @@ import pandas as pd
 import os
 from pathlib import Path
 from src.utils.logging import get_logger
+import sdmx
 
 logger = get_logger(__name__)
 
@@ -35,33 +36,56 @@ class IMFData:
         "upper middle": 0.39,
         "high": 0.66,
     }
+    
 
     def __init__(
         self,
         latest_data_year,
     ):
         self.latest_data_year = latest_data_year
+        self.IMF_DATA = sdmx.Client('IMF_DATA')
 
     def query_imf_api(self, fields: list, country_codes=[]):
-        fields = "/".join(fields)
-        if country_codes:
-            country_codes = "/".join(country_codes)
 
-        df = pd.json_normalize(
-            json.loads(
-                requests.get(
-                    "https://www.imf.org/external/datamapper/api/v1"
-                    f"/{fields}/{country_codes}"
-                ).text
-            )["values"]
-        ).T.reset_index()
-        df = df.rename(columns={"code": "iso3_code"})
-        df[["indicator", "iso3_code", "year"]] = df["index"].str.split(".", expand=True)
-        df = (
-            df.drop(columns="index")
-            .rename(columns={0: "value"})
-            .astype({"indicator": str, "iso3_code": str, "year": int, "value": float})
-        )
+        fields = "+".join(fields)
+        if country_codes:
+            country_codes = "+".join(country_codes)
+        else:
+            country_codes = ""
+
+        data_msg = self.IMF_DATA.data('WEO', key=f'{country_codes}.{fields}')
+        df = sdmx.to_pandas(data_msg).reset_index()
+
+        df = df[~df.TIME_PERIOD.isna()]
+
+        df = df.rename(columns={
+            'TIME_PERIOD': 'year',
+            'COUNTRY': 'iso3_code',
+            'INDICATOR': 'indicator',
+            'VALUE': 'value'
+        }).astype({"indicator": str, "iso3_code": str, "year": int, "value": float})
+
+
+
+        # fields = "/".join(fields)
+        # if country_codes:
+        #     country_codes = "/".join(country_codes)
+
+        # df = pd.json_normalize(
+        #     json.loads(
+        #         requests.get(
+        #             "https://www.imf.org/external/datamapper/api/v1"
+        #             f"/{fields}/{country_codes}"
+        #         ).text
+        #     )["values"]
+        # ).T.reset_index()
+        # df = df.rename(columns={"code": "iso3_code"})
+        # df[["indicator", "iso3_code", "year"]] = df["index"].str.split(".", expand=True)
+        # df = (
+        #     df.drop(columns="index")
+        #     .rename(columns={0: "value"})
+        #     .astype({"indicator": str, "iso3_code": str, "year": int, "value": float})
+        # )
 
         df = df.pivot_table(
             values="value", index=["year", "iso3_code"], columns="indicator"

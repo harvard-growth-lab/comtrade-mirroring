@@ -21,6 +21,7 @@ class CountryCountryProductYear(AtlasCleaning):
         - Reconciles export/import discrepancies at commodity level
         - Reweights values to match country totals
     """
+    SERVICES_CLASSIFICATIONS = ["EB10"]
 
     EXPORT_FLOW_CODE = 2
     IMPORT_FLOW_CODE = 1
@@ -48,6 +49,7 @@ class CountryCountryProductYear(AtlasCleaning):
         "S1": ["XXXX", "9999"],
         "S2": ["XXXX", "9999"],
         "SITC": ["XXXX", "9999"],
+        "EB10": ["XXXXXX", "10.1.2"],
     }
     TRADE_DATA_DISCREPANCIES = 0
     NOT_SPECIFIED = 1
@@ -108,7 +110,7 @@ class CountryCountryProductYear(AtlasCleaning):
                 "import_value": "value_importer",
             }
         )
-        if self.year > 2019:
+        if self.year > 2019 and self.product_classification not in self.SERVICES_CLASSIFICATIONS:
             ven_opec = handle_ven_oil(
                 self.year,
                 self.df,

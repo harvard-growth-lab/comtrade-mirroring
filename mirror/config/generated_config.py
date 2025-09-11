@@ -54,23 +54,25 @@ END_YEAR = 2023
 
 # Which trade classifications to process (leave True for the ones you want)
 PROCESS_SITC1 = False  # SITC data from 1962-END_YEAR
-PROCESS_SITC2 = True  # SITC data from 1976-END_YEAR
+PROCESS_SITC2 = False  # SITC data from 1976-END_YEAR
 PROCESS_SITC3 = False  # SITC data from 1988-END_YEAR
 
-PROCESS_HS92 = True  # HS92 data from 1992-END_YEAR
-PROCESS_HS12 = True  # HS12 data from 2012-END_YEAR
+PROCESS_HS92 = False  # HS92 data from 1992-END_YEAR
+PROCESS_HS12 = False  # HS12 data from 2012-END_YEAR
 PROCESS_HS96 = False
 PROCESS_HS02 = False
 PROCESS_HS07 = False
 PROCESS_HS17 = False
 PROCESS_HS22 = False
 
+PROCESS_EB10 = True
+
 # Test mode - only process recent years (TEST_START_YEAR- END_YEAR)
 TEST_MODE = False
 # must be set for year classification vintage was released or later
 TEST_START_YEAR = 2020
 
-CLASSIFICATION_START_YEARS = {'H0': 1995, 'H1': 1996, 'H2': 2002, 'H3': 2007, 'H4': 2007, 'H5': 2017, 'H6': 2017, 'S1': 1962, 'S2': 1962, 'S3': 1988}
+CLASSIFICATION_START_YEARS = {'H0': 1995, 'H1': 1996, 'H2': 2002, 'H3': 2007, 'H4': 2007, 'H5': 2017, 'H6': 2017, 'S1': 1962, 'S2': 1962, 'S3': 1988, 'EB10': 2010}
 
 # =============================================================================
 # DATA PROCESSING STEPS
@@ -110,6 +112,7 @@ classifications_dict = {
     "SITC1": PROCESS_SITC1,
     "SITC2": PROCESS_SITC2,
     "SITC3": PROCESS_SITC3,
+    "EB10": PROCESS_EB10,
 }
 
 

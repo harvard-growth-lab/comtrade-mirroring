@@ -54,7 +54,7 @@ def handle_ans_and_other_asia_to_taiwan_recoding(
 
     ans_partners = ans_partners["PartnerCodeIsoAlpha3"].tolist()
     df.loc[df["partner_iso"].isin(ans_partners), "partner_iso"] = "ANS"
-    df.loc[df["partner_iso"].isna(), "partner_iso"] = "ANS"
+    df.loc[df["partner_iso"].isna(), "partner_iso"] = "ANS"        
     return df, ans_partners
 
 
