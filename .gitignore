@@ -5,3 +5,5 @@ src/data/
 *.csv
 **/.ipynb_checkpoints/
 **/__pycache__/
+mirror/config/*.yaml
+mirror/config/generated_config.py
