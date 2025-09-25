@@ -140,4 +140,5 @@ if __name__ == "__main__":
 
     logger = setup_logging(config_module.LOG_LEVEL, config_module.DATA_VERSION)
     logger.info(f"Using config: {args.config}")
+
     main()

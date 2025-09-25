@@ -90,9 +90,15 @@ class CountryCountryProductYear(AtlasCleaning):
 
         self.calculate_final_trade_value()
         logger.debug("ccpy: calculated final trade val")
+        # import pdb
+        # pdb.set_trace()
+
 
         self.reweight_final_trade_value()
         logger.debug("ccpy: reweighted")
+        # import pdb
+        # pdb.set_trace()
+
 
         # final processing
         self.filter_and_handle_trade_data_discrepancies()
@@ -107,6 +113,7 @@ class CountryCountryProductYear(AtlasCleaning):
             columns={
                 "reweighted_value": "value_final",
                 "export_value": "value_exporter",
+                # import value is raw reported value before calculated CIF is subtracted
                 "import_value": "value_importer",
             }
         )
@@ -196,6 +203,7 @@ class CountryCountryProductYear(AtlasCleaning):
             .reset_index()
         )
 
+
         reported_exports = self.df[self.df.trade_flow == self.EXPORT_FLOW_CODE]
         reported_imports = self.df[self.df.trade_flow == self.IMPORT_FLOW_CODE]
 
@@ -207,6 +215,7 @@ class CountryCountryProductYear(AtlasCleaning):
             suffixes=("_reporting_exp", "_reporting_imp"),
         )
 
+
         # Handle asymmetrical imports/exports
         self.df["reporter_iso_reporting_exp"] = self.df[
             "reporter_iso_reporting_exp"
@@ -214,6 +223,7 @@ class CountryCountryProductYear(AtlasCleaning):
         self.df["partner_iso_reporting_exp"] = self.df[
             "partner_iso_reporting_exp"
         ].combine_first(self.df["reporter_iso_reporting_imp"])
+
 
         self.df = self.df.drop(
             columns=[
@@ -223,6 +233,8 @@ class CountryCountryProductYear(AtlasCleaning):
                 "partner_iso_reporting_imp",
             ]
         )
+        
+        # each row represents the 
         self.df = self.df.rename(
             columns={
                 "trade_value_reporting_exp": "export_value",
@@ -235,6 +247,7 @@ class CountryCountryProductYear(AtlasCleaning):
         self.df[["export_value", "import_value"]] = self.df[
             ["export_value", "import_value"]
         ].fillna(0)
+
 
         self.df = self.df.merge(
             self.ccy[
@@ -249,7 +262,12 @@ class CountryCountryProductYear(AtlasCleaning):
             on=["importer", "exporter"],
             how="left",
         )
-        self.df["import_value"] = self.df["import_value"] * (1 - self.df["cif_ratio"])
+
+        # import pdb
+        # pdb.set_trace()
+
+        self.df['cif_ratio'] = self.df['cif_ratio'].fillna(0)
+        self.df["import_value_less_cif"] = self.df["import_value"] * (1 - self.df["cif_ratio"])
         self.df = self.df.drop(columns=["cif_ratio"])
         self.df = self.df.fillna(0.0)
 
@@ -263,11 +281,11 @@ class CountryCountryProductYear(AtlasCleaning):
         self.df["trade_score"] = (
             1
             * (
-                (1 * (self.df["export_value"] > 0) + 1 * (self.df["import_value"] > 0))
+                (1 * (self.df["export_value"] > 0) + 1 * (self.df["import_value_less_cif"] > 0))
                 > 1
             )
             + 1 * (self.df["export_value"] > 0)
-            + 2 * (self.df["import_value"] > 0)
+            + 2 * (self.df["import_value_less_cif"] > 0)
         )
 
     def assign_reliability_scores(self) -> None:
@@ -308,16 +326,16 @@ class CountryCountryProductYear(AtlasCleaning):
             (
                 (
                     (self.df["exporter_weight"] * self.df["export_value"])
-                    + ((1 - self.df["importer_weight"]) * self.df["import_value"])
+                    + ((1 - self.df["importer_weight"]) * self.df["import_value_less_cif"])
                 )
                 * ((self.df["trade_score"] == 4) * (self.df["reliability"] == 4))
             )
             + (
-                self.df["import_value"]
+                self.df["import_value_less_cif"]
                 * ((self.df["trade_score"] == 2) * (self.df["reliability"] == 2))
             )
             + (
-                self.df["import_value"]
+                self.df["import_value_less_cif"]
                 * ((self.df["trade_score"] == 2) * (self.df["reliability"] == 4))
             )
             + (
@@ -329,7 +347,7 @@ class CountryCountryProductYear(AtlasCleaning):
                 * ((self.df["trade_score"] == 1) * (self.df["reliability"] == 4))
             )
             + (
-                self.df["import_value"]
+                self.df["import_value_less_cif"]
                 * ((self.df["trade_score"] == 4) * (self.df["reliability"] == 2))
             )
             + (
@@ -338,11 +356,11 @@ class CountryCountryProductYear(AtlasCleaning):
             )
             + (
                 0.5
-                * (self.df["export_value"] + self.df["import_value"])
+                * (self.df["export_value"] + self.df["import_value_less_cif"])
                 * ((self.df["trade_score"] == 4) * (self.df["reliability"] == 0))
             )
             + (
-                self.df["import_value"]
+                self.df["import_value_less_cif"]
                 * ((self.df["trade_score"] == 2) * (self.df["reliability"] == 0))
             )
             + (
@@ -350,7 +368,7 @@ class CountryCountryProductYear(AtlasCleaning):
                 * ((self.df["trade_score"] == 1) * (self.df["reliability"] == 0))
             )
             + (
-                self.df["import_value"]
+                self.df["import_value_less_cif"]
                 * ((self.df["trade_score"] == 2) * (self.df["reliability"] == 1))
             )
             + (
@@ -388,6 +406,9 @@ class CountryCountryProductYear(AtlasCleaning):
             country_level_trade_total, on=["exporter", "importer"], how="outer"
         ).fillna(0)
         reweight_df = reweight_df.rename(columns={"commodity_code": "commoditycode"})
+
+        # import pdb
+        # pdb.set_trace()
 
         # determine if data trade discrepancies
         reweight_df["reporting_inconsistency_type_1"] = (
@@ -461,6 +482,8 @@ class CountryCountryProductYear(AtlasCleaning):
         trade_discrepancy_values = trade_discrepancy_values.rename(
             columns={"trade_discrepancy_value": "reweighted_value"}
         )
+        # import pdb
+        # pdb.set_trace()
         self.df = pd.concat([self.df, trade_discrepancy_values], axis=0)
 
     def filter_and_handle_trade_data_discrepancies(self) -> None:

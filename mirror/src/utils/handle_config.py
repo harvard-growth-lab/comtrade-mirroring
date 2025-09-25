@@ -7,7 +7,7 @@ from datetime import date
 
 def get_data_version(data_version):
     """Generate data version string if not manually specified"""
-    if data_version:
+    if data_version and data_version is not None and data_version != 'None':
         return data_version
     return f"{(date.today()).strftime('%Y_%m_%d')}"
 

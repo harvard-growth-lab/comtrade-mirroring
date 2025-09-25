@@ -18,7 +18,7 @@ from mirror.src.utils.handle_config import get_classifications_list
 Data version - will be used as folder name for output
 If None, auto-generates based on today's date
 """
-DATA_VERSION = None  # e.g., "2024_12_01" or None for auto-generation
+DATA_VERSION = "2025_09_24"  # e.g., "2024_12_01" or None for auto-generation
 
 # =============================================================================
 # PATHS CONFIGURATION
@@ -34,7 +34,7 @@ DOWNLOADED_FILES_PATH = (
 
 # results directory path
 FINAL_OUTPUT_PATH = (
-    f"/path/to/output/data"
+    f"/n/hausmann_lab/lab/atlas/data"
 )
 
 
@@ -67,7 +67,7 @@ PROCESS_HS22 = True
 # Test mode - only process recent years (TEST_START_YEAR- END_YEAR)
 TEST_MODE = True
 # must be set for year classification vintage was released or later
-TEST_START_YEAR = 2020
+TEST_START_YEAR = 2023
 
 # =============================================================================
 # DATA PROCESSING STEPS
