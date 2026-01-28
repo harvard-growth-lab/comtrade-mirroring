@@ -1,10 +1,10 @@
 # Comtrade Mirroring
 
-Reconcile international trade data from UN Comtrade to produce mirrored bilateral trade data.
+Produces harmonized bilateral trade estimates by reconciling exporter- and importer-reported UN Comtrade data using a reliability-weighted method.
 
 ## What This Does
 
-Transforms UN Comtrade data into clean bilateral trade statistics through a sophisticated mirroring process that reconciles discrepancies between exporter and importer reported values.
+Transforms UN Comtrade data into clean bilateral trade data through a mirroring process that reconciles discrepancies between exporter and importer reported values. This methodology underpins the bilateral trade data published in the Atlas of Economic Complexity.
 
 ### Prerequisites
 - Python 3.10+
@@ -93,20 +93,20 @@ Each trade file contains: `year, exporter, importer, commoditycode, value_final,
 
 ## How It Works
 
-The mirroring pipeline consists of five processing steps. 
+The mirroring pipeline consists of five processing steps: 
 
-### 1. Preprocessing and trade aggregation
+### 1. Preprocess and aggregate trade data
 
-### 2. CIF-to-FOB adjustment
+### 2. Adjust values from CIF to FOB
 
-### 3. Compute country reliability scores
+### 3. Compute country reporting reliability scores
 
-### 4. Country pair totals trade reconciliation
+### 4. Reconcile country-pair trade totals
 
-### 5. Product-level trade reconciliation
+### 5. Reconcile product-level trade values
 
 
-The final output provides reconciled trade values that combine exporter and importer reports based on the reporting country reliability scores.
+The final output provides reconciled trade values that combine exporter and importer reports based a country reporting reliability network.
 
 ## Repository Structure
 
@@ -148,10 +148,8 @@ The pipeline expects downloaded Comtrade data in this structure:
 ## Technical Details
 
 ### System Requirements
-- **Memory**: 16GB+ RAM recommended for full processing
-- **Storage**: 100GB+ available space for intermediate files
-- **CPU**: Multi-core processor recommended
-
+- **Memory**: ~16GB+ RAM recommended for full processing
+- **Storage**: 30GB+ available space for files
 
 ## License
 
