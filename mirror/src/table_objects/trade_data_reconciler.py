@@ -469,7 +469,6 @@ class TradeDataReconciler(AtlasCleaning):
 
         # Select and reorder columns
         columns_to_keep = [
-            # "year",
             "exporter",
             "importer",
             "export_value",

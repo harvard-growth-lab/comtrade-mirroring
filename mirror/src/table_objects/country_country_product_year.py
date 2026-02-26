@@ -30,9 +30,9 @@ class CountryCountryProductYear(AtlasCleaning):
         "H1": "270900",
         "H2": "270900",
         "H3": "270900",
-        "H6": "270900",
         "H4": "270900",
         "H5": "270900",
+        "H6": "270900",
         "S1": "3230",
         "S2": "3230",
         "SITC": "3230",
@@ -43,9 +43,9 @@ class CountryCountryProductYear(AtlasCleaning):
         "H1": ["XXXXXX", "999999"],
         "H2": ["XXXXXX", "999999"],
         "H3": ["XXXXXX", "999999"],
-        "H6": ["XXXXXX", "999999"],
         "H4": ["XXXXXX", "999999"],
         "H5": ["XXXXXX", "999999"],
+        "H6": ["XXXXXX", "999999"],
         "S1": ["XXXX", "9999"],
         "S2": ["XXXX", "9999"],
         "SITC": ["XXXX", "9999"],
@@ -66,6 +66,7 @@ class CountryCountryProductYear(AtlasCleaning):
         self.df = self.load_parquet(
             f"intermediate", f"{self.product_classification}_{self.year}_preprocessed"
         )
+
         self.df = self.df.rename(columns={"commodity_code": "commoditycode"})
         if self.product_classification.startswith("H"):
             self.df.loc[self.df["commoditycode"].str[:4] == "9999", "commoditycode"] = (
@@ -90,15 +91,9 @@ class CountryCountryProductYear(AtlasCleaning):
 
         self.calculate_final_trade_value()
         logger.debug("ccpy: calculated final trade val")
-        # import pdb
-        # pdb.set_trace()
-
 
         self.reweight_final_trade_value()
         logger.debug("ccpy: reweighted")
-        # import pdb
-        # pdb.set_trace()
-
 
         # final processing
         self.filter_and_handle_trade_data_discrepancies()
@@ -193,7 +188,7 @@ class CountryCountryProductYear(AtlasCleaning):
             ]
         ]
 
-        self.df = self.df[~(self.df.trade_value < 1_000)]
+        # self.df = self.df[~(self.df.trade_value < 1_000)]
 
         self.df = (
             self.df.groupby(
@@ -262,9 +257,6 @@ class CountryCountryProductYear(AtlasCleaning):
             on=["importer", "exporter"],
             how="left",
         )
-
-        # import pdb
-        # pdb.set_trace()
 
         self.df['cif_ratio'] = self.df['cif_ratio'].fillna(0)
         self.df["import_value_less_cif"] = self.df["import_value"] * (1 - self.df["cif_ratio"])
@@ -407,8 +399,6 @@ class CountryCountryProductYear(AtlasCleaning):
         ).fillna(0)
         reweight_df = reweight_df.rename(columns={"commodity_code": "commoditycode"})
 
-        # import pdb
-        # pdb.set_trace()
 
         # determine if data trade discrepancies
         reweight_df["reporting_inconsistency_type_1"] = (
@@ -445,13 +435,13 @@ class CountryCountryProductYear(AtlasCleaning):
             reweight_df["ccy_trade"] - reweight_df["ccpy_trade"]
         ) * reweight_df["has_trade_data_discrepancy"]
 
-        reweight_df["value_less_discrep"] = (
+        reweight_df["ccy_value_less_discrep"] = (
             reweight_df["ccy_trade"] - reweight_df["trade_discrepancy_value"]
         )
 
-        self.df.loc[self.df.final_value > 1000, "reweighted_value"] = self.df[
-            "final_value"
-        ]
+        # VR = VF :- VF:*(VF:<1000)
+        self.df.loc[self.df.final_value > 1000, "reweighted_value"] = self.df.loc[self.df.final_value > 1000, "final_value"]
+        self.df['reweighted_value'] = self.df['reweighted_value'].fillna(0)
 
         self.df["reweighted_value_ratio"] = self.df["reweighted_value"] / (
             self.df.groupby(["exporter", "importer"])["reweighted_value"].transform(
@@ -460,15 +450,15 @@ class CountryCountryProductYear(AtlasCleaning):
         )
 
         self.df = self.df.merge(
-            reweight_df[["exporter", "importer", "value_less_discrep"]],
+            reweight_df[["exporter", "importer", "ccy_value_less_discrep"]],
             on=["exporter", "importer"],
             how="outer",
         )
         self.df["reweighted_value"] = (
-            self.df["reweighted_value_ratio"] * self.df["value_less_discrep"]
+            self.df["reweighted_value_ratio"] * self.df["ccy_value_less_discrep"]
         )
 
-        self.df = self.df.drop(columns=["value_less_discrep", "reweighted_value_ratio"])
+        self.df = self.df.drop(columns=["ccy_value_less_discrep", "reweighted_value_ratio"])
 
         reweight_df = reweight_df[["exporter", "importer", "trade_discrepancy_value"]]
         trade_discrepancy_values = reweight_df[
@@ -482,8 +472,6 @@ class CountryCountryProductYear(AtlasCleaning):
         trade_discrepancy_values = trade_discrepancy_values.rename(
             columns={"trade_discrepancy_value": "reweighted_value"}
         )
-        # import pdb
-        # pdb.set_trace()
         self.df = pd.concat([self.df, trade_discrepancy_values], axis=0)
 
     def filter_and_handle_trade_data_discrepancies(self) -> None:

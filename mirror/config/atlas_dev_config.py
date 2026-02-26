@@ -50,23 +50,23 @@ PATHS = {
 
 # MUST HAVE DATA DOWNLOADED FROM COMTRADE-DOWNLOADER 
 # END YEAR FOR PROCESSING
-END_YEAR = 2023
+END_YEAR = 2024
 
 # Which trade classifications to process (leave True for the ones you want)
 PROCESS_SITC1 = False  # SITC data from 1962-END_YEAR
-PROCESS_SITC2 = False  # SITC data from 1976-END_YEAR
+PROCESS_SITC2 = True  # SITC data from 1976-END_YEAR
 PROCESS_SITC3 = False  # SITC data from 1988-END_YEAR
 
-PROCESS_HS92 = False  # HS92 data from 1992-END_YEAR
-PROCESS_HS12 = False  # HS12 data from 2012-END_YEAR
-PROCESS_HS96 = False
+PROCESS_HS92 = True  # HS92 data from 1992-END_YEAR
+PROCESS_HS12 = True  # HS12 data from 2012-END_YEAR
+PROCESS_HS96 = True
 PROCESS_HS02 = False
 PROCESS_HS07 = False
 PROCESS_HS17 = False
 PROCESS_HS22 = True
 
 # Test mode - only process recent years (TEST_START_YEAR- END_YEAR)
-TEST_MODE = False
+TEST_MODE = True
 # must be set for year classification vintage was released or later
 TEST_START_YEAR = 2020
 
@@ -82,7 +82,7 @@ CLASSIFICATION_START_YEARS = {
     "H3": 2007,  # HS 2007 vintage (2007-present)
     "H4": 2012,  # HS 2012 vintage (2012-present)
     "H5": 2017,  # HS 2017 vintage (2017-present)
-    "H6": 2017,  # HS 2022 vintage (2022-present)
+    "H6": 2022,  # HS 2022 vintage (2022-present)
 }
 
 # =============================================================================

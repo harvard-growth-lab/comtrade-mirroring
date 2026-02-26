@@ -33,6 +33,21 @@ def standardize_historical_country_codes(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[df["partner_iso"].isin(["ZA1"]), "partner_iso"] = "ZAF"
     return df
 
+def enforce_country_start_end_years(df: pd.DataFrame, loc_classification: pd.DataFrame, year: int) -> pd.DataFrame:
+    """
+    """
+    df = df.merge(loc_classification[['iso3_code', "country_end_year", "country_start_year"]], left_on="reporter_iso", right_on="iso3_code", how='left')
+    df = df.merge(loc_classification[['iso3_code', "country_end_year", "country_start_year"]], left_on="partner_iso", right_on="iso3_code", how='left', suffixes=('','_partner'))
+    # drop invalid reporter years
+    df = df[
+        (df.country_start_year.isna() | (df.country_start_year <= year)) &
+        (df.country_start_year_partner.isna() | (df.country_start_year_partner <= year)) &
+        (df.country_end_year.isna() | (df.country_end_year >= year)) &
+        (df.country_end_year_partner.isna() | (df.country_end_year_partner >= year))
+    ]
+    df = df.drop(columns=['country_start_year', 'country_end_year', 'country_start_year_partner','country_end_year_partner'])
+    return df
+
 
 def handle_ans_and_other_asia_to_taiwan_recoding(
     df: pd.DataFrame, ans_partners: pd.DataFrame

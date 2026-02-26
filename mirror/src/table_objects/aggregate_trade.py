@@ -12,6 +12,7 @@ from src.objects.base import AtlasCleaning
 from src.utils.handle_iso_codes_recoding import (
     handle_ans_and_other_asia_to_taiwan_recoding,
     standardize_historical_country_codes,
+    enforce_country_start_end_years,
 )
 
 
@@ -67,6 +68,7 @@ class AggregateTrade(AtlasCleaning):
 
     def run_aggregate_trade(self) -> None:
         self.df = self.load_downloaded_trade_file()
+
         if self.df.empty:
             self.missing_data = True
             return
@@ -80,6 +82,7 @@ class AggregateTrade(AtlasCleaning):
 
         if self.product_class in ["S1", "S2", "S3"]:
             self.product_class_system = "SITC"
+
         self.save_parquet(
             self.df, "intermediate", f"{self.product_class}_{self.year}_preprocessed"
         )
@@ -87,8 +90,10 @@ class AggregateTrade(AtlasCleaning):
         self.df = self.df[self.df["trade_flow"].isin([1, 2])]
 
         self.flag_unspecified_products()
-
+        loc_classification = pd.read_csv(self.root_dir / "data" / "static" / "country.csv")
         self.df = standardize_historical_country_codes(self.df)
+        self.df = enforce_country_start_end_years(self.df, loc_classification, self.year)
+
         
         # returns bilateral data
         df_0 = self.create_bilateral_trade_matrix(0)
