@@ -90,7 +90,7 @@ class AggregateTrade(AtlasCleaning):
         self.df = self.df[self.df["trade_flow"].isin([1, 2])]
 
         self.flag_unspecified_products()
-        loc_classification = pd.read_csv(self.root_dir / "data" / "static" / "country.csv")
+        loc_classification = pd.read_csv(self.atlas_common_path / "classification" / "location" / "country.csv")
         self.df = standardize_historical_country_codes(self.df)
         self.df = enforce_country_start_end_years(self.df, loc_classification, self.year)
 
