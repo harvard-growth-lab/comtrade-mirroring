@@ -5,6 +5,7 @@ import pandas as pd
 from sys import argv
 import numpy as np
 from src.utils.logging import get_logger
+import atlas_common_data
 
 logger = get_logger(__name__)
 
@@ -90,7 +91,7 @@ class AggregateTrade(AtlasCleaning):
         self.df = self.df[self.df["trade_flow"].isin([1, 2])]
 
         self.flag_unspecified_products()
-        loc_classification = pd.read_csv(self.atlas_common_path / "classification" / "location" / "country.csv")
+        loc_classification = atlas_common_data.load_countries()
         self.df = standardize_historical_country_codes(self.df)
         self.df = enforce_country_start_end_years(self.df, loc_classification, self.year)
 

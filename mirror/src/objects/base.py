@@ -121,7 +121,6 @@ class AtlasCleaning(object):
             "final_output_path": self.final_output_path,
             # used for comparison to atlas production data and generated data
             "comparison_file_path": self.comparison_file_path,
-            "atlas_common_path": self.atlas_common_path,
             "product_classification": self.product_classification,
         }
     
