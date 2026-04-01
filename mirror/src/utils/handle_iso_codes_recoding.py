@@ -31,6 +31,9 @@ def standardize_historical_country_codes(df: pd.DataFrame) -> pd.DataFrame:
 
     df.loc[df["reporter_iso"].isin(["ZA1"]), "reporter_iso"] = "ZAF"
     df.loc[df["partner_iso"].isin(["ZA1"]), "partner_iso"] = "ZAF"
+
+    df.loc[df["reporter_iso"].isin(["ESH"]), "reporter_iso"] = "MAR"
+    df.loc[df["partner_iso"].isin(["ESH"]), "partner_iso"] = "MAR"
     return df
 
 def enforce_country_start_end_years(df: pd.DataFrame, loc_classification: pd.DataFrame, year: int) -> pd.DataFrame:
