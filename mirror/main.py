@@ -115,15 +115,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
     description="Run Comtrade data processing with specified config"
     )
-    parser.add_argument(
-        "--config",
-        choices=["user_config", "atlas_dev_config", "dev"],
-        default="user_config",
-        help="Config file to use (default: user_config)",
-    )
+    parser.add_argument("--config", help="Config name or absolute path to YAML") 
 
     args = parser.parse_args()
     config_file = args.config
+    config_path = Path(config_file) if Path(config_file).is_absolute() else Path("config") / f"{config_file}.yaml" 
 
     # Generate Python config from YAML
     if config_file == "user_config":
