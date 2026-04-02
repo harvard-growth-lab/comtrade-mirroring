@@ -8,6 +8,7 @@ import copy
 from fredapi import Fred
 from datetime import datetime
 from mirror.src.utils.logging import get_logger
+import time
 
 logger = get_logger(__name__)
 
@@ -111,10 +112,15 @@ class TradeAnalysisCleaner(AtlasCleaning):
         # Producer Price Index by Commodity: Industrial Commodities
         fred = Fred(self.fred_api_key)
 
-        try:
-            ppiidc_series = fred.get_series_latest_release(self.FRED_SERIES_ID)
-        except Exception as e:
-            raise ValueError(f"Failed to fetch FRED series {self.FRED_SERIES_ID}: {e}")
+        for attempt in range(3):
+            try:
+                ppiidc_series = fred.get_series_latest_release(self.FRED_SERIES_ID)
+                break
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
+                else:
+                    raise ValueError(f"Failed to fetch FRED series {self.FRED_SERIES_ID}: {e}")
 
         df = pd.DataFrame(
             {"date": ppiidc_series.index, "ppiidc_index": ppiidc_series.values}
