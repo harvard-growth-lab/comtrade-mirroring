@@ -30,7 +30,7 @@ fredapi = "^0.5.2"
 xlrd = "^2.0.1"
 sdmx1 = "^2.22.0"
 weo = "^0.8.4"
-atlas-common-data = {git = "git@github.com:harvard-growth-lab/atlas-common-data.git", branch = "refactor"}
+atlas-common-data = "^1.0.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
