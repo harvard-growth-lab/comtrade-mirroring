@@ -6,13 +6,13 @@ import pandas as pd
 from datetime import datetime
 import importlib
 
-from src.objects.orchestration import (
+from mirror.src.objects.orchestration import (
     create_ingestion_attrs,
     run_mirroring,
     clean_up_intermediate_files,
 )
-from src.utils.logging import setup_logging
-from src.objects.config_generator import ConfigGenerator
+from mirror.src.utils.logging import setup_logging
+from mirror.src.objects.config_generator import ConfigGenerator
 
 from mirror.src.utils.handle_config import get_data_version, print_config_summary, validate_config
 
