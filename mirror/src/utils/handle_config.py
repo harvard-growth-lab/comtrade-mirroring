@@ -1,8 +1,76 @@
 import sys
+import types
 from pathlib import Path
 from datetime import date
 
+import yaml
 
+
+
+
+def load_config(yaml_path) -> types.SimpleNamespace:
+    """Load a YAML config file and return a SimpleNamespace with the same
+    attributes that main.py expects from the old generated_config module."""
+    yaml_path = Path(yaml_path)
+    try:
+        with open(yaml_path, "r") as f:
+            data = yaml.safe_load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"YAML config file not found: {yaml_path}")
+    except yaml.YAMLError as e:
+        raise ValueError(f"Error parsing YAML file: {e}")
+
+    shared = data.get("shared", {})
+    mirror = data.get("mirror", {})
+    classifications_yaml = data.get("classifications", {})
+    classification_start_years = data.get("classification_start_years", {})
+
+    # Flatten list-of-dicts paths into a single dict
+    paths_raw = mirror.get("paths", [])
+    paths = {}
+    for entry in paths_raw:
+        paths.update(entry)
+
+    # Map lowercase YAML keys to the uppercase keys get_classifications_list expects
+    classifications_dict = {
+        "HS92":  classifications_yaml.get("hs92",  False),
+        "HS96":  classifications_yaml.get("hs96",  False),
+        "HS02":  classifications_yaml.get("hs02",  False),
+        "HS07":  classifications_yaml.get("hs07",  False),
+        "HS12":  classifications_yaml.get("hs12",  False),
+        "HS17":  classifications_yaml.get("hs17",  False),
+        "HS22":  classifications_yaml.get("hs22",  False),
+        "SITC1": classifications_yaml.get("sitc1", False),
+        "SITC2": classifications_yaml.get("sitc2", False),
+        "SITC3": classifications_yaml.get("sitc3", False),
+        "EB10":  classifications_yaml.get("eb10",  False),
+    }
+
+    test_mode = mirror.get("test_mode", False)
+    test_start_year = mirror.get("test_start_year", None)
+
+    classifications = get_classifications_list(
+        classifications_dict,
+        shared.get("end_year"),
+        classification_start_years,
+        test_start_year if test_mode else None,
+    )
+
+    return types.SimpleNamespace(
+        DATA_VERSION=mirror.get("data_version"),
+        LOG_LEVEL=shared.get("log_level", "INFO"),
+        DOWNLOAD_TYPE=mirror.get("download_type", "as_reported"),
+        PATHS={
+            "downloaded_files_path": paths.get("downloaded_files_path", ""),
+            "final_output_path": paths.get("final_output_path", ""),
+        },
+        PROCESSING_STEPS={
+            "run_cleaning": mirror.get("processing_steps", {}).get("run_cleaning", False),
+            "delete_intermediate_files": mirror.get("processing_steps", {}).get("delete_intermediate_files", False),
+        },
+        TEST_MODE=test_mode,
+        classifications=classifications,
+    )
 
 
 def get_data_version(data_version):

@@ -4,7 +4,6 @@ import sys
 import argparse
 import pandas as pd
 from datetime import datetime
-import importlib
 
 from mirror.src.objects.orchestration import (
     create_ingestion_attrs,
@@ -12,9 +11,7 @@ from mirror.src.objects.orchestration import (
     clean_up_intermediate_files,
 )
 from mirror.src.utils.logging import setup_logging
-from mirror.src.objects.config_generator import ConfigGenerator
-
-from mirror.src.utils.handle_config import get_data_version, print_config_summary, validate_config
+from mirror.src.utils.handle_config import get_data_version, load_config, print_config_summary, validate_config
 
 
 def run(config_module):
@@ -121,18 +118,12 @@ if __name__ == "__main__":
     config_file = args.config
     config_path = Path(config_file) if Path(config_file).is_absolute() else Path("config") / f"{config_file}.yaml" 
 
-    # Generate Python config from YAML
     if config_file == "user_config":
         config_path = Path(f"{config_file}.yaml")
     else:
         config_path = Path("config") / f"{config_file}.yaml"
-    generator = ConfigGenerator(config_path)
-    generator.generate_python_config('config/generated_config.py')
 
-    try:
-        config_module = importlib.import_module("config.generated_config")
-    except ImportError:
-        raise ImportError(f"Config module '{config_file}' not found")
+    config_module = load_config(config_path)
 
     logger = setup_logging(config_module.LOG_LEVEL, config_module.DATA_VERSION)
     logger.info(f"Using config: {args.config}")
