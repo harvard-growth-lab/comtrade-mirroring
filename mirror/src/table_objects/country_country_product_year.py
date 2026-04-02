@@ -1,12 +1,12 @@
 import pandas as pd
-from src.objects.base import AtlasCleaning
+from mirror.src.objects.base import AtlasCleaning
 import os
 from pathlib import Path
 import numpy as np
 from time import gmtime, strftime, localtime
-from src.utils.country_edge_cases import handle_ven_oil, handle_sau_9999_category
-from src.objects.concordance_table import ConcordanceTable
-from src.utils.logging import get_logger
+from mirror.src.utils.country_edge_cases import handle_ven_oil, handle_sau_9999_category
+from mirror.src.objects.concordance_table import ConcordanceTable
+from mirror.src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

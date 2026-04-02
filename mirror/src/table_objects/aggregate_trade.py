@@ -4,13 +4,13 @@ import os
 import pandas as pd
 from sys import argv
 import numpy as np
-from src.utils.logging import get_logger
+from mirror.src.utils.logging import get_logger
 import atlas_common_data
 
 logger = get_logger(__name__)
 
-from src.objects.base import AtlasCleaning
-from src.utils.handle_iso_codes_recoding import (
+from mirror.src.objects.base import AtlasCleaning
+from mirror.src.utils.handle_iso_codes_recoding import (
     handle_ans_and_other_asia_to_taiwan_recoding,
     standardize_historical_country_codes,
     enforce_country_start_end_years,

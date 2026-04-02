@@ -10,7 +10,7 @@ import pyarrow.parquet as pq
 import atlas_common_data
 import shutil
 from datetime import datetime
-from src.utils.logging import get_logger
+from mirror.src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

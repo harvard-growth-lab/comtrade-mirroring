@@ -1,6 +1,6 @@
 import pandas as pd
 import os
-from src.utils.logging import get_logger
+from mirror.src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

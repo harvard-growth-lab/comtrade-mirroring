@@ -11,17 +11,17 @@ from mirror.src.utils.handle_config import (
     get_paths_config,
 )
 
-from src.utils.CIF_calculations import compute_distance
-from src.objects.base import AtlasCleaning
-from src.table_objects.aggregate_trade import AggregateTrade
-from src.table_objects.trade_analysis_cleaner import TradeAnalysisCleaner
-from src.table_objects.trade_data_reconciler import TradeDataReconciler
-from src.table_objects.country_country_product_year import CountryCountryProductYear
-from src.utils.classification_handler import (
+from mirror.src.utils.CIF_calculations import compute_distance
+from mirror.src.objects.base import AtlasCleaning
+from mirror.src.table_objects.aggregate_trade import AggregateTrade
+from mirror.src.table_objects.trade_analysis_cleaner import TradeAnalysisCleaner
+from mirror.src.table_objects.trade_data_reconciler import TradeDataReconciler
+from mirror.src.table_objects.country_country_product_year import CountryCountryProductYear
+from mirror.src.utils.classification_handler import (
     sitc_and_skip_processing,
     handle_product_classification,
 )
-from src.utils.logging import get_logger
+from mirror.src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

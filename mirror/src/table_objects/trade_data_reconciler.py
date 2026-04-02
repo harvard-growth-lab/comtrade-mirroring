@@ -1,10 +1,10 @@
 import pandas as pd
-from src.objects.base import AtlasCleaning
+from mirror.src.objects.base import AtlasCleaning
 import numpy as np
 from sklearn.decomposition import PCA
 import copy
 from typing import Tuple
-from src.utils.logging import get_logger
+from mirror.src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

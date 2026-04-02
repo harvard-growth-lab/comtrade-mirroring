@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 import os
 from pathlib import Path
-from src.utils.logging import get_logger
+from mirro.src.utils.logging import get_logger
 import sdmx
 import weo
 from weo import WEO, download
