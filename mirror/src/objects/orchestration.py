@@ -91,7 +91,7 @@ def run_bilateral_mirroring_pipeline(ingestion_attrs):
 
         logger.debug(f"Beginning compute distance for year {year}")
         base_obj = AtlasCleaning(**ingestion_attrs)
-        dist = atlas_common_data.load_geo_distances()
+        dist = pd.read_stata(base_obj.static_data_path / "dist_cepii.dta")
         df = compute_distance(base_obj, year, product_classification, dist)
 
         # cleaned country-country trade data with reporting quality metrics
