@@ -5,6 +5,7 @@ import argparse
 import pandas as pd
 from time import strftime, localtime
 from datetime import datetime
+import atlas_common_data
 
 from mirror.src.utils.handle_config import (
     get_paths_config,
@@ -90,7 +91,7 @@ def run_bilateral_mirroring_pipeline(ingestion_attrs):
 
         logger.debug(f"Beginning compute distance for year {year}")
         base_obj = AtlasCleaning(**ingestion_attrs)
-        dist = pd.read_stata(base_obj.static_data_path / "dist_cepii.dta")
+        dist = atlas_common_data.load_geo_distances()
         df = compute_distance(base_obj, year, product_classification, dist)
 
         # cleaned country-country trade data with reporting quality metrics

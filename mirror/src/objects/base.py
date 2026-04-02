@@ -7,6 +7,7 @@ import pandas as pd
 import typing
 import glob
 import pyarrow.parquet as pq
+import atlas_common_data
 import shutil
 from datetime import datetime
 from src.utils.logging import get_logger
@@ -101,9 +102,7 @@ class AtlasCleaning(object):
         self.missing_data = False
 
         # data inputs
-        self.dist_cepii = pd.read_stata(
-            os.path.join(self.static_data_path, "dist_cepii.dta")
-        )
+        self.dist_cepii = atlas_common_data.load_geo_distances()
         self.ans_partners = pd.read_csv(
             os.path.join(self.static_data_path, "areas_not_specified.csv")
         )
