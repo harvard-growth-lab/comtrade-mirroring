@@ -26,7 +26,6 @@ def standardize_historical_country_codes(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[df[country].isin(["GUF", "MYT", "REU", "MTQ", "GLP"]), country] = "FRA"
         df.loc[df[country].isin(["VDR"]), country] = "VNM"
         df.loc[df[country].isin(["YMD"]), country] = "YEM"
-        df.loc[df[country].isin(["ESH"]), country] = "MAR"
         df.loc[df[country].isin(["PCZ"]), country] = "PAN"
     return df
 

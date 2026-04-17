@@ -83,6 +83,8 @@ class AggregateTrade(AtlasCleaning):
         if self.product_class in ["S1", "S2", "S3"]:
             self.product_class_system = "SITC"
 
+        self.df = standardize_historical_country_codes(self.df)
+
         self.save_parquet(
             self.df, "intermediate", f"{self.product_class}_{self.year}_preprocessed"
         )
@@ -91,7 +93,6 @@ class AggregateTrade(AtlasCleaning):
 
         self.flag_unspecified_products()
         loc_classification = atlas_common_data.load_countries()
-        self.df = standardize_historical_country_codes(self.df)
         
         # returns bilateral data
         df_0 = self.create_bilateral_trade_matrix(0)
