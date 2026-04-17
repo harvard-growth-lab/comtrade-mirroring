@@ -11,44 +11,23 @@ def standardize_historical_country_codes(df: pd.DataFrame) -> pd.DataFrame:
     The function modifies the DataFrame in-place by:
     - Filtering out trade records between DEU and DDR (considered internal trade)
     - Mapping legacy ISO codes to their current standard equivalents
-        - Consolidating German country codes (DEU/DDR) to modern Germany (DEU)
-        - Consolidating Soviet Union codes (RUS/SUN) to Russia (RUS)
-        - Consolidating South African Union code (ZA1) to South Africa (ZAF)
-
-    Country code mappings:
-    - DEU, DDR → DEU (Germany)
-    - RUS, SUN → RUS (Russia/Soviet Union)
-    - ZA1 → ZAF (South Africa)
     """
+
+    # remove because trade with self
     df = df[~((df["reporter_iso"] == "DEU") & (df["partner_iso"] == "DDR"))]
     df = df[~((df["reporter_iso"] == "DDR") & (df["partner_iso"] == "DEU"))]
 
-    df.loc[df["partner_iso"].isin(["DEU", "DDR"]), "partner_iso"] = "DEU"
-    df.loc[df["reporter_iso"].isin(["DEU", "DDR"]), "reporter_iso"] = "DEU"
-
-    df.loc[df["partner_iso"].isin(["RUS", "SUN"]), "partner_iso"] = "RUS"
-    df.loc[df["reporter_iso"].isin(["RUS", "SUN"]), "reporter_iso"] = "RUS"
-
-    df.loc[df["reporter_iso"].isin(["ZA1"]), "reporter_iso"] = "ZAF"
-    df.loc[df["partner_iso"].isin(["ZA1"]), "partner_iso"] = "ZAF"
-
-    df.loc[df["reporter_iso"].isin(["ESH"]), "reporter_iso"] = "MAR"
-    df.loc[df["partner_iso"].isin(["ESH"]), "partner_iso"] = "MAR"
-    return df
-
-def enforce_country_start_end_years(df: pd.DataFrame, loc_classification: pd.DataFrame, year: int) -> pd.DataFrame:
-    """
-    """
-    df = df.merge(loc_classification[['iso3_code', "country_end_year", "country_start_year"]], left_on="reporter_iso", right_on="iso3_code", how='left')
-    df = df.merge(loc_classification[['iso3_code', "country_end_year", "country_start_year"]], left_on="partner_iso", right_on="iso3_code", how='left', suffixes=('','_partner'))
-    # drop invalid reporter years
-    df = df[
-        (df.country_start_year.isna() | (df.country_start_year <= year)) &
-        (df.country_start_year_partner.isna() | (df.country_start_year_partner <= year)) &
-        (df.country_end_year.isna() | (df.country_end_year >= year)) &
-        (df.country_end_year_partner.isna() | (df.country_end_year_partner >= year))
-    ]
-    df = df.drop(columns=['country_start_year', 'country_end_year', 'country_start_year_partner','country_end_year_partner'])
+    for country in ['reporter_iso', 'partner_iso']:
+        df.loc[df[country].isin(["DDR"]), country] = "DEU"
+        df.loc[df[country].isin(["SUN"]), country] = "RUS"
+        df.loc[df[country].isin(["ZA1"]), country] = "ZAF"
+        df.loc[df[country].isin(["ESH"]), country] = "MAR"
+        df.loc[df[country].isin(["PRI", "VIR"]), country] = "USA"
+        df.loc[df[country].isin(["GUF", "MYT", "REU", "MTQ", "GLP"]), country] = "FRA"
+        df.loc[df[country].isin(["VDR"]), country] = "VNM"
+        df.loc[df[country].isin(["YMD"]), country] = "YEM"
+        df.loc[df[country].isin(["ESH"]), country] = "MAR"
+        df.loc[df[country].isin(["PCZ"]), country] = "PAN"
     return df
 
 

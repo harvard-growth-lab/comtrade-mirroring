@@ -50,25 +50,6 @@ class IMFData:
 
     def query_imf_api(self, fields: list, country_codes=[]):
 
-        # fields = "+".join(fields)
-        # if country_codes:
-        #     country_codes = "+".join(country_codes)
-        # else:
-        #     country_codes = ""
-
-        # data_msg = self.IMF_DATA.data('WEO', key=f'{country_codes}.{fields}')
-        # df = sdmx.to_pandas(data_msg).reset_index()
-
-        # df = df[~df.TIME_PERIOD.isna()]
-
-        # df = df.rename(columns={
-        #     'TIME_PERIOD': 'year',
-        #     'COUNTRY': 'iso3_code',
-        #     'INDICATOR': 'indicator',
-        #     'VALUE': 'value'
-        # }).astype({"indicator": str, "iso3_code": str, "year": int, "value": float})
-
-
 
         fields = "/".join(fields)
         if country_codes:

@@ -13,7 +13,6 @@ from mirror.src.objects.base import AtlasCleaning
 from mirror.src.utils.handle_iso_codes_recoding import (
     handle_ans_and_other_asia_to_taiwan_recoding,
     standardize_historical_country_codes,
-    enforce_country_start_end_years,
 )
 
 
@@ -93,8 +92,6 @@ class AggregateTrade(AtlasCleaning):
         self.flag_unspecified_products()
         loc_classification = atlas_common_data.load_countries()
         self.df = standardize_historical_country_codes(self.df)
-        self.df = enforce_country_start_end_years(self.df, loc_classification, self.year)
-
         
         # returns bilateral data
         df_0 = self.create_bilateral_trade_matrix(0)

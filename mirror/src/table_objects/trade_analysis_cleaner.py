@@ -1,11 +1,10 @@
 import pandas as pd
 from mirror.src.objects.base import AtlasCleaning
-from mirror.src.utils.api_handler import IMFData, WDIData
+import atlas_common_data
 import os
 from pathlib import Path
 import numpy as np
 import copy
-from fredapi import Fred
 from datetime import datetime
 from mirror.src.utils.logging import get_logger
 import time
@@ -110,30 +109,8 @@ class TradeAnalysisCleaner(AtlasCleaning):
         """
         # https://fred.stlouisfed.org/series/PPIIDC
         # Producer Price Index by Commodity: Industrial Commodities
-        fred = Fred(self.fred_api_key)
-
-        for attempt in range(3):
-            try:
-                ppiidc_series = fred.get_series_latest_release(self.FRED_SERIES_ID)
-                break
-            except Exception as e:
-                if attempt < 2:
-                    time.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
-                else:
-                    raise ValueError(f"Failed to fetch FRED series {self.FRED_SERIES_ID}: {e}")
-
-        df = pd.DataFrame(
-            {"date": ppiidc_series.index, "ppiidc_index": ppiidc_series.values}
-        )
-
-        # use December (12) index
-        df = df[df["date"].dt.month == self.FRED_INDEX_MONTH]
-        df["year"] = df["date"].dt.year
-        base = df.loc[df["date"].dt.year == self.latest_data_year, "ppiidc_index"].iloc[
-            0
-        ]
-        df["base_year"] = self.latest_data_year
-        df["deflator"] = df["ppiidc_index"] / base
+        fred = atlas_common_data.FREDData(self.fred_api_key)
+        df = fred.get_inflation_index(base_year=self.latest_data_year, month=12)
         df = df[["year", "deflator"]]
         return df[df.year >= self.SITC_START_YEAR]
 
@@ -141,13 +118,13 @@ class TradeAnalysisCleaner(AtlasCleaning):
         """
         population and produce price index from FRED (st. louis)
         """
-        wdi_obj = WDIData(self.latest_data_year)
-        wdi_pop = wdi_obj.query_for_wdi_indicators({"SP.POP.TOTL": "population"})
-        wdi_pop = wdi_pop.rename(columns={"population": "wdi_pop"})
+        wdi_obj = atlas_common_data.WDIData(self.latest_data_year)
+        wdi_pop = wdi_obj.get_indicators({"SP.POP.TOTL": "population"})
+        wdi_pop = wdi_pop.rename(columns={"population": "wdi_pop"}).drop(columns='country_id')
 
-        imf_obj = IMFData(self.latest_data_year)
-        imf_pop = imf_obj.query_imf_api(["LP"])
-        imf_pop = imf_pop.rename(columns={"population": "imf_pop"})
+        imf_obj = atlas_common_data.IMFData()
+        imf_pop = imf_obj.get_indicators(indicators=['LP'])
+        imf_pop = imf_pop.rename(columns={"population": "imf_pop"}).drop(columns='country_id')
 
         return imf_pop.merge(wdi_pop, on=["iso3_code", "year"], how="outer")
 
