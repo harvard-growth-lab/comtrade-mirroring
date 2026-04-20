@@ -30,7 +30,7 @@ fredapi = "^0.5.2"
 xlrd = "^2.0.1"
 sdmx1 = "^2.22.0"
 weo = "^0.8.4"
-atlas-common-data = "^1.0.1"
+atlas-common-data = { path = "/n/hausmann_lab/lab/atlas/atlas-common-data", develop = true }
 scikit-learn = "^1.6"
 [build-system]
 requires = ["poetry-core"]

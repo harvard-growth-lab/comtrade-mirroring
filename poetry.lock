@@ -144,23 +144,25 @@ typing_extensions = {version = ">=4.0.0", markers = "python_version < \"3.11\""}
 
 [[package]]
 name = "atlas-common-data"
-version = "1.1.0"
+version = "1.1.1"
 description = "Shared classification data and economic indicator APIs for Growth Lab projects"
 optional = false
-python-versions = "<4.0,>=3.10"
+python-versions = "^3.10"
 groups = ["main"]
-files = [
-    {file = "atlas_common_data-1.1.0-py3-none-any.whl", hash = "sha256:3a3f7d952e2b27eb989995174260422f4f58d39317e74017a8671b4e01e32cd8"},
-    {file = "atlas_common_data-1.1.0.tar.gz", hash = "sha256:a4595057cbb4d4e723d6eadd8b932f83afbb7569f98ffd85c0719fc7d84df57f"},
-]
+files = []
+develop = true
 
 [package.dependencies]
-fred = ">=3.1,<4.0"
-fredapi = ">=0.5.2,<0.6.0"
-openpyxl = ">=3.1.5,<4.0.0"
-pandas = ">=2.2.3,<3.0.0"
-requests = ">=2.32.3,<3.0.0"
-xlrd = ">=2.0.2,<3.0.0"
+fred = "^3.1"
+fredapi = "^0.5.2"
+openpyxl = "^3.1.5"
+pandas = "^2.2.3"
+requests = "^2.32.3"
+xlrd = "^2.0.2"
+
+[package.source]
+type = "directory"
+url = "../../atlas-common-data"
 
 [[package]]
 name = "attrs"
@@ -4475,4 +4477,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "7bcadf90fb21cb335a65cef62f9f1cda5215442a11a7e40c248267b79ad3fca8"
+content-hash = "2382320f1a44b1648c7b0a2b99e891123d20d7ea257af0372779f11f86c82730"
