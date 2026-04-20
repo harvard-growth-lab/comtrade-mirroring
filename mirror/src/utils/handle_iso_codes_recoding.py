@@ -29,6 +29,16 @@ def standardize_historical_country_codes(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[df[country].isin(["PCZ"]), country] = "PAN"
     return df
 
+def drop_country_trade(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Drop trade for:
+        - IOT (British Indian Ocean Territory)
+        - UMI (United States Minor Outlying Islands)
+        - WLF (Wallis and Futuna)
+    """
+    for country in ['reporter_iso', 'partner_iso']:
+            df = df[~(df[country].isin(["UMI", "IOT", "WLF"]))]
+    return df
 
 def handle_ans_and_other_asia_to_taiwan_recoding(
     df: pd.DataFrame, ans_partners: pd.DataFrame
