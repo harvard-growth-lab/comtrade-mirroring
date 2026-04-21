@@ -38,7 +38,7 @@ def include_country_set(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("wrong number of countries, update atlas common data")
     df = df.merge(countries['iso3_code'], left_on='reporter_iso',right_on='iso3_code',how='right')
     df = df.merge(countries['iso3_code'], left_on='partner_iso',right_on='iso3_code',how='right')
-    if df.reporter_iso.nunique() <= 234 and df.partner_iso.nunique() <= 234:
+    if df.reporter_iso.nunique() >= 234 and df.partner_iso.nunique() >= 234:
         raise ValueError("wrong number of countries, merge failed")
     return df
 
