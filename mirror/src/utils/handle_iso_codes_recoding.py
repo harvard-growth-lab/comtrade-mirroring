@@ -38,8 +38,8 @@ def include_country_set(df: pd.DataFrame) -> pd.DataFrame:
     countries = pd.concat([countries, wld_row], ignore_index=True)
     if countries.iso3_code.nunique() != 235:
         raise ValueError("wrong number of countries, update atlas common data")
-    df = df.merge(countries['iso3_code'], left_on='reporter_iso',right_on='iso3_code',how='right')
-    df = df.merge(countries['iso3_code'], left_on='partner_iso',right_on='iso3_code',how='right')
+    df = df[df.reporter_iso.isna() | df.reporter_iso.isin(countries['iso3_code'])]
+    df = df[df.partner_iso.isna() | df.partner_iso.isin(countries['iso3_code'])]
     if df.reporter_iso.nunique() >= 235 and df.partner_iso.nunique() >= 235:
         raise ValueError("wrong number of countries, merge failed")
     return df
