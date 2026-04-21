@@ -1,5 +1,6 @@
 import pandas as pd
 from mirror.src.utils.logging import get_logger
+import atlas_common_data
 
 logger = get_logger(__name__)
 
@@ -29,15 +30,16 @@ def standardize_historical_country_codes(df: pd.DataFrame) -> pd.DataFrame:
         df.loc[df[country].isin(["PCZ"]), country] = "PAN"
     return df
 
-def drop_country_trade(df: pd.DataFrame) -> pd.DataFrame:
+def include_country_set(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Drop trade for:
-        - IOT (British Indian Ocean Territory)
-        - UMI (United States Minor Outlying Islands)
-        - WLF (Wallis and Futuna)
     """
-    for country in ['reporter_iso', 'partner_iso']:
-            df = df[~(df[country].isin(["UMI", "IOT", "WLF"]))]
+    countries = atlas_common_data.load_countries()
+    if countries.iso3_code !=234:
+        raise ValueError("wrong number of countries, update atlas common data")
+    df = df.merge(countries['iso3_code'], left_on='reporter_iso',right_on='iso3_code',how='right')
+    df = df.merge(countries['iso3_code'], left_on='partner_iso',right_on='iso3_code',how='right')
+    if df.reporter_iso.nunique() > 234 and df.partner_iso.unique() > 234:
+        raise ValueError("wrong number of countries, merge failed")
     return df
 
 def handle_ans_and_other_asia_to_taiwan_recoding(
