@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 import sys
 import argparse
+import json
+import subprocess
 import pandas as pd
 from datetime import datetime
 
@@ -12,6 +14,7 @@ from mirror.src.objects.orchestration import (
 )
 from mirror.src.utils.logging import setup_logging
 from mirror.src.utils.handle_config import get_data_version, load_config, print_config_summary, validate_config
+from mirror.src.utils.mirror_metadata import write_mirror_metadata
 
 
 def run(config_module):
@@ -101,6 +104,10 @@ def run(config_module):
     logger.info("=" * 60)
     logger.info(f"BILATERAL MIRRORING COMPLETED in {total_duration}")
     logger.info("=" * 60)
+
+    final_output_path = Path(paths["final_output_path"]) / data_version / "mirrored_output"
+    end_year = max(ey for _, _, ey, _ in classifications)
+    write_mirror_metadata(final_output_path, paths["downloaded_files_path"], classifications, end_year)
 
 
 def main():
